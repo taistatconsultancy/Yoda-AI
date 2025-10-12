@@ -4,6 +4,7 @@ User model for authentication and user management
 
 from sqlalchemy import Column, Integer, String, DateTime, Boolean
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from app.database.database import Base
 
 
@@ -31,6 +32,11 @@ class User(Base):
     retrospectives = relationship("Retrospective", back_populates="creator")
     responses = relationship("RetrospectiveResponse", back_populates="user")
     sprint_summaries = relationship("SprintSummary", back_populates="uploader")
+    created_teams = relationship("Team", back_populates="creator")
+    team_memberships = relationship("TeamMember", back_populates="user")
+    chat_sessions = relationship("ChatSession", back_populates="user")
+    assigned_action_items = relationship("ActionItem", foreign_keys="ActionItem.assigned_to", back_populates="assignee")
+    created_action_items = relationship("ActionItem", foreign_keys="ActionItem.assigned_by", back_populates="creator")
     
     def __repr__(self):
         return f"<User(id={self.id}, email='{self.email}', username='{self.username}')>"
