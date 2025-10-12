@@ -32,6 +32,9 @@ class Retrospective(Base):
     # Relationships
     responses = relationship("RetrospectiveResponse", back_populates="retrospective")
     creator = relationship("User", back_populates="retrospectives")
+    team = relationship("Team", back_populates="retrospectives")
+    action_items = relationship("ActionItem", back_populates="retrospective")
+    chat_sessions = relationship("ChatSession", back_populates="retrospective")
     
     def __repr__(self):
         return f"<Retrospective(id={self.id}, title='{self.title}', status='{self.status}')>"

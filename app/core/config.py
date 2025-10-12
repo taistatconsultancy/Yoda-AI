@@ -10,14 +10,17 @@ class Settings(BaseSettings):
     """Application settings"""
     
     # Database
-    DATABASE_URL: str
+    DATABASE_URL: str = "sqlite:///./yodaai.db"
     NEON_DATABASE_URL: Optional[str] = None
     
     # OpenAI
-    OPENAI_API_KEY: str
+    OPENAI_API_KEY: str = "sk-demo-key-for-development"
+    
+    # Gemini
+    GEMINI_API_KEY: Optional[str] = None
     
     # Authentication
-    SECRET_KEY: str
+    SECRET_KEY: str = "test-secret-key-for-development"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
