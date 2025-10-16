@@ -38,6 +38,11 @@ class Settings(BaseSettings):
     # Application
     DEBUG: bool = True
     ENVIRONMENT: str = "development"
+
+    # Chroma (optional retrieval settings)
+    CHROMA_API_KEY: Optional[str] = None
+    CHROMA_TENANT: Optional[str] = None
+    CHROMA_COLLECTION: Optional[str] = "thematic_embeddings"
     
     class Config:
         env_file = ".env"

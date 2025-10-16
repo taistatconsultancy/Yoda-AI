@@ -397,6 +397,11 @@
             font-weight: 700;
             color: #667eea;
         }
+        /* Thematic edit styles */
+        .theme-card { position: relative; }
+        .theme-card .drag-handle { display:none; position:absolute; left:-36px; top:12px; width:28px; height:28px; border-radius:6px; background:rgba(255,255,255,0.06); align-items:center; justify-content:center; cursor:grab; }
+        .theme-card:hover .drag-handle { display:flex; }
+        .theme-title[contenteditable] { outline: none; border-bottom:1px dashed rgba(255,255,255,0.08); padding-bottom:2px; }
 
         .user-info {
             display: flex;
@@ -1003,6 +1008,88 @@
                 </div>
             </div>
 
+            <!-- Visible Upload UI for Action Items (enabled) -->
+            <div id="actionItemUpload" class="content-section">
+                <h3 style="margin-bottom:12px; color: white;">Upload Document for Thematic Analysis</h3>
+                <div class="project-upload" style="text-align:left;">
+                    <div class="upload-area" id="actionUploadArea" onclick="document.getElementById('actionFileInput').click()" style="cursor:pointer;">
+                        <i class="fas fa-file-upload upload-icon"></i>
+                        <p style="color:#ccc; margin-top:8px;">Click or drop a text/markdown file here to upload for thematic analysis.</p>
+                        <input id="actionFileInput" type="file" class="file-input" accept=".txt,.md,.json" />
+                    </div>
+
+                    <div style="display:flex; gap:10px; margin-top:12px;">
+                        <button id="analyzeUploadBtn" class="btn btn-primary" onclick="analyzeUploadedFile()" disabled>Upload & Analyze</button>
+                        <button class="btn btn-outline" onclick="clearActionUpload()">Clear</button>
+                    </div>
+
+                    <pre id="actionUploadResult" style="color:#ccc; margin-top:12px; display:none; white-space:pre-wrap; background: rgba(255,255,255,0.02); padding:12px; border-radius:8px; max-height:300px; overflow:auto;"></pre>
+                </div>
+            </div>
+
+            <!--
+            Thematic Analysis UI Hook (commented out)
+            This block provides a way for users to supply a data upload path (or paste text)
+            and trigger the OpenAI-backed thematic analysis endpoint. It's intentionally
+            commented out until you're ready to enable integration.
+
+            To enable: remove the surrounding comment markers and wire any required auth headers.
+            -->
+            <!--
+            <div id="thematicAnalysisHook" class="content-section">
+                <h2 style="margin-bottom: 20px; color: white;">Run Thematic Analysis</h2>
+
+                <div style="margin-bottom: 12px;">
+                    <label style="color:#ccc; font-weight:600; display:block; margin-bottom:8px;">Data upload path (e.g. gs://bucket/path or local/file.txt)</label>
+                    <input id="dataUploadPath" type="text" class="form-group" placeholder="Enter data upload path or paste text here" style="width:100%; padding:12px 16px; border-radius:8px; border:1px solid rgba(255,255,255,0.08); background:transparent; color:white;" />
+                </div>
+
+                <div style="margin-bottom: 12px;">
+                    <label style="color:#ccc; font-weight:600; display:block; margin-bottom:8px;">Or paste text for analysis</label>
+                    <textarea id="thematicText" rows="6" placeholder="Paste text to analyze..." style="width:100%; padding:12px 16px; border-radius:8px; border:1px solid rgba(255,255,255,0.08); background:transparent; color:white;"></textarea>
+                </div>
+
+                <div style="display:flex; gap:12px;">
+                    <button class="btn btn-primary" onclick="runThematicAnalysisFromUI()">Run Thematic Analysis</button>
+                    <button class="btn btn-outline" onclick="() => { document.getElementById('dataUploadPath').value=''; document.getElementById('thematicText').value=''; }">Clear</button>
+                </div>
+
+                <div id="thematicResult" style="margin-top:16px; color:#ccc;"></div>
+
+                <script>
+                // Commented-out helper: call the server thematic analysis endpoint and show result
+                async function runThematicAnalysisFromUI() {
+                    // const path = document.getElementById('dataUploadPath').value;
+                    const text = document.getElementById('thematicText').value;
+                    if (!text) {
+                        alert('Please provide text or a data path to analyze.');
+                        return;
+                    }
+
+                    // Example fetch to the new thematic-analysis route
+                    try {
+                        const res = await fetch('/api/v1/ai-chat/thematic-analysis', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ text })
+                        });
+
+                        if (!res.ok) {
+                            const err = await res.text();
+                            document.getElementById('thematicResult').innerText = 'Error: ' + err;
+                            return;
+                        }
+
+                        const data = await res.json();
+                        document.getElementById('thematicResult').innerText = JSON.stringify(data.analysis, null, 2);
+                    } catch (e) {
+                        document.getElementById('thematicResult').innerText = 'Request failed: ' + e.message;
+                    }
+                }
+                </script>
+            </div>
+            -->
+
             <!-- Hero Section -->
             <div class="hero">
                 <h1>Your Complete AI-Powered Retrospective Assistant</h1>
@@ -1532,48 +1619,20 @@
 
             <!-- Action Items Section -->
             <div id="actionItemsSection" class="content-section">
-                <h2 style="margin-bottom: 30px; color: white;">Action Items</h2>
-                
-                <div class="action-items">
-                    <div class="action-item">
-                        <div class="priority-badge priority-high">High</div>
-                        <div style="flex: 1;">
-                            <div style="font-weight: 600; margin-bottom: 5px; color: white;">Improve deployment process</div>
-                            <div style="color: #ccc; font-size: 0.9rem;">
-                                Assigned to: Mike Chen | Due: 2024-01-20
-                            </div>
-                        </div>
-                        <button class="btn btn-primary" style="padding: 8px 16px; font-size: 0.9rem;">
-                            <i class="fas fa-check"></i>
-                            Complete
-                        </button>
-                    </div>
-                    <div class="action-item">
-                        <div class="priority-badge priority-medium">Medium</div>
-                        <div style="flex: 1;">
-                            <div style="font-weight: 600; margin-bottom: 5px; color: white;">Set up weekly vendor sync</div>
-                            <div style="color: #ccc; font-size: 0.9rem;">
-                                Assigned to: Sarah Johnson | Due: 2024-01-25
-                            </div>
-                        </div>
-                        <button class="btn btn-primary" style="padding: 8px 16px; font-size: 0.9rem;">
-                            <i class="fas fa-check"></i>
-                            Complete
-                        </button>
-                    </div>
-                    <div class="action-item">
-                        <div class="priority-badge priority-medium">Medium</div>
-                        <div style="flex: 1;">
-                            <div style="font-weight: 600; margin-bottom: 5px; color: white;">Document frontend best practices</div>
-                            <div style="color: #ccc; font-size: 0.9rem;">
-                                Assigned to: Lisa Brown | Due: 2024-01-30
-                            </div>
-                        </div>
-                        <button class="btn btn-primary" style="padding: 8px 16px; font-size: 0.9rem;">
-                            <i class="fas fa-check"></i>
-                            Complete
-                        </button>
-                    </div>
+                <h2 style="margin-bottom: 20px; color: white;">Action Items — Thematic Analysis Upload</h2>
+
+                <div style="margin-bottom:12px; color:#ccc;">Upload a document and we'll run an OpenAI thematic analysis and group detected themes for review.</div>
+
+                <div style="display:flex; gap:12px; align-items:center; margin-bottom:16px;">
+                    <input id="actionFileOnlyInput" type="file" accept=".txt,.md,.json" style="display:inline-block;" />
+                    <button id="actionAnalyzeBtn" class="btn btn-primary" onclick="analyzeActionFile()">Analyze File</button>
+                    <button class="btn btn-outline" onclick="clearActionAnalysis()">Clear</button>
+                </div>
+
+                <div id="actionAnalysisStatus" style="color:#ccc; margin-bottom:12px;"></div>
+
+                <div id="groupedThemesContainer" style="display:block;">
+                    <!-- Themes will be rendered here -->
                 </div>
             </div>
 
@@ -1761,17 +1820,29 @@
             document.querySelectorAll('.content-section').forEach(section => {
                 section.classList.remove('active');
             });
-            
+
             // Remove active class from all nav links
             document.querySelectorAll('.sidebar-nav a').forEach(link => {
                 link.classList.remove('active');
             });
-            
-            // Show selected section
-            document.getElementById(sectionName + 'Section').classList.add('active');
-            
-            // Add active class to selected nav link
-            document.querySelector(`[onclick="showSection('${sectionName}')"]`).classList.add('active');
+
+            // Try to find the section element by a couple of naming conventions
+            let sectionElem = document.getElementById(sectionName + 'Section');
+            if (!sectionElem) {
+                // Convert hyphenated-name to camelCase, e.g. action-items -> actionItems
+                const camel = sectionName.replace(/-([a-z])/g, (m, c) => c.toUpperCase());
+                sectionElem = document.getElementById(camel + 'Section');
+            }
+
+            if (sectionElem) {
+                sectionElem.classList.add('active');
+            } else {
+                console.warn('showSection: could not find section for', sectionName);
+            }
+
+            // Add active class to selected nav link if present
+            const navLink = document.querySelector(`[onclick="showSection('${sectionName}')"]`);
+            if (navLink) navLink.classList.add('active');
         }
 
         // Onboarding functions
@@ -2378,6 +2449,310 @@
                 `Great thinking! This kind of forward-looking feedback is valuable. What would you say is the most important aspect of "${message}"? How might we prioritize this among other potential improvements?`
             ];
             return responses[Math.floor(Math.random() * responses.length)];
+        }
+
+        // -----------------------
+        // Action Items Upload JS
+        // -----------------------
+        const actionFileInput = document.getElementById('actionFileInput');
+        const analyzeUploadBtn = document.getElementById('analyzeUploadBtn');
+        const actionUploadResult = document.getElementById('actionUploadResult');
+
+        if (actionFileInput) {
+            actionFileInput.addEventListener('change', (e) => {
+                if (e.target.files && e.target.files.length > 0) {
+                    analyzeUploadBtn.disabled = false;
+                } else {
+                    analyzeUploadBtn.disabled = true;
+                }
+            });
+        }
+
+        function clearActionUpload() {
+            if (actionFileInput) actionFileInput.value = '';
+            if (analyzeUploadBtn) analyzeUploadBtn.disabled = true;
+            if (actionUploadResult) { actionUploadResult.style.display = 'none'; actionUploadResult.innerText = ''; }
+        }
+
+        async function analyzeUploadedFile() {
+            if (!actionFileInput || !actionFileInput.files || actionFileInput.files.length === 0) {
+                alert('Please select a file to upload for analysis.');
+                return;
+            }
+
+            const file = actionFileInput.files[0];
+            const reader = new FileReader();
+
+            reader.onload = async function(evt) {
+                const text = evt.target.result;
+
+                // Show working state
+                analyzeUploadBtn.disabled = true;
+                analyzeUploadBtn.innerText = 'Analyzing...';
+
+                try {
+                    const res = await fetch('/api/v1/ai-chat/thematic-analysis', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text })
+                    });
+
+                    if (!res.ok) {
+                        const err = await res.text();
+                        actionUploadResult.style.display = 'block';
+                        actionUploadResult.innerText = 'Analysis failed: ' + err;
+                        return;
+                    }
+
+                    const data = await res.json();
+                    actionUploadResult.style.display = 'block';
+                    actionUploadResult.innerText = JSON.stringify(data.analysis, null, 2);
+                } catch (e) {
+                    actionUploadResult.style.display = 'block';
+                    actionUploadResult.innerText = 'Request failed: ' + e.message;
+                } finally {
+                    analyzeUploadBtn.disabled = false;
+                    analyzeUploadBtn.innerText = 'Upload & Analyze';
+                }
+            };
+
+            reader.onerror = function(e) {
+                alert('Failed to read file: ' + e);
+            };
+
+            reader.readAsText(file);
+        }
+
+        // New: analyzeActionFile for Action Items section
+        async function analyzeActionFile() {
+            const input = document.getElementById('actionFileOnlyInput');
+            const status = document.getElementById('actionAnalysisStatus');
+            const container = document.getElementById('groupedThemesContainer');
+
+            if (!input || !input.files || input.files.length === 0) {
+                alert('Please select a file to analyze.');
+                return;
+            }
+
+            const file = input.files[0];
+            status.innerText = 'Analyzing...';
+            container.innerHTML = '';
+
+            try {
+                const form = new FormData();
+                form.append('file', file, file.name);
+                // include optional form fields if needed
+                form.append('session_type', 'retrospective');
+                form.append('current_step', 'liked');
+
+                const res = await fetch('/api/v1/ai-chat/thematic-analysis', {
+                    method: 'POST',
+                    body: form
+                });
+
+                if (!res.ok) {
+                    const err = await res.text();
+                    status.innerText = 'Analysis failed: ' + err;
+                    return;
+                }
+
+                const data = await res.json();
+                status.innerText = 'Analysis complete';
+                renderGroupedThemes(data.analysis);
+            } catch (e) {
+                status.innerText = 'Request failed: ' + e.message;
+            }
+        }
+
+        function clearActionAnalysis() {
+            const input = document.getElementById('actionFileOnlyInput');
+            const status = document.getElementById('actionAnalysisStatus');
+            const container = document.getElementById('groupedThemesContainer');
+            if (input) input.value = '';
+            if (status) status.innerText = '';
+            if (container) container.innerHTML = '';
+        }
+
+        // in-memory editable themes structure
+        let currentThemes = [];
+
+        function renderGroupedThemes(analysis) {
+            const container = document.getElementById('groupedThemesContainer');
+            if (!container) return;
+
+            // analysis.themes expected to be [{theme: 'X', examples: [...]}, ...]
+            const themes = analysis.themes || [];
+            if (themes.length === 0) {
+                container.innerHTML = '<div style="color:#ccc;">No themes were detected.</div>';
+                currentThemes = [];
+                return;
+            }
+
+            // Normalize into array of {name, examples}
+            const grouped = {};
+            themes.forEach(t => {
+                const name = (t.theme || 'Other').trim() || 'Other';
+                if (!grouped[name]) grouped[name] = [];
+                const ex = t.examples || [];
+                grouped[name].push(...ex);
+            });
+
+            currentThemes = Object.keys(grouped).map(k => ({ name: k, examples: grouped[k].slice(0, 100) }));
+
+            // render editable UI
+            const html = currentThemes.map((th, i) => {
+                const examplesHtml = th.examples.map((e, ei) => `
+                    <li draggable="true" data-theme="${i}" data-ex="${ei}" style="margin-bottom:8px;color:#ddd; display:flex; gap:8px; align-items:flex-start;">
+                        <div style="flex:1">${escapeHtml(e)}</div>
+                        <div style="display:flex; gap:6px;">
+                            <button class="btn btn-outline" onclick="deleteExample(${i}, ${ei})" title="Delete example" style="padding:4px 8px;">Delete</button>
+                        </div>
+                    </li>`).join('');
+
+                return `
+                    <div class="dashboard-card theme-card" style="margin-bottom:12px; padding:12px;">
+                        <div class="drag-handle" title="Drag to reorder">☰</div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; gap:8px;">
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <strong id="theme-title-${i}" class="theme-title" contenteditable="true" onblur="saveInlineTitle(${i}, this)" style="color:white;">${escapeHtml(th.name)}</strong>
+                            </div>
+                            <div style="display:flex; gap:8px;">
+                                <button class="btn btn-outline" onclick="addExample(${i})" title="Add example">+Example</button>
+                                <button class="btn btn-outline" onclick="deleteTheme(${i})" title="Delete theme">Delete</button>
+                            </div>
+                        </div>
+                        <ul id="examples-${i}" style="margin:0; padding-left:18px; list-style:decimal;">${examplesHtml}</ul>
+                    </div>
+                `;
+            }).join('');
+
+            // Save / export controls
+            container.innerHTML = `
+                <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:10px;">
+                    <button class="btn btn-primary" onclick="exportThemes()">Export JSON</button>
+                </div>
+                ${html}
+            `;
+            // attach drag handlers and interactive bindings
+            setTimeout(() => enableDragAndDrop(), 0);
+            setTimeout(() => enableExampleDrag(), 0);
+        }
+
+        // Drag & inline-edit helpers (hover drag handle for reordering; inline-edit for title)
+        function enableDragAndDrop() {
+            const container = document.getElementById('groupedThemesContainer');
+            if (!container) return;
+            const cards = container.querySelectorAll('.theme-card');
+            cards.forEach((card, i) => {
+                card.dataset.index = i;
+                card.setAttribute('draggable', 'true');
+                card.addEventListener('dragstart', (e) => {
+                    e.dataTransfer.setData('text/plain', String(i));
+                    card.classList.add('dragging');
+                });
+                card.addEventListener('dragend', () => {
+                    card.classList.remove('dragging');
+                });
+                card.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                });
+                card.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    const from = parseInt(e.dataTransfer.getData('text/plain'), 10);
+                    const to = parseInt(card.dataset.index, 10);
+                    if (isNaN(from) || isNaN(to) || from === to) return;
+                    const item = currentThemes.splice(from, 1)[0];
+                    currentThemes.splice(to, 0, item);
+                    renderGroupedThemes({ themes: currentThemes.map(t => ({ theme: t.name, examples: t.examples })) });
+                });
+            });
+        }
+
+        function saveInlineTitle(index, el) {
+            const val = (el.innerText || '').trim() || 'Other';
+            currentThemes[index].name = val;
+            renderGroupedThemes({ themes: currentThemes.map(t => ({ theme: t.name, examples: t.examples })) });
+        }
+
+        // Example drag-and-drop between theme cards
+        function enableExampleDrag() {
+            const container = document.getElementById('groupedThemesContainer');
+            if (!container) return;
+            const items = container.querySelectorAll('li[draggable="true"]');
+            items.forEach(item => {
+                item.addEventListener('dragstart', (e) => {
+                    const ti = item.dataset.theme;
+                    const ei = item.dataset.ex;
+                    e.dataTransfer.setData('text/example', JSON.stringify({ theme: ti, ex: ei }));
+                    item.classList.add('dragging-example');
+                });
+                item.addEventListener('dragend', () => {
+                    item.classList.remove('dragging-example');
+                });
+            });
+
+            // Make each card accept example drops
+            const cards = container.querySelectorAll('.theme-card');
+            cards.forEach((card, cardIndex) => {
+                card.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                });
+                card.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    try {
+                        const raw = e.dataTransfer.getData('text/example');
+                        if (!raw) return;
+                        const parsed = JSON.parse(raw);
+                        const fromTheme = parseInt(parsed.theme, 10);
+                        const exIndex = parseInt(parsed.ex, 10);
+                        if (isNaN(fromTheme) || isNaN(exIndex)) return;
+                        // remove from old
+                        const item = currentThemes[fromTheme].examples.splice(exIndex, 1)[0];
+                        // insert into target at start
+                        currentThemes[cardIndex].examples.unshift(item);
+                        renderGroupedThemes({ themes: currentThemes.map(t => ({ theme: t.name, examples: t.examples })) });
+                    } catch (err) {
+                        // ignore
+                    }
+                });
+            });
+        }
+
+        function addExample(index) {
+            const txt = prompt('Enter example text');
+            if (!txt) return;
+            currentThemes[index].examples.unshift(txt);
+            renderGroupedThemes({ themes: currentThemes.map(t => ({ theme: t.name, examples: t.examples })) });
+        }
+
+        function deleteTheme(index) {
+            if (!confirm('Delete this theme and its examples?')) return;
+            currentThemes.splice(index, 1);
+            renderGroupedThemes({ themes: currentThemes.map(t => ({ theme: t.name, examples: t.examples })) });
+        }
+
+        function deleteExample(themeIndex, exIndex) {
+            if (!confirm('Delete this example?')) return;
+            currentThemes[themeIndex].examples.splice(exIndex, 1);
+            renderGroupedThemes({ themes: currentThemes.map(t => ({ theme: t.name, examples: t.examples })) });
+        }
+
+        function moveExample(themeIndex, exIndex, selectElem) {
+            const targetIndex = parseInt(selectElem.value, 10);
+            if (isNaN(targetIndex) || targetIndex === themeIndex) return;
+            const item = currentThemes[themeIndex].examples.splice(exIndex, 1)[0];
+            currentThemes[targetIndex].examples.unshift(item);
+            renderGroupedThemes({ themes: currentThemes.map(t => ({ theme: t.name, examples: t.examples })) });
+        }
+
+        function exportThemes() {
+            const payload = { themes: currentThemes.map(t => ({ theme: t.name, examples: t.examples })) };
+            const w = window.open('', '_blank');
+            w.document.write('<pre>' + escapeHtml(JSON.stringify(payload, null, 2)) + '</pre>');
+        }
+
+        function escapeHtml(s) {
+            return String(s).replace(/[&<>"']/g, function(m) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[m]; });
         }
 
         function moveToNextStep() {

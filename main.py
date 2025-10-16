@@ -11,7 +11,7 @@ import uvicorn
 from contextlib import asynccontextmanager
 
 from app.core.config import settings
-from app.api.routes import auth, retrospectives, uploads, teams, action_items, ai_chat, google_auth, pdf_analysis
+from app.api.routes import auth, retrospectives, uploads, teams, action_items, ai_chat, google_auth, pdf_analysis, ai_chat_openai
 from app.database.database import init_db
 
 
@@ -51,6 +51,8 @@ app.include_router(uploads.router, prefix="/api/v1/uploads", tags=["uploads"])
 app.include_router(teams.router, prefix="/api/v1/teams", tags=["teams"])
 app.include_router(action_items.router, prefix="/api/v1/action-items", tags=["action-items"])
 app.include_router(ai_chat.router, prefix="/api/v1/ai-chat", tags=["ai-chat"])
+# include OpenAI-backed thematic analysis routes (same prefix)
+app.include_router(ai_chat_openai.router, prefix="/api/v1/ai-chat", tags=["ai-chat-openai"])
 app.include_router(pdf_analysis.router, prefix="/api/v1/pdf", tags=["pdf-analysis"])
 
 # Mount static UI under /ui
