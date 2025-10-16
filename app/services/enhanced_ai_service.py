@@ -15,11 +15,29 @@ class EnhancedAIService:
     """Enhanced AI service using Gemini for content filtering and PDF reference"""
     
     def __init__(self):
-        if not settings.GEMINI_API_KEY:
-            raise ValueError("GEMINI_API_KEY is required for enhanced AI service")
-        
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        self.model = genai.GenerativeModel('gemini-pro')
+        # Prefer GEMINI_API_KEY from settings, but also accept GOOGLE_API_KEY or GEMINI_API_KEY in env
+        gemini_key = settings.GEMINI_API_KEY or os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+        self.model = None
+
+        if not gemini_key:
+            # Don't raise here; allow the application to run and fallback to local generators
+            print("Warning: No Gemini API key found (GEMINI_API_KEY or GOOGLE_API_KEY). Enhanced AI features will be disabled until a key is provided.")
+        else:
+            try:
+                genai.configure(api_key=gemini_key)
+                # Try a few likely model ids; SDKs/regions may expose different names
+                tried_models = ['gemini-2.5-pro', 'gemini-pro', 'gemini-1.0', 'text-bison-001']
+                for m in tried_models:
+                    try:
+                        self.model = genai.GenerativeModel(m)
+                        break
+                    except Exception:
+                        self.model = None
+
+                if not self.model:
+                    print("Warning: No Gemini model could be initialized. Enhanced AI features will be limited.")
+            except Exception as e:
+                print(f"Warning: Failed to configure Gemini client: {e}")
         
         # Load discipline reference
         self.discipline_reference = self._load_discipline_reference()
@@ -72,12 +90,42 @@ class EnhancedAIService:
         }}
         """
         
+        # If model is not available, skip AI filtering and allow content
+        if not self.model:
+            return {
+                "is_appropriate": True,
+                "reason": "No AI model configured, allowing content",
+                "redirect_message": "",
+                "confidence": 0.5
+            }
+
         try:
             response = self.model.generate_content(prompt)
-            # Parse JSON response
+
+            # Try to extract text safely from the response object
+            text = ''
+            if hasattr(response, 'text'):
+                text = response.text
+            elif hasattr(response, 'content'):
+                # some SDKs may use .content
+                text = response.content
+            else:
+                text = str(response)
+
+            # Parse JSON response if possible
             import json
-            result = json.loads(response.text)
-            return result
+            try:
+                result = json.loads(text)
+                return result
+            except Exception as je:
+                # Log the raw response for debugging and fall back
+                print(f"Error parsing JSON from content filter response: {je}. Raw response (truncated): {text[:500]}")
+                return {
+                    "is_appropriate": True,
+                    "reason": "Content filter returned non-JSON, allowing content",
+                    "redirect_message": "",
+                    "confidence": 0.5
+                }
         except Exception as e:
             print(f"Error in content filtering: {e}")
             # Fallback to basic check
@@ -155,15 +203,19 @@ class EnhancedAIService:
         - Maintains a warm, professional tone
         """
         
+        # If model isn't configured, return a fallback response immediately
+        if not self.model:
+            return self._get_fallback_response(current_step)
+
         try:
             response = self.model.generate_content(prompt)
-            
+
             return {
                 "response": response.text,
                 "follow_up_questions": self._generate_follow_up_questions(current_step, user_message),
                 "confidence": 0.9,
                 "metadata": {
-                    "model": "gemini-pro",
+                    "model": getattr(self.model, 'name', 'gemini'),
                     "step": current_step,
                     "project_context_used": bool(project_context),
                     "documents_referenced": bool(uploaded_documents)

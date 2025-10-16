@@ -4,6 +4,7 @@ Application configuration settings
 
 from pydantic_settings import BaseSettings
 from typing import Optional
+import os
 
 
 class Settings(BaseSettings):
@@ -14,10 +15,10 @@ class Settings(BaseSettings):
     NEON_DATABASE_URL: Optional[str] = None
     
     # OpenAI
-    OPENAI_API_KEY: str = "sk-demo-key-for-development"
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY")
     
     # Gemini
-    GEMINI_API_KEY: Optional[str] = None
+    GEMINI_API_KEY: Optional[str] = os.getenv("GEMINI_API_KEY")
     
     # Authentication
     SECRET_KEY: str = "test-secret-key-for-development"

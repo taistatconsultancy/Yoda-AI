@@ -14,9 +14,48 @@ from app.schemas.ai_chat import (
     ChatRequest
 )
 from app.services.ai_chat_service import AIChatService
+from app.services.enhanced_ai_service import EnhancedAIService
+from pydantic import BaseModel
+from typing import Optional, Dict, Any
 from app.api.dependencies.auth import get_current_user
 
 router = APIRouter()
+
+
+class ProxyRequest(BaseModel):
+    message: str
+    current_step: Optional[str] = None
+    chat_history: Optional[list] = None
+    project_context: Optional[str] = None
+
+
+@router.post("/proxy")
+async def proxy_chat(request: ProxyRequest):
+    """Lightweight, unauthenticated proxy endpoint that returns an LLM reply for the frontend.
+
+    Note: This endpoint is intentionally simple for development/demo usage. In production you
+    should protect it with authentication/quotas and validate inputs carefully.
+    """
+    try:
+        ai_service = EnhancedAIService()
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"AI service unavailable: {e}")
+
+    try:
+        resp = await ai_service.generate_retrospective_response(
+            user_message=request.message,
+            current_step=request.current_step or "liked",
+            chat_history=request.chat_history or [],
+            project_context=request.project_context
+        )
+
+        return {
+            "response": resp.get("response", ""),
+            "metadata": resp.get("metadata", {}),
+            "follow_up_questions": resp.get("follow_up_questions", [])
+        }
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error generating AI response: {e}")
 
 
 @router.post("/sessions", response_model=ChatSessionResponse)

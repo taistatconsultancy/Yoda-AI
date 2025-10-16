@@ -11,6 +11,7 @@ from app.models.ai_chat import ChatSession, ChatMessage
 from app.models.retrospective import Retrospective, RetrospectiveResponse
 from app.schemas.ai_chat import ChatSessionCreate, ChatRequest
 from app.services.enhanced_ai_service import EnhancedAIService
+from app.services.firebase_service import FirebaseService
 
 
 class AIChatService:
@@ -19,11 +20,50 @@ class AIChatService:
     def __init__(self, db: Session):
         self.db = db
         self.ai_service = EnhancedAIService()
+        # Initialize Firestore helper for chat-only storage
+        try:
+            self.firebase = FirebaseService()
+        except Exception:
+            self.firebase = None
     
     def create_chat_session(self, session_data: ChatSessionCreate, user_id: int) -> ChatSession:
         """Create a new chat session"""
         session_id = str(uuid.uuid4())
-        
+        # If Firestore is enabled, create session there (chat-only migration)
+        if getattr(self, "firebase", None) and self.firebase.enabled:
+            session_doc = {
+                "session_id": session_id,
+                "retrospective_id": session_data.retrospective_id,
+                "user_id": user_id,
+                "session_type": session_data.session_type,
+                "current_step": session_data.current_step,
+                "context": session_data.context or {},
+                "is_active": True,
+                "created_at": datetime.utcnow().isoformat()
+            }
+            created = self.firebase.create_chat_session(session_id, session_doc)
+            # Save a welcome message in Firestore
+            welcome = {
+                "content": self._get_welcome_message(session_data.session_type, session_data.current_step),
+                "message_type": "ai",
+                "ai_model": "system",
+                "ai_confidence": 100,
+                "created_at": datetime.utcnow().isoformat()
+            }
+            self.firebase.save_message(session_id, welcome)
+
+            # Return a lightweight ChatSession-like object
+            cs = ChatSession(
+                session_id=session_id,
+                retrospective_id=session_data.retrospective_id,
+                user_id=user_id,
+                session_type=session_data.session_type,
+                current_step=session_data.current_step,
+                context=session_data.context
+            )
+            return cs
+
+        # Fallback to SQLAlchemy
         chat_session = ChatSession(
             session_id=session_id,
             retrospective_id=session_data.retrospective_id,
@@ -32,11 +72,11 @@ class AIChatService:
             current_step=session_data.current_step,
             context=session_data.context
         )
-        
+
         self.db.add(chat_session)
         self.db.commit()
         self.db.refresh(chat_session)
-        
+
         # Add welcome message
         welcome_message = ChatMessage(
             session_id=chat_session.id,
@@ -45,10 +85,10 @@ class AIChatService:
             ai_model="gpt-4",
             ai_confidence=100
         )
-        
+
         self.db.add(welcome_message)
         self.db.commit()
-        
+
         return chat_session
     
     def _has_project_context(self, user_id: int, retrospective_id: Optional[int] = None) -> bool:
@@ -127,6 +167,23 @@ class AIChatService:
         retrospective_id: Optional[int] = None
     ) -> List[ChatSession]:
         """Get user's chat sessions"""
+        # If Firestore enabled, get sessions from there
+        if getattr(self, "firebase", None) and self.firebase.enabled:
+            sessions = self.firebase.get_sessions_for_user(user_id)
+            # Convert to ChatSession objects minimally
+            result = []
+            for s in sessions[skip: skip + limit]:
+                cs = ChatSession(
+                    session_id=s.get("session_id") or s.get("id"),
+                    retrospective_id=s.get("retrospective_id"),
+                    user_id=s.get("user_id"),
+                    session_type=s.get("session_type"),
+                    current_step=s.get("current_step"),
+                    context=s.get("context")
+                )
+                result.append(cs)
+            return result
+
         query = self.db.query(ChatSession).filter(ChatSession.user_id == user_id)
         
         if retrospective_id:
@@ -136,6 +193,23 @@ class AIChatService:
     
     def get_chat_session(self, session_id: str, user_id: int) -> Optional[ChatSession]:
         """Get a specific chat session"""
+        # Check Firestore first
+        if getattr(self, "firebase", None) and self.firebase.enabled:
+            s = self.firebase.get_session(session_id)
+            if not s:
+                return None
+            # Ensure user matches
+            if s.get("user_id") != user_id:
+                return None
+            return ChatSession(
+                session_id=s.get("session_id") or s.get("id"),
+                retrospective_id=s.get("retrospective_id"),
+                user_id=s.get("user_id"),
+                session_type=s.get("session_type"),
+                current_step=s.get("current_step"),
+                context=s.get("context")
+            )
+
         return self.db.query(ChatSession).filter(
             and_(
                 ChatSession.session_id == session_id,
@@ -145,6 +219,23 @@ class AIChatService:
     
     def get_chat_messages(self, session_id: str, skip: int = 0, limit: int = 100) -> List[ChatMessage]:
         """Get messages from a chat session"""
+        # If Firestore enabled, fetch messages from Firestore
+        if getattr(self, "firebase", None) and self.firebase.enabled:
+            msgs = self.firebase.get_messages(session_id, limit=limit)
+            result = []
+            for m in msgs[skip: skip + limit]:
+                cm = ChatMessage(
+                    session_id=0,
+                    content=m.get("content"),
+                    message_type=m.get("message_type"),
+                    ai_model=m.get("ai_model"),
+                    ai_confidence=m.get("ai_confidence"),
+                    ai_metadata=m.get("ai_metadata"),
+                    follow_up_questions=m.get("follow_up_questions")
+                )
+                result.append(cm)
+            return result
+
         session = self.db.query(ChatSession).filter(ChatSession.session_id == session_id).first()
         if not session:
             return []
@@ -175,15 +266,23 @@ class AIChatService:
             self.db.refresh(context_message)
             return context_message
         
-        # Save user message
-        user_message = ChatMessage(
-            session_id=session.id,
-            content=message_content,
-            message_type="user"
-        )
-        self.db.add(user_message)
-        self.db.commit()
-        self.db.refresh(user_message)
+        # Save user message (Firestore preferred)
+        if getattr(self, "firebase", None) and self.firebase.enabled:
+            user_msg = {
+                "content": message_content,
+                "message_type": "user",
+                "created_at": datetime.utcnow().isoformat()
+            }
+            self.firebase.save_message(session.session_id, user_msg)
+        else:
+            user_message = ChatMessage(
+                session_id=session.id,
+                content=message_content,
+                message_type="user"
+            )
+            self.db.add(user_message)
+            self.db.commit()
+            self.db.refresh(user_message)
         
         # Get chat history for context
         chat_history = self._get_chat_history(session.id)
@@ -201,7 +300,35 @@ class AIChatService:
             uploaded_documents=uploaded_documents
         )
         
-        # Save AI response
+        # Save AI response (Firestore preferred)
+        ai_msg_payload = {
+            "content": ai_response["response"],
+            "message_type": "ai",
+            "ai_model": ai_response["metadata"].get("model", "gpt-4"),
+            "ai_confidence": ai_response["confidence"],
+            "ai_metadata": ai_response["metadata"],
+            "follow_up_questions": ai_response["follow_up_questions"],
+            "created_at": datetime.utcnow().isoformat()
+        }
+
+        if getattr(self, "firebase", None) and self.firebase.enabled:
+            self.firebase.save_message(session.session_id, ai_msg_payload)
+            # Update session context in Firestore if needed
+            if ai_response["follow_up_questions"]:
+                self.firebase.update_chat_session(session.session_id, {"context.last_follow_up_questions": ai_response["follow_up_questions"]})
+            # Return a lightweight ChatMessage-like object
+            ai_msg = ChatMessage(
+                session_id=0,
+                content=ai_response["response"],
+                message_type="ai",
+                ai_model=ai_response["metadata"].get("model", "gpt-4"),
+                ai_confidence=ai_response["confidence"],
+                ai_metadata=ai_response["metadata"],
+                follow_up_questions=ai_response["follow_up_questions"]
+            )
+            return ai_msg
+
+        # SQLAlchemy path
         ai_message = ChatMessage(
             session_id=session.id,
             content=ai_response["response"],
@@ -227,6 +354,13 @@ class AIChatService:
     
     def end_chat_session(self, session_id: str, user_id: int) -> bool:
         """End a chat session"""
+        # If Firestore enabled, update the session doc
+        if getattr(self, "firebase", None) and self.firebase.enabled:
+            s = self.firebase.get_session(session_id)
+            if not s or s.get("user_id") != user_id:
+                return False
+            return self.firebase.update_chat_session(session_id, {"is_active": False, "ended_at": datetime.utcnow().isoformat()})
+
         session = self.get_chat_session(session_id, user_id)
         if not session:
             return False

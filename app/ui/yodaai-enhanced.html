@@ -1626,6 +1626,8 @@
         let currentOnboardingStep = 1;
         let teamMembers = [];
         let projectDocuments = [];
+    // Prevent concurrent AI requests
+    let awaitingResponse = false;
 
         // Authentication functions
         function showLoginModal() {
@@ -2057,15 +2059,23 @@
         }
 
         function sendMessage() {
+            if (awaitingResponse) return; // ignore extra sends while waiting
+
             const input = document.getElementById('chatInput');
+            const sendBtn = document.querySelector('.send-btn');
             const message = input.value.trim();
-            
+
             if (!message) return;
-            
+
             // Add user message
             addMessageToChat(message, 'user');
             input.value = '';
-            
+
+            // Lock UI while awaiting AI
+            awaitingResponse = true;
+            input.disabled = true;
+            if (sendBtn) sendBtn.disabled = true;
+
             // Process with AI
             processAIResponse(message);
         }
@@ -2087,10 +2097,67 @@
         }
 
         function processAIResponse(userMessage) {
-            // Simulate AI processing with intelligent responses
-            setTimeout(() => {
+            // Try calling backend AI proxy first
+            const payload = {
+                message: userMessage,
+                current_step: currentStep,
+                chat_history: chatHistory
+            };
+
+            const proxyUrl = '/api/v1/ai-chat/proxy';
+
+            // Optimistic UI: show a typing indicator (create whole message element so we can remove it cleanly)
+            const chatMessages = document.getElementById('chatMessages');
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'message ai typing-message';
+            typingDiv.innerHTML = `
+                <div class="message-avatar">🤖</div>
+                <div class="message-content"><i class="typing">YodaAI is thinking...</i></div>
+            `;
+            chatMessages.appendChild(typingDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            fetch(proxyUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(async res => {
+                // Remove typing indicator element
+                const typingEl = document.querySelector('.typing-message');
+                if (typingEl && typingEl.parentNode) typingEl.parentNode.removeChild(typingEl);
+
+                if (!res.ok) throw new Error('AI proxy returned ' + res.status);
+                const data = await res.json();
+                const aiText = data.response || data.reply || 'Sorry, I had trouble responding.';
+
+                addMessageToChat(aiText, 'ai');
+
+                // save to history
+                chatHistory.push({step: currentStep, message: userMessage});
+
+                // Decide whether to move to next step using server guidance or fallback logic
+                if (chatHistory.filter(h => h.step === currentStep).length >= 2 && Math.random() > 0.5) {
+                    moveToNextStep();
+                }
+
+                // release UI lock
+                awaitingResponse = false;
+                const inputEl = document.getElementById('chatInput');
+                const sendBtnEl = document.querySelector('.send-btn');
+                if (inputEl) inputEl.disabled = false;
+                if (sendBtnEl) sendBtnEl.disabled = false;
+            })
+            .catch(err => {
+                // Remove typing indicator element
+                const typingEl = document.querySelector('.typing-message');
+                if (typingEl && typingEl.parentNode) typingEl.parentNode.removeChild(typingEl);
+
+                // Fallback to local generator if proxy fails
+                console.warn('AI proxy failed, falling back to local generator:', err);
                 let aiResponse = '';
-                
                 switch(currentStep) {
                     case 'liked':
                         aiResponse = generateLikedResponse(userMessage);
@@ -2105,17 +2172,21 @@
                         aiResponse = generateLongedResponse(userMessage);
                         break;
                 }
-                
+
                 addMessageToChat(aiResponse, 'ai');
-                
-                // More intelligent step progression based on conversation depth
+
                 chatHistory.push({step: currentStep, message: userMessage});
-                
-                // Move to next step after 2-3 meaningful exchanges
                 if (chatHistory.filter(h => h.step === currentStep).length >= 2 && Math.random() > 0.6) {
                     moveToNextStep();
                 }
-            }, 800 + Math.random() * 400); // Variable response time for more natural feel
+
+                // release UI lock on error path as well
+                awaitingResponse = false;
+                const inputEl = document.getElementById('chatInput');
+                const sendBtnEl = document.querySelector('.send-btn');
+                if (inputEl) inputEl.disabled = false;
+                if (sendBtnEl) sendBtnEl.disabled = false;
+            });
         }
 
         function generateLikedResponse(message) {
