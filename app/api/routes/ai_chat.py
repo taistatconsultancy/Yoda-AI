@@ -3,6 +3,9 @@ AI chat routes for retrospective assistance
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
+import asyncio
+import json
 from sqlalchemy.orm import Session
 from typing import List
 from app.database.database import get_db
@@ -54,6 +57,50 @@ async def proxy_chat(request: ProxyRequest):
             "metadata": resp.get("metadata", {}),
             "follow_up_questions": resp.get("follow_up_questions", [])
         }
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error generating AI response: {e}")
+
+
+@router.post("/proxy/stream")
+async def proxy_chat_stream(request: ProxyRequest):
+    """Stream the AI reply as a typing effect using Server-Sent Events (SSE).
+
+    This endpoint returns 'text/event-stream' SSE where each event's data is a
+    small chunk of the final AI response. The frontend can consume this with
+    EventSource and append the chunks to render a typing animation.
+    """
+    try:
+        ai_service = EnhancedAIService()
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"AI service unavailable: {e}")
+
+    try:
+        resp = await ai_service.generate_retrospective_response(
+            user_message=request.message,
+            current_step=request.current_step or "liked",
+            chat_history=request.chat_history or [],
+            project_context=request.project_context
+        )
+
+        text = resp.get("response", "") or ""
+
+        # Choose chunk size for streaming. 1 = letter-by-letter, >1 groups letters.
+        chunk_size = 4
+
+        async def event_stream():
+            # Stream the response in small chunks as SSE 'data' messages
+            for i in range(0, len(text), chunk_size):
+                chunk = text[i : i + chunk_size]
+                # SSE data frame
+                yield f"data: {chunk}\n\n"
+                # Small pause to simulate typing
+                await asyncio.sleep(0.03)
+
+            # Signal end of stream with a final event
+            yield "event: end\ndata: \n\n"
+
+        return StreamingResponse(event_stream(), media_type="text/event-stream")
+
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error generating AI response: {e}")
 
