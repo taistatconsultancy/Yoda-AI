@@ -5,6 +5,10 @@ Application configuration settings
 from pydantic_settings import BaseSettings
 from typing import Optional
 import os
+from dotenv import load_dotenv
+
+# Ensure .env is loaded early so BaseSettings reads environment variables correctly
+load_dotenv()
 
 
 class Settings(BaseSettings):
@@ -43,6 +47,18 @@ class Settings(BaseSettings):
     CHROMA_API_KEY: Optional[str] = None
     CHROMA_TENANT: Optional[str] = None
     CHROMA_COLLECTION: Optional[str] = "thematic_embeddings"
+
+    # Hugging Face Inference
+    HUGGINGFACE_API_KEY: Optional[str] = None
+    # HF_TOKEN is a common env name used by examples; include here so BaseSettings loads it from .env
+    HF_TOKEN: Optional[str] = None
+    HUGGINGFACE_MODEL: Optional[str] = None
+    # Hugging Face generation tuning
+    HUGGINGFACE_TEMPERATURE: float = 0.3
+    HUGGINGFACE_MAX_TOKENS: int = 150
+    # Optional post-generation grammar correction (uses HF model or same model)
+    HUGGINGFACE_ENABLE_POSTCORRECT: bool = False
+    HUGGINGFACE_GRAMMAR_MODEL: Optional[str] = None
     
     class Config:
         env_file = ".env"

@@ -2188,76 +2188,112 @@
             chatMessages.appendChild(typingDiv);
             chatMessages.scrollTop = chatMessages.scrollHeight;
 
-            fetch(proxyUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(payload)
-            })
-            .then(async res => {
-                // Remove typing indicator element
-                const typingEl = document.querySelector('.typing-message');
-                if (typingEl && typingEl.parentNode) typingEl.parentNode.removeChild(typingEl);
+            (async () => {
+                const streamUrl = '/api/v1/ai-chat/proxy/stream';
+                try {
+                    const res = await fetch(streamUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
 
-                if (!res.ok) throw new Error('AI proxy returned ' + res.status);
-                const data = await res.json();
-                const aiText = data.response || data.reply || 'Sorry, I had trouble responding.';
+                    // If stream request failed, throw to trigger fallback
+                    if (!res.ok) throw new Error('AI stream proxy returned ' + res.status);
 
-                addMessageToChat(aiText, 'ai');
+                    // Prepare to read the response body as a stream
+                    const reader = res.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = '';
 
-                // save to history
-                chatHistory.push({step: currentStep, message: userMessage});
+                    // Replace typing placeholder with empty content area to receive chunks
+                    const contentEl = typingDiv.querySelector('.message-content');
+                    if (contentEl) contentEl.innerHTML = '';
 
-                // Decide whether to move to next step using server guidance or fallback logic
-                if (chatHistory.filter(h => h.step === currentStep).length >= 2 && Math.random() > 0.5) {
-                    moveToNextStep();
+                    // Read loop
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done) break;
+                        buffer += decoder.decode(value, { stream: true });
+
+                        // SSE-like messages are separated by double newline
+                        const parts = buffer.split('\n\n');
+                        buffer = parts.pop(); // keep the last partial
+
+                        for (const part of parts) {
+                            const lines = part.split('\n');
+                            const eventLine = lines.find(l => l.startsWith('event:'));
+                            if (eventLine && eventLine.includes('end')) {
+                                // end signal
+                                break;
+                            }
+                            const dataLine = lines.find(l => l.startsWith('data:'));
+                            if (dataLine) {
+                                const chunk = dataLine.replace(/^data:\s*/, '');
+                                if (contentEl) {
+                                    contentEl.textContent += chunk;
+                                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                                }
+                            }
+                        }
+                    }
+
+                    // Flush any remaining buffer (if it contains a data: line)
+                    if (buffer) {
+                        const dataMatch = buffer.match(/data:\s*(.*)/s);
+                        if (dataMatch && dataMatch[1]) {
+                            if (contentEl) contentEl.textContent += dataMatch[1];
+                        }
+                    }
+
+                    // Finalize typing message into a normal AI message
+                    typingDiv.className = 'message ai';
+
+                    // save to history
+                    chatHistory.push({step: currentStep, message: userMessage});
+
+                    // Decide whether to move to next step
+                    if (chatHistory.filter(h => h.step === currentStep).length >= 2 && Math.random() > 0.5) {
+                        moveToNextStep();
+                    }
+
+                } catch (err) {
+                    // Remove typing indicator element
+                    const typingEl = document.querySelector('.typing-message');
+                    if (typingEl && typingEl.parentNode) typingEl.parentNode.removeChild(typingEl);
+
+                    // Fallback to local generator if proxy fails
+                    console.warn('AI proxy failed, falling back to local generator:', err);
+                    let aiResponse = '';
+                    switch(currentStep) {
+                        case 'liked':
+                            aiResponse = generateLikedResponse(userMessage);
+                            break;
+                        case 'learned':
+                            aiResponse = generateLearnedResponse(userMessage);
+                            break;
+                        case 'lacked':
+                            aiResponse = generateLackedResponse(userMessage);
+                            break;
+                        case 'longed':
+                            aiResponse = generateLongedResponse(userMessage);
+                            break;
+                    }
+
+                    addMessageToChat(aiResponse, 'ai');
+
+                    chatHistory.push({step: currentStep, message: userMessage});
+                    if (chatHistory.filter(h => h.step === currentStep).length >= 2 && Math.random() > 0.6) {
+                        moveToNextStep();
+                    }
+                } finally {
+                    // release UI lock in both success and error paths
+                    awaitingResponse = false;
+                    const inputEl = document.getElementById('chatInput');
+                    const sendBtnEl = document.querySelector('.send-btn');
+                    if (inputEl) inputEl.disabled = false;
+                    if (sendBtnEl) sendBtnEl.disabled = false;
                 }
-
-                // release UI lock
-                awaitingResponse = false;
-                const inputEl = document.getElementById('chatInput');
-                const sendBtnEl = document.querySelector('.send-btn');
-                if (inputEl) inputEl.disabled = false;
-                if (sendBtnEl) sendBtnEl.disabled = false;
-            })
-            .catch(err => {
-                // Remove typing indicator element
-                const typingEl = document.querySelector('.typing-message');
-                if (typingEl && typingEl.parentNode) typingEl.parentNode.removeChild(typingEl);
-
-                // Fallback to local generator if proxy fails
-                console.warn('AI proxy failed, falling back to local generator:', err);
-                let aiResponse = '';
-                switch(currentStep) {
-                    case 'liked':
-                        aiResponse = generateLikedResponse(userMessage);
-                        break;
-                    case 'learned':
-                        aiResponse = generateLearnedResponse(userMessage);
-                        break;
-                    case 'lacked':
-                        aiResponse = generateLackedResponse(userMessage);
-                        break;
-                    case 'longed':
-                        aiResponse = generateLongedResponse(userMessage);
-                        break;
-                }
-
-                addMessageToChat(aiResponse, 'ai');
-
-                chatHistory.push({step: currentStep, message: userMessage});
-                if (chatHistory.filter(h => h.step === currentStep).length >= 2 && Math.random() > 0.6) {
-                    moveToNextStep();
-                }
-
-                // release UI lock on error path as well
-                awaitingResponse = false;
-                const inputEl = document.getElementById('chatInput');
-                const sendBtnEl = document.querySelector('.send-btn');
-                if (inputEl) inputEl.disabled = false;
-                if (sendBtnEl) sendBtnEl.disabled = false;
-            });
+            })();
         }
 
         function generateLikedResponse(message) {
@@ -2795,3 +2831,62 @@
     </script>
 </body>
 </html>
+
+<script>
+// Example: consume the SSE typing stream from /api/v1/ai-chat/proxy/stream
+// and append characters to the response container.
+async function streamRetrospectiveReply(message, containerId = 'ai-reply') {
+    const url = '/api/v1/ai-chat/proxy/stream';
+
+    // Make a POST to create the streaming response. We use fetch to open
+    // the request, then consume the body as text by reading the stream.
+    const body = JSON.stringify({ message, current_step: 'liked', chat_history: [] });
+
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body
+    });
+
+    if (!res.ok) {
+        console.error('Stream request failed', await res.text());
+        return;
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    const container = document.getElementById(containerId) || document.createElement('div');
+    container.textContent = '';
+
+    // Read the stream chunk by chunk and extract SSE data frames
+    let finished = false;
+    let buffer = '';
+    while (!finished) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        // SSE messages are separated by double newlines
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop(); // keep the last partial part
+
+        for (const part of parts) {
+            // Each part may contain lines like 'data: ...' or 'event: end'
+            const lines = part.split('\n');
+            let dataLine = lines.find(l => l.startsWith('data:'));
+            const eventLine = lines.find(l => l.startsWith('event:'));
+            if (eventLine && eventLine.includes('end')) {
+                finished = true;
+                break;
+            }
+            if (dataLine) {
+                const chunk = dataLine.replace(/^data:\s*/, '');
+                // Append the chunk to the container to create typing effect
+                container.textContent += chunk;
+            }
+        }
+    }
+}
+
+// Usage (for demo purposes): call streamRetrospectiveReply('Tell me about the sprint')
+</script>
