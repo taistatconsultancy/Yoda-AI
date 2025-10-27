@@ -29,6 +29,7 @@ class Team(Base):
     # Relationships
     members = relationship("TeamMember", back_populates="team")
     retrospectives = relationship("Retrospective", back_populates="team")
+    action_items = relationship("ActionItem", back_populates="team")
     creator = relationship("User", back_populates="created_teams")
     
     def __repr__(self):

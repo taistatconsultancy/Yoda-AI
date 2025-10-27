@@ -1,7 +1,45 @@
-# Database models
+"""
+Database models - Updated for MVP
+"""
+
+# Core models
 from .user import User
-from .retrospective import Retrospective, RetrospectiveResponse
-from .sprint_summary import SprintSummary
-from .team import Team, TeamMember
-from .action_item import ActionItem, PriorityLevel, ActionItemStatus
-from .ai_chat import ChatSession, ChatMessage
+from .email_verification import EmailVerificationToken
+from .workspace import Workspace, WorkspaceMember, WorkspaceInvitation
+from .retrospective_new import (
+    Retrospective,
+    RetrospectiveParticipant,
+    ChatSession,
+    ChatMessage,
+    RetrospectiveResponse,
+    ThemeGroup,
+    VotingSession,
+    VoteAllocation,
+    DiscussionTopic,
+    DiscussionMessage
+)
+from .action_item import ActionItem
+from .onboarding import UserOnboarding, ScheduledRetrospective, TeamPreparation, AutomatedReminder
+
+__all__ = [
+    "User",
+    "EmailVerificationToken",
+    "Workspace",
+    "WorkspaceMember",
+    "WorkspaceInvitation",
+    "Retrospective",
+    "RetrospectiveParticipant",
+    "ChatSession",
+    "ChatMessage",
+    "RetrospectiveResponse",
+    "ThemeGroup",
+    "VotingSession",
+    "VoteAllocation",
+    "DiscussionTopic",
+    "DiscussionMessage",
+    "ActionItem",
+    "UserOnboarding",
+    "ScheduledRetrospective",
+    "TeamPreparation",
+    "AutomatedReminder"
+]

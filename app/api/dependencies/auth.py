@@ -12,52 +12,50 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.database.database import get_db
 from app.models.user import User
-from app.services.firebase_auth import verify_firebase_token
 
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/user-auth/login")
 
 
 def get_current_user(
     db: Session = Depends(get_db),
     token: str = Depends(oauth2_scheme),
 ) -> User:
-    """Resolve the current authenticated user from a Bearer token."""
+    """Resolve the current authenticated user from JWT Bearer token."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
+        detail="Session expired. Please refresh the page and log in again.",
         headers={"WWW-Authenticate": "Bearer"},
     )
     
     try:
-        # Try Firebase verification first
-        decoded = verify_firebase_token(token)
-        email: Optional[str] = decoded.get("email")
-        if email is None:
+        # Decode JWT token
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        user_id: str = payload.get("sub")
+        
+        if user_id is None:
             raise credentials_exception
-        # Upsert user record based on Firebase UID/email
-        user = db.query(User).filter(User.email == email).first()
-        if not user:
-            user = User(
-                email=email,
-                username=decoded.get("uid") or email.split("@")[0],
-                full_name=decoded.get("name"),
-                provider="firebase",
-                provider_id=decoded.get("uid"),
-                is_verified=decoded.get("email_verified", False),
-            )
-            db.add(user)
-            db.commit()
-            db.refresh(user)
+        
+        # Get user from database
+        user = db.query(User).filter(User.id == int(user_id)).first()
+        
         if user is None:
             raise credentials_exception
+        
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User account is inactive"
+            )
+        
         return user
-    except Exception:
-        # For demo purposes, return a demo user if Firebase fails
-        # In production, you'd implement proper JWT token validation
-        demo_user = db.query(User).filter(User.email == "demo@yodaai.com").first()
-        if demo_user:
-            return demo_user
+        
+    except JWTError:
+        raise credentials_exception
+    except ValueError:
+        raise credentials_exception
+    except Exception as e:
+        print(f"Auth error: {e}")
         raise credentials_exception
 
 

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 from app.database.database import get_db
-from app.models.retrospective import Retrospective, RetrospectiveResponse
+from app.models.retrospective_new import Retrospective, RetrospectiveResponse
 from app.schemas.retrospective import (
     RetrospectiveCreate, 
     RetrospectiveResponse as RetrospectiveResponseSchema,

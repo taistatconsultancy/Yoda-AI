@@ -1,0 +1,3172 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta content="width=device-width, initial-scale=1.0" name="viewport">
+  <title>YodaAI - AI-Powered Retrospective Assistant</title>
+  <meta content="Transform your agile retrospectives with AI-powered facilitation. YodaAI guides teams through structured 4Ls retrospectives." name="description">
+  <meta content="retrospective, agile, scrum, AI, 4Ls, team management" name="keywords">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css?family=Open+Sans:300,300i,400,400i,600,600i,700,700i|Nunito:300,300i,400,400i,600,600i,700,700i|Poppins:300,300i,400,400i,500,500i,600,600i,700,700i" rel="stylesheet">
+
+  <!-- Vendor CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+  
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-auth-compat.js"></script>
+  
+  <style>
+    :root {
+      --primary-color: #4154f1;
+      --secondary-color: #717ff5;
+      --dark-color: #012970;
+      --light-color: #f6f9ff;
+      --gray-color: #899bbd;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: "Open Sans", sans-serif;
+      color: #444444;
+    }
+
+    a {
+      color: var(--primary-color);
+      text-decoration: none;
+    }
+
+    a:hover {
+      color: var(--secondary-color);
+    }
+
+    h1, h2, h3, h4, h5, h6 {
+      font-family: "Nunito", sans-serif;
+    }
+
+    /* ==================== LANDING PAGE ==================== */
+    .landing-page {
+      display: block;
+    }
+
+    .header {
+      background: #fff;
+      transition: all 0.5s;
+      z-index: 997;
+      padding: 15px 0;
+      box-shadow: 0px 2px 20px rgba(1, 41, 112, 0.1);
+    }
+
+    .header .logo {
+      font-size: 30px;
+      margin: 0;
+      padding: 0;
+      line-height: 1;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      font-family: "Nunito", sans-serif;
+    }
+
+    .header .logo span {
+      color: var(--primary-color);
+    }
+
+    .navbar {
+      padding: 0;
+    }
+
+    .navbar .getstarted {
+      background: var(--primary-color);
+      padding: 8px 20px;
+      margin-left: 30px;
+      border-radius: 4px;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .navbar .getstarted:hover {
+      background: var(--secondary-color);
+    }
+
+    .hero {
+      width: 100%;
+      height: 100vh;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      position: relative;
+    }
+
+    .hero::before {
+      content: "";
+      background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320"><path fill="%23ffffff" fill-opacity="0.1" d="M0,96L48,112C96,128,192,160,288,160C384,160,480,128,576,112C672,96,768,96,864,112C960,128,1056,160,1152,160C1248,160,1344,128,1392,112L1440,96L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path></svg>');
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-size: cover;
+    }
+
+    .hero h1 {
+      margin: 0;
+      font-size: 48px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .hero h2 {
+      color: rgba(255, 255, 255, 0.9);
+      margin: 15px 0 0 0;
+      font-size: 24px;
+    }
+
+    .hero .btn-get-started {
+      margin-top: 30px;
+      line-height: 0;
+      padding: 15px 40px;
+      border-radius: 4px;
+      transition: 0.5s;
+      color: #fff;
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .hero .btn-get-started:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .features {
+      background: #fff;
+      padding: 80px 0;
+    }
+
+    .section-header {
+      text-align: center;
+      padding-bottom: 40px;
+    }
+
+    .section-header h2 {
+      font-size: 13px;
+      letter-spacing: 1px;
+      font-weight: 700;
+      color: var(--primary-color);
+      text-transform: uppercase;
+    }
+
+    .section-header p {
+      margin: 10px 0 0 0;
+      font-size: 38px;
+      font-weight: 700;
+      color: var(--dark-color);
+    }
+
+    .feature-box {
+      padding: 30px;
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0px 0 25px 0 rgba(0, 0, 0, 0.1);
+      transition: 0.3s;
+      height: 100%;
+    }
+
+    .feature-box:hover {
+      transform: translateY(-10px);
+      box-shadow: 0px 0 30px 0 rgba(1, 41, 112, 0.15);
+    }
+
+    .feature-box i {
+      font-size: 48px;
+      color: var(--primary-color);
+      margin-bottom: 20px;
+      display: block;
+    }
+
+    .feature-box h3 {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 15px;
+      color: var(--dark-color);
+    }
+
+    .values {
+      background: var(--light-color);
+      padding: 80px 0;
+    }
+
+    .values .box {
+      padding: 30px;
+      box-shadow: 0px 0 5px rgba(1, 41, 112, 0.08);
+      text-align: center;
+      transition: 0.3s;
+      height: 100%;
+      background: #fff;
+      border-radius: 10px;
+    }
+
+    .values .box:hover {
+      box-shadow: 0px 0 30px rgba(1, 41, 112, 0.15);
+      transform: translateY(-5px);
+    }
+
+    .values .box h3 {
+      font-size: 24px;
+      color: var(--dark-color);
+      font-weight: 700;
+      margin-bottom: 18px;
+    }
+
+    .cta {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 80px 0;
+    }
+
+    .cta h3 {
+      color: #fff;
+      font-size: 28px;
+      font-weight: 700;
+    }
+
+    .cta .cta-btn {
+      font-weight: 600;
+      display: inline-block;
+      padding: 12px 40px;
+      border-radius: 4px;
+      border: 2px solid #fff;
+      color: #fff;
+      background: rgba(255, 255, 255, 0.1);
+      cursor: pointer;
+    }
+
+    .cta .cta-btn:hover {
+      background: #fff;
+      color: var(--primary-color);
+    }
+
+    .testimonials .testimonial-item {
+      padding: 30px;
+      margin: 40px 30px;
+      box-shadow: 0px 0 20px rgba(1, 41, 112, 0.1);
+      background: #fff;
+      border-radius: 10px;
+    }
+
+    .testimonials .testimonial-item h3 {
+      font-size: 18px;
+      font-weight: bold;
+      margin: 10px 0 5px 0;
+      color: var(--dark-color);
+    }
+
+    .testimonials .testimonial-item h4 {
+      font-size: 14px;
+      color: #999;
+      margin: 0;
+    }
+
+    .testimonials .testimonial-item .stars i {
+      color: #ffc107;
+      margin: 0 1px;
+    }
+
+    /* Login Modal */
+    .login-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .login-modal-content {
+      background: white;
+      border-radius: 20px;
+      padding: 40px;
+      max-width: 450px;
+      width: 90%;
+      position: relative;
+    }
+
+    .close-modal {
+      position: absolute;
+      top: 15px;
+      right: 20px;
+      background: none;
+      border: none;
+      font-size: 28px;
+      cursor: pointer;
+      color: #666;
+    }
+
+    /* ==================== APP (Hidden until login) ==================== */
+    .app-container {
+      display: none;
+    }
+
+    .app-header {
+      background: #fff;
+      padding: 15px 0;
+      box-shadow: 0px 2px 20px rgba(1, 41, 112, 0.1);
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 997;
+    }
+
+    .sidebar {
+      position: fixed;
+      top: 60px;
+      left: 0;
+      bottom: 0;
+      width: 280px;
+      z-index: 996;
+      padding: 20px;
+      overflow-y: auto;
+      box-shadow: 0px 0px 20px rgba(1, 41, 112, 0.1);
+      background-color: #fff;
+    }
+
+    @media (max-width: 1199px) {
+      .sidebar { left: -280px; }
+      .sidebar.show { left: 0; }
+    }
+
+    .sidebar-nav {
+      padding: 0;
+      list-style: none;
+    }
+
+    .sidebar-nav .nav-link {
+      display: flex;
+      align-items: center;
+      font-size: 15px;
+      font-weight: 600;
+      color: #4154f1;
+      background: #f6f9ff;
+      padding: 10px 15px;
+      border-radius: 4px;
+      margin-bottom: 5px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    .sidebar-nav .nav-link i {
+      font-size: 16px;
+      margin-right: 10px;
+    }
+
+    .sidebar-nav .nav-link.active {
+      color: #012970;
+    }
+
+    #main {
+      margin-top: 60px;
+      margin-left: 280px;
+      padding: 20px 30px;
+      min-height: calc(100vh - 60px);
+      background: var(--light-color);
+    }
+
+    @media (max-width: 1199px) {
+      #main { margin-left: 0; }
+    }
+
+    .card {
+      margin-bottom: 30px;
+      border: none;
+      border-radius: 5px;
+      box-shadow: 0px 0 30px rgba(1, 41, 112, 0.1);
+      background: #fff;
+    }
+
+    .content-section {
+      display: none;
+    }
+
+    .content-section.active {
+      display: block;
+    }
+
+    /* Chat */
+    .chat-messages {
+      height: 500px;
+      overflow-y: auto;
+      padding: 20px;
+      background: var(--light-color);
+      border-radius: 5px;
+      margin-bottom: 20px;
+    }
+
+    .message {
+      display: flex;
+      margin-bottom: 20px;
+      animation: fadeIn 0.3s;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .message-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 15px;
+      flex-shrink: 0;
+      font-size: 20px;
+    }
+
+    .message.ai .message-avatar {
+      background: linear-gradient(135deg, #4154f1 0%, #717ff5 100%);
+      color: #fff;
+    }
+
+    .message.user .message-avatar {
+      background: linear-gradient(135deg, #2eca6a 0%, #56d97b 100%);
+      color: #fff;
+    }
+
+    .message-content {
+      background: #fff;
+      padding: 15px 20px;
+      border-radius: 10px;
+      max-width: 70%;
+      box-shadow: 0px 0 10px rgba(1, 41, 112, 0.1);
+    }
+
+    .message.user .message-content {
+      margin-left: auto;
+      background: linear-gradient(135deg, #4154f1 0%, #717ff5 100%);
+      color: #fff;
+    }
+
+    /* Steps */
+    .steps-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .step-card {
+      background: #fff;
+      padding: 25px;
+      border-radius: 10px;
+      text-align: center;
+      box-shadow: 0px 0 15px rgba(1, 41, 112, 0.1);
+      border: 2px solid transparent;
+      transition: all 0.3s;
+      cursor: pointer;
+    }
+
+    .step-card:hover {
+      transform: translateY(-5px);
+    }
+
+    .step-card.active {
+      border-color: var(--primary-color);
+      background: linear-gradient(135deg, rgba(65, 84, 241, 0.05) 0%, rgba(113, 127, 245, 0.05) 100%);
+    }
+
+    .step-icon {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: var(--primary-color);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 15px;
+      color: #fff;
+      font-size: 24px;
+    }
+
+    /* Team */
+    .team-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 20px;
+    }
+
+    .team-member-card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 25px;
+      text-align: center;
+      box-shadow: 0px 0 15px rgba(1, 41, 112, 0.1);
+      transition: all 0.3s;
+    }
+
+    .team-member-card:hover {
+      transform: translateY(-5px);
+    }
+
+    .member-avatar {
+      width: 70px;
+      height: 70px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #4154f1 0%, #717ff5 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 15px;
+      color: #fff;
+      font-size: 28px;
+      font-weight: 700;
+    }
+
+    .spinner {
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid var(--primary-color);
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      animation: spin 1s linear infinite;
+      display: inline-block;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ==================== LANDING PAGE ==================== -->
+  <div id="landingPage" class="landing-page">
+    
+    <!-- Header -->
+    <header class="header fixed-top">
+      <div class="container-fluid container-xl d-flex align-items-center justify-content-between">
+        <a href="#" class="logo d-flex align-items-center">
+          <i class="bi bi-robot" style="font-size: 32px; color: var(--primary-color); margin-right: 10px;"></i>
+          <span>Yoda<span>AI</span></span>
+        </a>
+        <nav class="navbar">
+          <ul class="d-flex align-items-center list-unstyled m-0">
+            <li><a class="scrollto" href="#hero">Home</a></li>
+            <li><a class="scrollto" href="#about" style="margin-left: 30px;">About</a></li>
+            <li><a class="scrollto" href="#features" style="margin-left: 30px;">Features</a></li>
+            <li><button class="getstarted" onclick="showLoginModal()">Get Started</button></li>
+          </ul>
+        </nav>
+      </div>
+    </header>
+
+    <!-- Hero -->
+    <section id="hero" class="hero d-flex align-items-center">
+      <div class="container">
+        <div class="row">
+          <div class="col-lg-6 d-flex flex-column justify-content-center" data-aos="fade-up">
+            <h1>Transform Your Agile Retrospectives with AI</h1>
+            <h2>Your intelligent co-facilitator for structured, productive, and engaging team retrospectives using the proven 4Ls framework</h2>
+            <div data-aos="fade-up" data-aos-delay="600">
+              <button class="btn-get-started me-3" onclick="showLoginModal()">
+                <i class="bi bi-rocket"></i> Get Started Free
+              </button>
+              <button class="btn-get-started" onclick="demoLogin()">
+                <i class="bi bi-play-circle"></i> Try Demo
+              </button>
+            </div>
+          </div>
+          <div class="col-lg-6" data-aos="zoom-out" data-aos-delay="200">
+            <img src="https://images.unsplash.com/photo-1552664730-d307ca884978?w=800&h=600&fit=crop&q=80" class="img-fluid rounded shadow-lg" alt="Team Collaboration">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- About -->
+    <section id="about" class="about" style="padding: 80px 0; background: #fff;">
+      <div class="container" data-aos="fade-up">
+        <div class="row align-items-center">
+          <div class="col-lg-6" data-aos="fade-up" data-aos-delay="200">
+            <div style="background: var(--light-color); padding: 40px; border-radius: 10px;">
+              <h3 style="color: var(--primary-color); text-transform: uppercase; font-size: 14px; font-weight: 700;">Who We Help</h3>
+              <h2 style="color: var(--dark-color); font-size: 32px; font-weight: 700; margin: 15px 0;">Perfect for Junior PMs, Scrum Masters, and Distributed Teams</h2>
+              <p>YodaAI serves as your intelligent co-facilitator, not a replacement. Whether you're new to retrospectives or managing multiple teams, we provide the structure and guidance you need.</p>
+              <p><strong>Main Challenges We Solve:</strong></p>
+              <ul>
+                <li>New to retrospectives and unsure how to conduct them</li>
+                <li>Keeping retrospectives organized despite disruptions</li>
+                <li>Ensuring action items are tracked and completed</li>
+                <li>Making retrospectives engaging for distributed teams</li>
+              </ul>
+            </div>
+          </div>
+          <div class="col-lg-6" data-aos="zoom-out" data-aos-delay="200">
+            <img src="https://images.unsplash.com/photo-1531482615713-2afd69097998?w=600&h=450&fit=crop&q=80" class="img-fluid rounded shadow" alt="Agile Team">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Values/How It Works -->
+    <section id="values" class="values">
+      <div class="container" data-aos="fade-up">
+        <div class="section-header">
+          <h2>How It Works</h2>
+          <p>Your Complete Retrospective Journey</p>
+        </div>
+
+        <div class="row g-4">
+          <div class="col-lg-4" data-aos="fade-up" data-aos-delay="200">
+            <div class="box">
+              <img src="https://images.unsplash.com/photo-1553877522-43269d4ea984?w=300&h=200&fit=crop&q=80" class="img-fluid rounded mb-3" alt="Pre-Retrospective">
+              <h3>Pre-Retrospective Prep</h3>
+              <p>One week before: AI sends team prep prompts, reviews past action items, and generates a draft agenda from sprint data</p>
+            </div>
+          </div>
+
+          <div class="col-lg-4" data-aos="fade-up" data-aos-delay="400">
+            <div class="box">
+              <img src="https://images.unsplash.com/photo-1531482615713-2afd69097998?w=300&h=200&fit=crop&q=80" class="img-fluid rounded mb-3" alt="During Retrospective">
+              <h3>AI-Guided Discussion</h3>
+              <p>During retro: AI facilitates 4Ls conversation, identifies patterns, suggests talking points, and keeps time</p>
+            </div>
+          </div>
+
+          <div class="col-lg-4" data-aos="fade-up" data-aos-delay="600">
+            <div class="box">
+              <img src="https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=300&h=200&fit=crop&q=80" class="img-fluid rounded mb-3" alt="Post-Retrospective">
+              <h3>Automated Follow-Up</h3>
+              <p>After retro: Summary sent within 1 hour, action items tracked, weekly check-ins, and monthly trend reports</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features -->
+    <section id="features" class="features">
+      <div class="container" data-aos="fade-up">
+        <div class="section-header">
+          <h2>Features</h2>
+          <p>Everything You Need for Successful Retrospectives</p>
+        </div>
+
+        <div class="row g-4">
+          <div class="col-lg-4 col-md-6" data-aos="fade-up" data-aos-delay="200">
+            <div class="feature-box">
+              <i class="bi bi-chat-dots"></i>
+              <h3>4Ls Framework</h3>
+              <p>Structured conversation through Liked, Learned, Lacked, and Longed For - proven methodology for effective retrospectives</p>
+            </div>
+          </div>
+
+          <div class="col-lg-4 col-md-6" data-aos="fade-up" data-aos-delay="300">
+            <div class="feature-box">
+              <i class="bi bi-robot"></i>
+              <h3>AI Co-Facilitation</h3>
+              <p>Intelligent prompts, pattern recognition, and real-time guidance based on PMI's Disciplined Agile best practices</p>
+            </div>
+          </div>
+
+          <div class="col-lg-4 col-md-6" data-aos="fade-up" data-aos-delay="400">
+            <div class="feature-box">
+              <i class="bi bi-people"></i>
+              <h3>Team Management</h3>
+              <p>Role-based access for Scrum Masters, Product Owners, Developers, QA, and other team members</p>
+            </div>
+          </div>
+
+          <div class="col-lg-4 col-md-6" data-aos="fade-up" data-aos-delay="500">
+            <div class="feature-box">
+              <i class="bi bi-check2-square"></i>
+              <h3>Action Item Tracking</h3>
+              <p>AI-drafted action items with priority levels, owner assignments, deadlines, and automated follow-ups</p>
+            </div>
+          </div>
+
+          <div class="col-lg-4 col-md-6" data-aos="fade-up" data-aos-delay="600">
+            <div class="feature-box">
+              <i class="bi bi-graph-up"></i>
+              <h3>Pattern Recognition</h3>
+              <p>Surface similar patterns from past retrospectives and provide insights from your team's history</p>
+            </div>
+          </div>
+
+          <div class="col-lg-4 col-md-6" data-aos="fade-up" data-aos-delay="700">
+            <div class="feature-box">
+              <i class="bi bi-envelope"></i>
+              <h3>Automated Summaries</h3>
+              <p>Detailed summaries emailed within an hour, with personalized action item reminders and progress tracking</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Testimonials -->
+    <section class="testimonials" style="padding: 80px 0; background: var(--light-color);">
+      <div class="container" data-aos="fade-up">
+        <div class="section-header">
+          <h2>Testimonials</h2>
+          <p>What Teams Say About YodaAI</p>
+        </div>
+
+        <div class="row">
+          <div class="col-lg-6" data-aos="fade-up" data-aos-delay="200">
+            <div class="testimonial-item">
+              <div class="stars mb-2">
+                <i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i>
+              </div>
+              <p>"As a junior Scrum Master, I was intimidated by facilitating retrospectives. YodaAI gave me the confidence and structure I needed. The AI prompts kept the conversation flowing naturally."</p>
+              <h3>Sarah Chen</h3>
+              <h4>Scrum Master, TechCorp</h4>
+            </div>
+          </div>
+
+          <div class="col-lg-6" data-aos="fade-up" data-aos-delay="400">
+            <div class="testimonial-item">
+              <div class="stars mb-2">
+                <i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i><i class="bi bi-star-fill"></i>
+              </div>
+              <p>"Managing 3 distributed teams meant retrospectives were time-consuming. YodaAI automated the prep work and follow-ups, saving us hours while improving action item completion rates."</p>
+              <h3>Brian Richard</h3>
+              <h4>Senior Project Manager, InnovateLabs</h4>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="cta">
+      <div class="container" data-aos="zoom-out">
+        <div class="row">
+          <div class="col-lg-9 text-center text-lg-start">
+            <h3>Ready to Transform Your Retrospectives?</h3>
+            <p style="color: #fff;">Join teams who are conducting more productive, engaging, and action-oriented retrospectives with AI assistance.</p>
+          </div>
+          <div class="col-lg-3 text-center">
+            <button class="cta-btn" onclick="showLoginModal()">Get Started Free</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Login Modal -->
+  <div id="loginModal" class="login-modal">
+    <div class="login-modal-content">
+      <button class="close-modal" onclick="closeLoginModal()">&times;</button>
+      
+      <div class="text-center mb-4">
+        <i class="bi bi-robot" style="font-size: 64px; color: var(--primary-color);"></i>
+        <h2 class="mt-3">Welcome to YodaAI</h2>
+        <p class="text-muted">Sign in to transform your retrospectives</p>
+      </div>
+
+      <form>
+        <!-- Full Name Field (for registration) -->
+        <div class="mb-3" id="fullNameField" style="display: none;">
+          <label class="form-label">Full Name (First and Last)</label>
+          <input type="text" class="form-control" id="loginFullName" placeholder="John Doe">
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Email Address</label>
+          <input type="email" class="form-control" id="loginEmail" placeholder="your@email.com">
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Password</label>
+          <input type="password" class="form-control" id="loginPassword" placeholder="Min. 6 characters">
+        </div>
+
+        <div class="d-grid gap-2">
+          <button type="button" class="btn btn-primary btn-lg" id="signInBtn" onclick="signIn()">
+            <i class="bi bi-box-arrow-in-right"></i> Sign In
+          </button>
+          <button type="button" class="btn btn-success btn-lg" id="signUpBtn" onclick="toggleSignUpMode()">
+            <i class="bi bi-person-plus"></i> Sign Up
+          </button>
+          <div class="text-center my-2">
+            <small class="text-muted">or continue with</small>
+          </div>
+          <button type="button" class="btn btn-outline-primary" onclick="signInWithGoogle()">
+            <i class="bi bi-google"></i> Sign in with Google
+          </button>
+          <button type="button" class="btn btn-link text-muted" onclick="demoLogin()">
+            <i class="bi bi-play-circle"></i> Try Demo Mode
+          </button>
+        </div>
+      </form>
+
+      <div id="authError" class="alert alert-danger mt-3" style="display: none;"></div>
+      <div id="authLoading" class="text-center mt-3" style="display: none;">
+        <div class="spinner me-2"></div> Processing...
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== APP CONTAINER ==================== -->
+  <div id="appContainer" class="app-container">
+    
+    <!-- Header -->
+    <header class="app-header">
+      <div class="container-fluid d-flex align-items-center justify-content-between px-4">
+        <div class="d-flex align-items-center">
+          <button class="btn btn-link d-lg-none" onclick="toggleSidebar()">
+            <i class="bi bi-list fs-4"></i>
+          </button>
+          <a href="#" class="logo d-flex align-items-center" onclick="showSection('dashboard')" style="text-decoration: none;">
+            <i class="bi bi-robot" style="font-size: 32px; color: var(--primary-color); margin-right: 10px;"></i>
+            <span style="font-size: 26px; font-weight: 700; color: var(--dark-color);">Yoda<span style="color: var(--primary-color);">AI</span></span>
+          </a>
+        </div>
+
+        <div class="d-flex align-items-center gap-3">
+          <div class="d-flex align-items-center">
+            <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width: 36px; height: 36px; font-weight: 700;" id="userAvatar">U</div>
+            <div class="ms-2 d-none d-md-block">
+              <div class="fw-bold" id="userName" style="font-size: 14px;">User</div>
+              <small class="text-muted" id="userEmail">user@example.com</small>
+            </div>
+          </div>
+          <button class="btn btn-sm btn-outline-danger" onclick="logout()">
+            <i class="bi bi-box-arrow-right"></i> Logout
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="sidebar">
+      <ul class="sidebar-nav">
+        <li class="nav-item">
+          <a class="nav-link active" href="#" onclick="showSection('dashboard')">
+            <i class="bi bi-grid"></i><span>Dashboard</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#" onclick="showSection('onboarding')">
+            <i class="bi bi-person-check"></i><span>Onboarding</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#" onclick="showSection('retrospectives')">
+            <i class="bi bi-chat-dots"></i><span>Retrospectives</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#" onclick="showSection('schedule')">
+            <i class="bi bi-calendar-check"></i><span>Schedule Retro</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#" onclick="showSection('teams')">
+            <i class="bi bi-people"></i><span>Teams</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#" onclick="showSection('action-items')">
+            <i class="bi bi-check2-square"></i><span>Action Items</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#" onclick="showSection('analytics')">
+            <i class="bi bi-graph-up"></i><span>Analytics</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#" onclick="showSection('documents')">
+            <i class="bi bi-file-earmark-pdf"></i><span>Documents</span>
+          </a>
+        </li>
+      </ul>
+    </aside>
+
+    <!-- Main -->
+    <main id="main" class="main">
+
+      <!-- Dashboard -->
+      <section id="dashboardSection" class="content-section active">
+        <h1 class="mb-4">Dashboard</h1>
+
+        <div class="card">
+          <div class="card-body">
+            <h5>Welcome back, <span id="welcomeName">User</span>!</h5>
+            <p class="text-muted">Ready to conduct another insightful retrospective? Let's help your team reflect, learn, and improve together.</p>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col-lg-4 mb-4">
+            <div class="card h-100 text-center">
+              <div class="card-body">
+                <i class="bi bi-building display-1 text-info"></i>
+                <h5 class="mt-3">Create Workspace</h5>
+                <p class="text-muted">Required before starting retros</p>
+                <button class="btn btn-info w-100" onclick="showCreateWorkspaceModal()">
+                  <i class="bi bi-plus-circle"></i> Create Workspace
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-lg-4 mb-4">
+            <div class="card h-100 text-center">
+              <div class="card-body">
+                <i class="bi bi-plus-circle display-1 text-primary"></i>
+                <h5 class="mt-3">Create Retrospective</h5>
+                <p class="text-muted">Create new 4Ls retro with AI</p>
+                <button class="btn btn-primary w-100" onclick="showCreateRetroModal()">
+                  <i class="bi bi-rocket"></i> Create Retro
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-4 mb-4">
+            <div class="card h-100 text-center">
+              <div class="card-body">
+                <i class="bi bi-calendar-plus display-1 text-success"></i>
+                <h5 class="mt-3">Schedule</h5>
+                <p class="text-muted">Automated reminders</p>
+                <button class="btn btn-success w-100" onclick="showSection('schedule')">
+                  <i class="bi bi-calendar"></i> Schedule
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-4 mb-4">
+            <div class="card h-100 text-center">
+              <div class="card-body">
+                <i class="bi bi-people display-1 text-warning"></i>
+                <h5 class="mt-3">Teams</h5>
+                <p class="text-muted">Add members & roles</p>
+                <button class="btn btn-warning w-100" onclick="showSection('teams')">
+                  <i class="bi bi-gear"></i> Manage
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-body">
+            <h5>Recent Activity</h5>
+            <div id="recentActivity">
+              <p class="text-muted">No recent activity yet. Start your first retrospective to see updates here!</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Onboarding -->
+      <section id="onboardingSection" class="content-section">
+        <h1 class="mb-4">Welcome! Let's Get Started</h1>
+
+        <div class="card">
+          <div class="card-body">
+            <h5>Setup Progress</h5>
+            <div class="progress mb-4" style="height: 20px;">
+              <div class="progress-bar" id="progressBar" style="width: 0%">
+                <span id="onboardingProgress">0%</span>
+              </div>
+            </div>
+
+            <div class="row g-3">
+              <div class="col-md-6">
+                <div class="card border-start border-primary border-4">
+                  <div class="card-body">
+                    <h6><i class="bi bi-1-circle-fill text-primary"></i> Workspace Setup</h6>
+                    <p class="text-muted small">Create your workspace</p>
+                    <button class="btn btn-sm btn-primary" onclick="completeStep('workspace_setup')">Complete</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-md-6">
+                <div class="card border-start border-success border-4">
+                  <div class="card-body">
+                    <h6><i class="bi bi-2-circle-fill text-success"></i> Connect Calendar <span class="badge bg-secondary">Optional</span></h6>
+                    <p class="text-muted small">Connect work calendar</p>
+                    <button class="btn btn-sm btn-success" onclick="completeStep('calendar_connected')">Connect</button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="skipStep('calendar_connected')">Skip</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-md-6">
+                <div class="card border-start border-warning border-4">
+                  <div class="card-body">
+                    <h6><i class="bi bi-3-circle-fill text-warning"></i> Add Team <span class="badge bg-secondary">Optional</span></h6>
+                    <p class="text-muted small">Add team and assign roles</p>
+                    <button class="btn btn-sm btn-warning" onclick="showSection('teams')">Add Team</button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="skipStep('team_members_added')">Skip</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-md-6">
+                <div class="card border-start border-info border-4">
+                  <div class="card-body">
+                    <h6><i class="bi bi-4-circle-fill text-info"></i> Import Data <span class="badge bg-secondary">Optional</span></h6>
+                    <p class="text-muted small">Upload project documents</p>
+                    <button class="btn btn-sm btn-info" onclick="showSection('documents')">Upload</button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="skipStep('project_data_imported')">Skip</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-md-6">
+                <div class="card border-start border-danger border-4">
+                  <div class="card-body">
+                    <h6><i class="bi bi-5-circle-fill text-danger"></i> Schedule First Retro</h6>
+                    <p class="text-muted small">Schedule first retrospective</p>
+                    <button class="btn btn-sm btn-danger" onclick="showSection('schedule')">Schedule</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-md-6">
+                <div class="card border-start border-dark border-4">
+                  <div class="card-body">
+                    <h6><i class="bi bi-6-circle-fill text-dark"></i> Setup Check-ins <span class="badge bg-secondary">Optional</span></h6>
+                    <p class="text-muted small">Configure automated tracking</p>
+                    <button class="btn btn-sm btn-dark" onclick="completeStep('check_ins_configured')">Configure</button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="skipStep('check_ins_configured')">Skip</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Retrospectives -->
+      <section id="retrospectivesSection" class="content-section">
+        <h1 class="mb-4">4Ls Retrospective</h1>
+        
+        <!-- Button to start retro -->
+        <div id="retroStartSection" class="mb-4">
+          <div class="card">
+            <div class="card-body text-center py-5">
+              <i class="bi bi-rocket-takeoff display-1 text-primary mb-3"></i>
+              <h3>Ready to Start a Retrospective?</h3>
+              <p class="text-muted">Create a new retrospective to begin the 6-phase process</p>
+              <button class="btn btn-primary btn-lg" onclick="showCreateRetroModal()">
+                <i class="bi bi-plus-circle"></i> Create Retrospective
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4Ls Chat Interface (hidden until retro starts) -->
+        <div id="retroChatSection" style="display:none;">
+          <div class="row">
+            <!-- LEFT: Progress Overview Sidebar -->
+            <div class="col-lg-3">
+              <div class="card sticky-top" style="top: 20px;">
+                <div class="card-body">
+                  <h5 class="mb-3" style="color:#667eea;">
+                    <i class="bi bi-list-check"></i> Progress Overview
+                  </h5>
+                  
+                  <div id="retro-progress-liked" class="progress-item mb-2 p-3 rounded border" style="cursor:pointer; background:#fff;" onclick="focusRetroCategory('liked')">
+                    <span id="retro-check-liked" style="font-size:20px; margin-right:10px;">☐</span>
+                    <strong>Liked</strong>
+                  </div>
+                  
+                  <div id="retro-progress-learned" class="progress-item mb-2 p-3 rounded border" style="cursor:pointer; background:#fff;" onclick="focusRetroCategory('learned')">
+                    <span id="retro-check-learned" style="font-size:20px; margin-right:10px;">☐</span>
+                    <strong>Learned</strong>
+                  </div>
+                  
+                  <div id="retro-progress-lacked" class="progress-item mb-2 p-3 rounded border" style="cursor:pointer; background:#fff;" onclick="focusRetroCategory('lacked')">
+                    <span id="retro-check-lacked" style="font-size:20px; margin-right:10px;">☐</span>
+                    <strong>Lacked</strong>
+                  </div>
+                  
+                  <div id="retro-progress-longed_for" class="progress-item mb-2 p-3 rounded border" style="cursor:pointer; background:#fff;" onclick="focusRetroCategory('longed_for')">
+                    <span id="retro-check-longed_for" style="font-size:20px; margin-right:10px;">☐</span>
+                    <strong>Longed For</strong>
+                  </div>
+                  
+                  <hr class="my-3">
+                  
+                  <div class="text-center mb-2">
+                    <small class="text-muted">Ready to move forward?</small>
+                  </div>
+                  
+                  <button id="retroFinishButton" onclick="finishRetroAndProceed()" class="btn btn-success w-100">
+                    <i class="bi bi-check-circle"></i> Finish & Proceed to Grouping
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            <!-- RIGHT: Chat Area -->
+            <div class="col-lg-9">
+              <div class="card">
+                <div class="card-body">
+                  <div class="d-flex justify-content-between mb-3">
+                    <h5><i class="bi bi-robot"></i> YodaAI Assistant</h5>
+                    <span class="badge bg-success">Active</span>
+                  </div>
+
+                  <div class="chat-messages" id="retroChatMessages" style="height: 400px; overflow-y: auto; margin-bottom: 15px; padding: 15px; background: #fafafa; border-radius: 8px;">
+                    <div class="message ai">
+                      <div class="message-avatar"><i class="bi bi-robot"></i></div>
+                      <div class="message-content">
+                        Hi! I'm YodaAI. Let's start with what you <strong>Liked</strong> about this sprint. What went well that you'd like to continue?
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="d-flex gap-2">
+                    <input type="text" id="retroChatInput" class="form-control" placeholder="Type your response..." onkeypress="if(event.key==='Enter') sendRetroMessage()">
+                    <button class="btn btn-primary" onclick="sendRetroMessage()" style="min-width: 100px;">
+                      <i class="bi bi-send-fill"></i> Send
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Schedule -->
+      <section id="scheduleSection" class="content-section">
+        <h1 class="mb-4">Schedule Retrospective</h1>
+
+        <div class="card">
+          <div class="card-body">
+            <h5>New Retrospective</h5>
+            <form>
+              <div class="mb-3">
+                <label class="form-label">Title *</label>
+                <input type="text" class="form-control" id="scheduleTitle" placeholder="Sprint 6 Retrospective">
+              </div>
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Date & Time *</label>
+                  <input type="datetime-local" class="form-control" id="scheduleDate">
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Duration</label>
+                  <select class="form-select" id="scheduleDuration">
+                    <option value="30">30 min</option>
+                    <option value="60" selected>60 min</option>
+                    <option value="90">90 min</option>
+                  </select>
+                </div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Team *</label>
+                <select class="form-select" id="scheduleTeam">
+                  <option value="">Select team...</option>
+                  <option value="1">Development Team</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Description</label>
+                <textarea class="form-control" id="scheduleDescription" rows="3"></textarea>
+              </div>
+              <div class="card bg-light mb-3">
+                <div class="card-body">
+                  <h6>Automated Reminders</h6>
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="reminder1Week" checked>
+                    <label class="form-check-label">Send prep 1 week before</label>
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="reminder24Hour" checked>
+                    <label class="form-check-label">Remind 24 hours before</label>
+                  </div>
+                </div>
+              </div>
+              <button type="button" class="btn btn-primary" onclick="scheduleRetro()">
+                <i class="bi bi-calendar-check"></i> Schedule
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-body">
+            <h5>Upcoming Retrospectives</h5>
+            <div id="scheduledList">
+              <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> No retrospectives scheduled yet.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Teams -->
+      <section id="teamsSection" class="content-section">
+        <h1 class="mb-4">Team Management</h1>
+
+        <div class="card">
+          <div class="card-body">
+            <h5>Add Team Member</h5>
+            <form class="row g-3">
+              <div class="col-md-4">
+                <label class="form-label">Name *</label>
+                <input type="text" class="form-control" id="memberName">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Email *</label>
+                <input type="email" class="form-control" id="memberEmail">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Role *</label>
+                <select class="form-select" id="memberRole">
+                  <option value="developer">Developer</option>
+                  <option value="scrum-master">Scrum Master</option>
+                  <option value="product-owner">Product Owner</option>
+                  <option value="qa">QA Engineer</option>
+                  <option value="designer">Designer</option>
+                  <option value="devops">DevOps</option>
+                </select>
+              </div>
+              <div class="col-12">
+                <button type="button" class="btn btn-primary" onclick="addTeamMember()">
+                  <i class="bi bi-person-plus"></i> Add Member
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-body">
+            <h5>Team Members <span id="teamCount" class="text-muted"></span></h5>
+            <div class="team-grid" id="teamGrid"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Action Items -->
+      <section id="actionItemsSection" class="content-section">
+        <h1 class="mb-4">Action Items - Thematic Analysis</h1>
+
+        <div class="card">
+          <div class="card-body">
+            <h5>Upload Document for Analysis</h5>
+            <div class="mb-3">
+              <input type="file" class="form-control" id="actionFileInput" accept=".txt,.md,.json">
+            </div>
+            <button class="btn btn-primary" onclick="analyzeFile()">
+              <i class="bi bi-cpu"></i> Analyze
+            </button>
+            <button class="btn btn-secondary ms-2" onclick="clearAnalysis()">Clear</button>
+            <div id="analysisStatus" class="mt-3"></div>
+            <div id="groupedThemesContainer" class="mt-3"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Analytics -->
+      <section id="analyticsSection" class="content-section">
+        <h1 class="mb-4">Analytics & Insights</h1>
+
+        <div class="row g-3 mb-4">
+          <div class="col-md-3">
+            <div class="card text-center">
+              <div class="card-body">
+                <h3 class="text-primary" id="totalRetros">0</h3>
+                <p class="text-muted mb-0">Total Retros</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card text-center">
+              <div class="card-body">
+                <h3 class="text-success" id="activeRetros">0</h3>
+                <p class="text-muted mb-0">Active</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card text-center">
+              <div class="card-body">
+                <h3 class="text-warning" id="completedActions">0</h3>
+                <p class="text-muted mb-0">Completed</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card text-center">
+              <div class="card-body">
+                <h3 class="text-info" id="engagement">0%</h3>
+                <p class="text-muted mb-0">Engagement</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-body">
+            <h5>AI Insights</h5>
+            <div id="aiInsights">
+              <p class="text-muted">Complete retrospectives to see AI-powered insights and patterns.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Documents -->
+      <section id="documentsSection" class="content-section">
+        <h1 class="mb-4">Document Analysis</h1>
+
+        <div class="card">
+          <div class="card-body">
+            <div class="text-center py-5 border-2 border-dashed rounded" onclick="document.getElementById('docFileInput').click()" style="border-style: dashed; cursor: pointer;">
+              <i class="bi bi-cloud-upload display-1 text-primary"></i>
+              <h5 class="mt-3">Drop files or click to browse</h5>
+              <p class="text-muted">PDF, DOC, DOCX</p>
+              <input type="file" id="docFileInput" style="display: none;" accept=".pdf,.doc,.docx" onchange="handleDocUpload(event)">
+            </div>
+
+            <div id="docInfo" class="mt-4" style="display: none;">
+              <div class="alert alert-success d-flex justify-content-between">
+                <div>
+                  <strong id="docFileName"></strong><br>
+                  <small id="docFileSize"></small>
+                </div>
+                <button class="btn btn-primary" onclick="analyzeDoc()">
+                  <i class="bi bi-cpu"></i> Analyze
+                </button>
+              </div>
+            </div>
+
+            <div id="docAnalysis" class="mt-4" style="display: none;"></div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+  </div>
+
+  <!-- Vendor JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+
+  <script>
+    // Initialize AOS animations
+    AOS.init({
+      duration: 1000,
+      easing: "ease-in-out",
+      once: true,
+      mirror: false
+    });
+
+    // Global variables
+    let currentUser = null;
+    let currentStep = 'liked';
+    let chatHistory = [];
+    let teamMembers = [];
+    let onboardingProgress = 0;
+    let awaitingResponse = false;
+    let authToken = null;
+    
+    // NEW: Workspace & Retrospective State
+    let currentWorkspace = null;
+    let userWorkspaces = [];
+    let currentRetrospective = null;
+    let currentChatSession = null;
+    let progressData = {
+      liked: false,
+      learned: false,
+      lacked: false,
+      longed_for: false
+    };
+
+    // ==================== CHECK LOGIN ON LOAD ====================
+    document.addEventListener('DOMContentLoaded', function() {
+      const savedUser = localStorage.getItem('yodaai_user');
+      const savedToken = localStorage.getItem('yodaai_token');
+      
+      if (savedUser && savedToken) {
+        currentUser = JSON.parse(savedUser);
+        authToken = savedToken;
+        showApp();
+      }
+    });
+
+    // ==================== AUTHENTICATION ====================
+    
+    function showLoginModal() {
+      document.getElementById('loginModal').style.display = 'flex';
+    }
+
+    function closeLoginModal() {
+      document.getElementById('loginModal').style.display = 'none';
+      document.getElementById('authError').style.display = 'none';
+    }
+
+    async function signIn() {
+      const email = document.getElementById('loginEmail').value;
+      const password = document.getElementById('loginPassword').value;
+
+      if (!email || !password) {
+        showAuthError('Please enter both email and password');
+        return;
+      }
+
+      showAuthLoading(true);
+
+      try {
+        // Use database authentication
+        const response = await fetch('/api/v1/user-auth/login', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({email, password})
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.detail || 'Login failed');
+        }
+
+        const data = await response.json();
+        
+        currentUser = {
+          uid: data.user.id,
+          id: data.user.id,
+          email: data.user.email,
+          displayName: data.user.full_name || data.user.username,
+          username: data.user.username
+        };
+        
+        authToken = data.access_token;
+
+        // Store in localStorage
+        localStorage.setItem('yodaai_user', JSON.stringify(currentUser));
+        localStorage.setItem('yodaai_token', authToken);
+        
+        console.log('Sign in successful:', currentUser.email);
+        showApp();
+      } catch (error) {
+        console.error('Sign in error:', error);
+        showAuthError(error.message || 'Invalid email or password. Try signing up or use demo mode.');
+      } finally {
+        showAuthLoading(false);
+      }
+    }
+
+    // Toggle between sign-in and sign-up modes
+    let isSignUpMode = false;
+    
+    function toggleSignUpMode() {
+      isSignUpMode = !isSignUpMode;
+      const fullNameField = document.getElementById('fullNameField');
+      const signUpBtn = document.getElementById('signUpBtn');
+      const signInBtn = document.getElementById('signInBtn');
+      
+      if (isSignUpMode) {
+        fullNameField.style.display = 'block';
+        signUpBtn.innerHTML = '<i class="bi bi-check-circle"></i> Create Account';
+        signUpBtn.onclick = signUp;
+        signInBtn.innerHTML = '<i class="bi bi-arrow-left"></i> Back to Sign In';
+        signInBtn.onclick = function() { toggleSignUpMode(); };
+        signUpBtn.classList.remove('btn-success');
+        signUpBtn.classList.add('btn-primary');
+      } else {
+        fullNameField.style.display = 'none';
+        document.getElementById('loginFullName').value = '';
+        signUpBtn.innerHTML = '<i class="bi bi-person-plus"></i> Sign Up';
+        signUpBtn.onclick = toggleSignUpMode;
+        signInBtn.innerHTML = '<i class="bi bi-box-arrow-in-right"></i> Sign In';
+        signInBtn.onclick = signIn;
+        signUpBtn.classList.remove('btn-primary');
+        signUpBtn.classList.add('btn-success');
+      }
+    }
+
+    async function signUp() {
+      const email = document.getElementById('loginEmail').value;
+      const password = document.getElementById('loginPassword').value;
+      const fullName = document.getElementById('loginFullName').value;
+
+      if (!email || !password || !fullName) {
+        showAuthError('Please enter your full name, email, and password');
+        return;
+      }
+
+      if (fullName.trim().split(' ').length < 2) {
+        showAuthError('Please enter both first and last name');
+        return;
+      }
+
+      if (password.length < 6) {
+        showAuthError('Password must be at least 6 characters long');
+        return;
+      }
+
+      showAuthLoading(true);
+
+      try {
+        // Use database authentication
+        const response = await fetch('/api/v1/user-auth/register', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            email,
+            password,
+            full_name: fullName.trim()
+          })
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.detail || 'Registration failed');
+        }
+
+        const data = await response.json();
+        
+        currentUser = {
+          uid: data.user.id,
+          id: data.user.id,
+          email: data.user.email,
+          displayName: data.user.full_name || data.user.username,
+          username: data.user.username
+        };
+        
+        authToken = data.access_token;
+
+        // Store in localStorage
+        localStorage.setItem('yodaai_user', JSON.stringify(currentUser));
+        localStorage.setItem('yodaai_token', authToken);
+        
+        console.log('Sign up successful:', currentUser.email);
+        showApp();
+        
+        // Show onboarding for new users
+        setTimeout(() => {
+          showSection('onboarding');
+          showToast('Welcome! Let\'s get you set up.', 'success');
+        }, 500);
+      } catch (error) {
+        console.error('Sign up error:', error);
+        if (error.message.includes('already registered')) {
+          showAuthError('This email is already registered. Please sign in instead.');
+        } else {
+          showAuthError(error.message || 'Sign up failed. Please try again.');
+        }
+      } finally {
+        showAuthLoading(false);
+      }
+    }
+
+    async function signInWithGoogle() {
+      // For MVP, redirect to demo mode
+      // You can implement Google OAuth later if needed
+      showAuthError('Google sign-in coming soon! Please use email/password or try demo mode.');
+      setTimeout(() => {
+        document.getElementById('authError').style.display = 'none';
+      }, 3000);
+    }
+
+    async function demoLogin() {
+      showAuthLoading(true);
+
+      try {
+        // Use demo login API
+        const response = await fetch('/api/v1/user-auth/demo-login', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'}
+        });
+
+        if (!response.ok) {
+          throw new Error('Demo login failed');
+        }
+
+        const data = await response.json();
+        
+        currentUser = {
+          uid: data.user.id,
+          id: data.user.id,
+          email: data.user.email,
+          displayName: data.user.full_name || data.user.username,
+          username: data.user.username,
+          isDemo: true
+        };
+        
+        authToken = data.access_token;
+
+        // Store in localStorage
+        localStorage.setItem('yodaai_user', JSON.stringify(currentUser));
+        localStorage.setItem('yodaai_token', authToken);
+        
+        closeLoginModal();
+        showApp();
+        showToast('Welcome to Demo Mode! Explore all features.', 'info');
+      } catch (error) {
+        console.error('Demo login error:', error);
+        showAuthError('Demo mode failed. Please try again.');
+      } finally {
+        showAuthLoading(false);
+      }
+    }
+
+    function showAuthError(message) {
+      const errorDiv = document.getElementById('authError');
+      errorDiv.textContent = message;
+      errorDiv.style.display = 'block';
+    }
+
+    function showAuthLoading(show) {
+      document.getElementById('authLoading').style.display = show ? 'block' : 'none';
+    }
+
+    function showApp() {
+      document.getElementById('landingPage').style.display = 'none';
+      document.getElementById('appContainer').style.display = 'block';
+      closeLoginModal();
+      updateUserInfo();
+      loadDashboardData();
+      checkAndLoadWorkspaces();  // NEW: Check workspace on login
+    }
+
+    function updateUserInfo() {
+      if (!currentUser) return;
+      
+      const name = currentUser.displayName || currentUser.email.split('@')[0];
+      document.getElementById('userName').textContent = name;
+      document.getElementById('userEmail').textContent = currentUser.email;
+      document.getElementById('userAvatar').textContent = name.charAt(0).toUpperCase();
+      document.getElementById('welcomeName').textContent = name;
+    }
+
+    async function logout() {
+      localStorage.removeItem('yodaai_user');
+      localStorage.removeItem('yodaai_token');
+      currentUser = null;
+      authToken = null;
+      teamMembers = [];
+      chatHistory = [];
+      onboardingProgress = 0;
+      window.location.reload();
+    }
+
+    // ==================== NAVIGATION ====================
+    
+    function toggleSidebar() {
+      document.getElementById('sidebar').classList.toggle('show');
+    }
+
+    function showSection(sectionName) {
+      document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+      document.getElementById(sectionName + 'Section').classList.add('active');
+
+      document.querySelectorAll('.sidebar-nav .nav-link').forEach(l => l.classList.remove('active'));
+      document.querySelectorAll('.sidebar-nav .nav-link').forEach(link => {
+        if (link.getAttribute('onclick')?.includes(sectionName)) {
+          link.classList.add('active');
+        }
+      });
+    }
+
+    // ==================== ONBOARDING ====================
+    
+    async function completeStep(step) {
+      onboardingProgress += 16.67;
+      updateProgress();
+      
+      showToast('Step completed!', 'success');
+      
+      // Call API with auth token
+      if (authToken) {
+        try {
+          await fetch('/api/v1/onboarding/complete-step', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({step_name: step})
+          });
+        } catch (e) {
+          console.log('API call (onboarding):', e);
+        }
+      }
+    }
+
+    function skipStep(step) {
+      showToast('Step skipped', 'info');
+    }
+
+    function updateProgress() {
+      const percentage = Math.min(Math.round(onboardingProgress), 100);
+      document.getElementById('onboardingProgress').textContent = percentage + '%';
+      document.getElementById('progressBar').style.width = percentage + '%';
+    }
+
+    // ==================== CHAT ====================
+    
+    function handleChatKeyPress(event) {
+      if (event.key === 'Enter') {
+        sendMessage();
+      }
+    }
+
+    function focusStep(step) {
+      currentStep = step;
+      
+      document.querySelectorAll('.step-card').forEach(card => {
+        card.classList.remove('active');
+      });
+      document.querySelector(`[data-step="${step}"]`).classList.add('active');
+
+      const stepMessages = {
+        'liked': "Let's talk about what you <strong>Liked</strong>. What went well this sprint?",
+        'learned': "What did you <strong>Learn</strong>? What new insights did you gain?",
+        'lacked': "What <strong>Lacked</strong>? What challenges did you face?",
+        'longed': "What do you <strong>Long For</strong>? What would you like to see improved?"
+      };
+
+      if (stepMessages[step]) {
+        addMessageToChat(stepMessages[step], 'ai');
+      }
+    }
+
+    async function sendMessage() {
+      const input = document.getElementById('chatInput');
+      const message = input.value.trim();
+
+      if (!message || awaitingResponse) return;
+
+      addMessageToChat(message, 'user');
+      input.value = '';
+      chatHistory.push({role: 'user', content: message});
+      awaitingResponse = true;
+
+      // Call real AI API with streaming
+      try {
+        const response = await fetch('/api/v1/ai-chat/proxy/stream', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            message: message,
+            current_step: currentStep,
+            chat_history: chatHistory
+          })
+        });
+
+        if (response.ok && response.body) {
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let aiMessage = '';
+          let messageDiv = null;
+
+          while (true) {
+            const {value, done} = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value);
+            const lines = chunk.split('\n\n');
+
+            for (const line of lines) {
+              if (line.startsWith('data:')) {
+                const data = line.replace('data:', '').trim();
+                if (data && data !== '[DONE]') {
+                  aiMessage += data;
+                  
+                  if (!messageDiv) {
+                    messageDiv = addMessageToChat('', 'ai', true);
+                  }
+                  messageDiv.querySelector('.message-content').innerHTML = aiMessage;
+                }
+              }
+            }
+          }
+
+          if (aiMessage) {
+            chatHistory.push({role: 'assistant', content: aiMessage});
+          }
+        } else {
+          const fallback = generateSimpleResponse();
+          addMessageToChat(fallback, 'ai');
+          chatHistory.push({role: 'assistant', content: fallback});
+        }
+      } catch (error) {
+        console.error('Chat error:', error);
+        const fallback = generateSimpleResponse();
+        addMessageToChat(fallback, 'ai');
+        chatHistory.push({role: 'assistant', content: fallback});
+      } finally {
+        awaitingResponse = false;
+      }
+    }
+
+    function addMessageToChat(message, sender, returnDiv = false) {
+      const chatMessages = document.getElementById('chatMessages');
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `message ${sender}`;
+
+      const icon = sender === 'user' ? 
+        '<i class="bi bi-person-circle"></i>' : 
+        '<i class="bi bi-robot"></i>';
+
+      messageDiv.innerHTML = `
+        <div class="message-avatar">${icon}</div>
+        <div class="message-content">${message}</div>
+      `;
+
+      chatMessages.appendChild(messageDiv);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+
+      if (returnDiv) return messageDiv;
+    }
+
+    function generateSimpleResponse() {
+      const responses = {
+        'liked': [
+          "That's wonderful! What specifically made this work well for the team?",
+          "Excellent! Can you elaborate on what contributed to this success?",
+          "Great! Are there any other things that went particularly well?"
+        ],
+        'learned': [
+          "That's a valuable learning! How will this knowledge help in future sprints?",
+          "Interesting insight! What triggered this discovery?",
+          "Fantastic! Would you like to share this with the broader team?"
+        ],
+        'lacked': [
+          "I understand this was challenging. What could have been done differently?",
+          "Thank you for sharing. How did this impact the team's productivity?",
+          "This is important feedback. What steps could prevent this from happening again?"
+        ],
+        'longed': [
+          "That's a great vision for improvement! How do you think we could work towards this?",
+          "Excellent suggestion! What would need to change to make this possible?",
+          "I love that idea! What would be the first step towards achieving this?"
+        ]
+      };
+
+      const stepResponses = responses[currentStep] || responses['liked'];
+      return stepResponses[Math.floor(Math.random() * stepResponses.length)];
+    }
+
+    // ==================== TEAM MANAGEMENT ====================
+    
+    async function addTeamMember() {
+      const name = document.getElementById('memberName').value;
+      const email = document.getElementById('memberEmail').value;
+      const role = document.getElementById('memberRole').value;
+
+      if (!name || !email) {
+        showToast('Please fill in all fields', 'danger');
+        return;
+      }
+
+      const member = {name, email, role};
+      teamMembers.push(member);
+
+      // Save to backend with auth token
+      if (authToken) {
+        try {
+          await fetch('/api/v1/teams/members', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({name, email, role})
+          });
+        } catch (e) {
+          console.log('Team API:', e);
+        }
+      }
+
+      // Add to UI
+      const teamGrid = document.getElementById('teamGrid');
+      const card = document.createElement('div');
+      card.className = 'team-member-card';
+      card.innerHTML = `
+        <div class="member-avatar">${name.charAt(0).toUpperCase()}</div>
+        <div class="fw-bold">${name}</div>
+        <div class="text-muted small">${role.replace('-', ' ')}</div>
+      `;
+      teamGrid.appendChild(card);
+
+      document.getElementById('teamCount').textContent = `(${teamMembers.length})`;
+      document.getElementById('memberName').value = '';
+      document.getElementById('memberEmail').value = '';
+
+      showToast('Team member added successfully!', 'success');
+      completeStep('team_members_added');
+    }
+
+    // ==================== SCHEDULE ====================
+    
+    async function scheduleRetro() {
+      const title = document.getElementById('scheduleTitle').value;
+      const date = document.getElementById('scheduleDate').value;
+      const team = document.getElementById('scheduleTeam').value;
+
+      if (!title || !date || !team) {
+        showToast('Please fill in all required fields', 'danger');
+        return;
+      }
+
+      // Save to backend with auth token
+      if (authToken) {
+        try {
+          await fetch('/api/v1/scheduling/schedule', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({
+              title,
+              team_id: parseInt(team),
+              scheduled_date: date,
+              duration_minutes: parseInt(document.getElementById('scheduleDuration').value),
+              send_1_week_reminder: document.getElementById('reminder1Week').checked,
+              send_24_hour_reminder: document.getElementById('reminder24Hour').checked
+            })
+          });
+        } catch (e) {
+          console.log('Schedule API:', e);
+        }
+      }
+
+      // Update UI
+      document.getElementById('scheduledList').innerHTML = `
+        <div class="alert alert-success">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <strong>${title}</strong><br>
+              <small>${new Date(date).toLocaleString()}</small>
+            </div>
+            <span class="badge bg-success">Scheduled</span>
+          </div>
+        </div>
+      `;
+
+      showToast('Retrospective scheduled! Automated reminders will be sent.', 'success');
+      completeStep('first_retrospective_scheduled');
+    }
+
+    // ==================== FILE ANALYSIS ====================
+    
+    async function analyzeFile() {
+      const input = document.getElementById('actionFileInput');
+      if (!input.files.length) {
+        showToast('Please select a file first', 'warning');
+        return;
+      }
+
+      const file = input.files[0];
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('session_type', 'retrospective');
+      formData.append('current_step', currentStep);
+
+      document.getElementById('analysisStatus').innerHTML = '<div class="spinner me-2"></div> Analyzing with AI...';
+
+      try {
+        const response = await fetch('/api/v1/ai-chat/thematic-analysis', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          renderThemes(data.analysis);
+          document.getElementById('analysisStatus').innerHTML = '<div class="alert alert-success">Analysis complete!</div>';
+        } else {
+          throw new Error('Analysis failed');
+        }
+      } catch (error) {
+        console.error('Analysis error:', error);
+        document.getElementById('analysisStatus').innerHTML = '<div class="alert alert-danger">Analysis failed. Please try again.</div>';
+      }
+    }
+
+    function renderThemes(analysis) {
+      const container = document.getElementById('groupedThemesContainer');
+      
+      if (!analysis.themes || analysis.themes.length === 0) {
+        container.innerHTML = '<div class="alert alert-info">No themes detected in the uploaded file.</div>';
+        return;
+      }
+
+      let html = '<div class="row g-3">';
+      analysis.themes.forEach((theme, i) => {
+        html += `
+          <div class="col-md-6">
+            <div class="card">
+              <div class="card-body">
+                <h6 class="text-primary">${escapeHtml(theme.theme || 'Theme ' + (i+1))}</h6>
+                <ul class="list-group list-group-flush">
+                  ${(theme.examples || []).slice(0, 10).map(ex => 
+                    `<li class="list-group-item">${escapeHtml(ex)}</li>`
+                  ).join('')}
+                </ul>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      html += '</div>';
+      container.innerHTML = html;
+    }
+
+    function clearAnalysis() {
+      document.getElementById('actionFileInput').value = '';
+      document.getElementById('analysisStatus').innerHTML = '';
+      document.getElementById('groupedThemesContainer').innerHTML = '';
+    }
+
+    // ==================== DOCUMENT UPLOAD ====================
+    
+    function handleDocUpload(event) {
+      const file = event.target.files[0];
+      if (file) {
+        document.getElementById('docFileName').textContent = file.name;
+        document.getElementById('docFileSize').textContent = (file.size / 1024 / 1024).toFixed(2) + ' MB';
+        document.getElementById('docInfo').style.display = 'block';
+        completeStep('project_data_imported');
+      }
+    }
+
+    function analyzeDoc() {
+      const docAnalysis = document.getElementById('docAnalysis');
+      docAnalysis.style.display = 'block';
+      docAnalysis.innerHTML = `
+        <div class="card bg-light">
+          <div class="card-body">
+            <h6><i class="bi bi-cpu me-2"></i>AI Document Analysis</h6>
+            <div class="alert alert-primary">
+              <strong>Key Topics:</strong> Project planning, sprint goals, team coordination, technical requirements
+            </div>
+            <div class="alert alert-success">
+              <strong>Success Factors:</strong> Clear objectives, regular check-ins, collaborative approach
+            </div>
+            <div class="alert alert-warning">
+              <strong>Challenges:</strong> Resource allocation, timeline constraints, communication gaps
+            </div>
+            <div class="alert alert-info">
+              <strong>Recommendations:</strong> Consider implementing daily standups and weekly planning sessions
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // ==================== DASHBOARD DATA ====================
+    
+    async function loadDashboardData() {
+      if (!authToken) return;
+      
+      const headers = {
+        'Authorization': `Bearer ${authToken}`,
+        'Content-Type': 'application/json'
+      };
+
+      try {
+        // Fetch retrospectives
+        const retrosResponse = await fetch('/api/v1/retrospectives/', {headers}).catch(() => null);
+        if (retrosResponse && retrosResponse.ok) {
+          const retros = await retrosResponse.json();
+          document.getElementById('totalRetros').textContent = retros.length || 0;
+          
+          if (retros.length > 0) {
+            const active = retros.filter(r => r.status === 'active').length;
+            document.getElementById('activeRetros').textContent = active;
+          }
+        }
+
+        // Fetch action items
+        const actionsResponse = await fetch('/api/v1/action-items/', {headers}).catch(() => null);
+        if (actionsResponse && actionsResponse.ok) {
+          const actions = await actionsResponse.json();
+          const completed = actions.filter(a => a.status === 'completed').length;
+          document.getElementById('completedActions').textContent = completed;
+          
+          if (actions.length > 0) {
+            const engagement = Math.round((completed / actions.length) * 100);
+            document.getElementById('engagement').textContent = engagement + '%';
+          }
+        }
+      } catch (error) {
+        console.log('Dashboard load:', error);
+      }
+    }
+
+    // ==================== UTILITIES ====================
+    
+    function showToast(message, type = 'info') {
+      const toast = document.createElement('div');
+      toast.className = `alert alert-${type} position-fixed bottom-0 end-0 m-3`;
+      toast.style.zIndex = '9999';
+      toast.style.minWidth = '300px';
+      toast.innerHTML = `
+        <i class="bi bi-${type === 'success' ? 'check-circle' : type === 'danger' ? 'exclamation-circle' : 'info-circle'} me-2"></i>
+        ${message}
+      `;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Close modal when clicking outside
+    document.getElementById('loginModal').addEventListener('click', function(e) {
+      if (e.target === this) {
+        closeLoginModal();
+      }
+    });
+
+    // ==================== WORKSPACE MANAGEMENT ====================
+    
+    async function checkAndLoadWorkspaces() {
+      if (!authToken) return;
+      
+      try {
+        const response = await fetch('/api/v1/workspaces/', {
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          userWorkspaces = await response.json();
+          
+          if (userWorkspaces.length === 0) {
+            // Force create workspace
+            showToast('Please create a workspace to get started!', 'info');
+            setTimeout(() => showCreateWorkspaceModal(), 1000);
+          } else {
+            // Set first workspace as current
+            currentWorkspace = userWorkspaces[0];
+            localStorage.setItem('current_workspace', JSON.stringify(currentWorkspace));
+          }
+        }
+      } catch (error) {
+        console.error('Load workspaces error:', error);
+      }
+    }
+    
+    function showCreateWorkspaceModal() {
+      const modal = document.getElementById('workspaceModal') || createWorkspaceModal();
+      modal.style.display = 'flex';
+    }
+    
+    function createWorkspaceModal() {
+      const modal = document.createElement('div');
+      modal.id = 'workspaceModal';
+      modal.style.cssText = 'display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;';
+      modal.innerHTML = `
+        <div style="background:white; padding:40px; border-radius:15px; max-width:500px; width:90%;">
+          <h3 style="color:#667eea; margin-bottom:20px;">Create Your Workspace</h3>
+          <p style="color:#666; margin-bottom:20px;">A workspace is required to use YodaAI. Create one now!</p>
+          
+          <div style="margin-bottom:15px;">
+            <label style="display:block; margin-bottom:5px; font-weight:600;">Workspace Name *</label>
+            <input type="text" id="workspaceName" placeholder="e.g., Engineering Team" 
+                   style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;">
+          </div>
+          
+          <div style="margin-bottom:15px;">
+            <label style="display:block; margin-bottom:5px; font-weight:600;">Description</label>
+            <textarea id="workspaceDesc" placeholder="What is this workspace for?" 
+                      style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px; min-height:80px;"></textarea>
+          </div>
+          
+          <div style="margin-bottom:20px;">
+            <label style="display:block; margin-bottom:5px; font-weight:600;">Your Role *</label>
+            <select id="workspaceRole" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;">
+              <option value="facilitator">Facilitator</option>
+              <option value="owner">Owner</option>
+              <option value="member">Member</option>
+            </select>
+          </div>
+          
+          <div style="display:flex; gap:10px;">
+            <button onclick="createWorkspace()" class="btn btn-primary" style="flex:1;">
+              <i class="bi bi-plus-circle"></i> Create Workspace
+            </button>
+          </div>
+          
+          <div id="workspaceError" style="display:none; margin-top:15px; padding:10px; background:#fee; border-radius:5px; color:#c00;"></div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      return modal;
+    }
+    
+    async function createWorkspace() {
+      const name = document.getElementById('workspaceName').value.trim();
+      const description = document.getElementById('workspaceDesc').value.trim();
+      const role = document.getElementById('workspaceRole').value;
+      
+      if (!name) {
+        document.getElementById('workspaceError').textContent = 'Please enter a workspace name';
+        document.getElementById('workspaceError').style.display = 'block';
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/v1/workspaces/', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            name: name,
+            description: description,
+            your_role: role
+          })
+        });
+        
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.detail || 'Failed to create workspace');
+        }
+        
+        const workspace = await response.json();
+        currentWorkspace = workspace;
+        userWorkspaces.push(workspace);
+        localStorage.setItem('current_workspace', JSON.stringify(workspace));
+        
+        document.getElementById('workspaceModal').style.display = 'none';
+        showToast(`Workspace "${workspace.name}" created successfully!`, 'success');
+        
+        // Show retrospective creation next
+        setTimeout(() => {
+          showToast('Now create your first retrospective!', 'info');
+        }, 1500);
+        
+      } catch (error) {
+        console.error('Create workspace error:', error);
+        document.getElementById('workspaceError').textContent = error.message;
+        document.getElementById('workspaceError').style.display = 'block';
+      }
+    }
+    
+    // ==================== RETROSPECTIVE CREATION ====================
+    
+    function showCreateRetroModal() {
+      if (!currentWorkspace) {
+        showToast('Please create a workspace first!', 'warning');
+        showCreateWorkspaceModal();
+        return;
+      }
+      
+      const modal = document.getElementById('retroModal') || createRetroModal();
+      modal.style.display = 'flex';
+    }
+    
+    function createRetroModal() {
+      const modal = document.createElement('div');
+      modal.id = 'retroModal';
+      modal.style.cssText = 'display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;';
+      modal.innerHTML = `
+        <div style="background:white; padding:40px; border-radius:15px; max-width:600px; width:90%;">
+          <h3 style="color:#667eea; margin-bottom:20px;">Create Retrospective</h3>
+          
+          <div style="margin-bottom:15px;">
+            <label style="display:block; margin-bottom:5px; font-weight:600;">Title *</label>
+            <input type="text" id="retroTitle" placeholder="e.g., Sprint 23 Retrospective" 
+                   style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;">
+          </div>
+          
+          <div style="margin-bottom:15px;">
+            <label style="display:block; margin-bottom:5px; font-weight:600;">Sprint Name *</label>
+            <input type="text" id="retroSprintName" placeholder="e.g., Sprint 23" 
+                   style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;">
+          </div>
+          
+          <div style="margin-bottom:15px;">
+            <label style="display:block; margin-bottom:5px; font-weight:600;">Description</label>
+            <textarea id="retroDescription" placeholder="Optional description" 
+                      style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px; min-height:60px;"></textarea>
+          </div>
+          
+          <div style="display:flex; gap:15px; margin-bottom:15px;">
+            <div style="flex:1;">
+              <label style="display:block; margin-bottom:5px; font-weight:600;">Start Date/Time *</label>
+              <input type="datetime-local" id="retroStartTime" 
+                     style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;">
+            </div>
+            <div style="flex:1;">
+              <label style="display:block; margin-bottom:5px; font-weight:600;">End Date/Time *</label>
+              <input type="datetime-local" id="retroEndTime" 
+                     style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;">
+            </div>
+          </div>
+          
+          <div style="display:flex; gap:10px;">
+            <button onclick="closeRetroModal()" class="btn btn-secondary" style="flex:1;">
+              Cancel
+            </button>
+            <button onclick="createRetrospective()" class="btn btn-primary" style="flex:1;">
+              <i class="bi bi-calendar-check"></i> Create Retrospective
+            </button>
+          </div>
+          
+          <div id="retroError" style="display:none; margin-top:15px; padding:10px; background:#fee; border-radius:5px; color:#c00;"></div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      return modal;
+    }
+    
+    function closeRetroModal() {
+      const modal = document.getElementById('retroModal');
+      if (modal) modal.style.display = 'none';
+    }
+    
+    async function createRetrospective() {
+      const title = document.getElementById('retroTitle').value.trim();
+      const sprintName = document.getElementById('retroSprintName').value.trim();
+      const description = document.getElementById('retroDescription').value.trim();
+      const startTime = document.getElementById('retroStartTime').value;
+      const endTime = document.getElementById('retroEndTime').value;
+      
+      if (!title || !sprintName || !startTime || !endTime) {
+        document.getElementById('retroError').textContent = 'Please fill in all required fields';
+        document.getElementById('retroError').style.display = 'block';
+        return;
+      }
+      
+      if (!currentWorkspace) {
+        showToast('Please create a workspace first!', 'warning');
+        closeRetroModal();
+        showCreateWorkspaceModal();
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/v1/retrospectives/', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            workspace_id: currentWorkspace.id,
+            title: title,
+            sprint_name: sprintName,
+            description: description,
+            scheduled_start_time: new Date(startTime).toISOString(),
+            scheduled_end_time: new Date(endTime).toISOString()
+          })
+        });
+        
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.detail || 'Failed to create retrospective');
+        }
+        
+        const retro = await response.json();
+        currentRetrospective = retro;
+        
+        closeRetroModal();
+        showToast(`Retrospective "${retro.title}" created! Starting now...`, 'success');
+        
+        // Start the retrospective immediately
+        setTimeout(() => startRetro(retro.id), 1000);
+        
+      } catch (error) {
+        console.error('Create retro error:', error);
+        document.getElementById('retroError').textContent = error.message;
+        document.getElementById('retroError').style.display = 'block';
+      }
+    }
+    
+    async function startRetro(retroId) {
+      try {
+        // Start the retrospective
+        const response = await fetch(`/api/v1/retrospectives/${retroId}/start`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          showToast('Retrospective started! Beginning 4Ls chat...', 'success');
+          // Start 4Ls chat
+          setTimeout(() => start4LsChat(retroId), 500);
+        }
+      } catch (error) {
+        console.error('Start retro error:', error);
+      }
+    }
+    
+    // ==================== 4LS CHAT WITH PROGRESS SIDEBAR ====================
+    
+    async function start4LsChat(retroId) {
+      try {
+        const response = await fetch('/api/v1/fourls-chat/start?retrospective_id=' + retroId, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (!response.ok) throw new Error('Failed to start chat');
+        
+        const data = await response.json();
+        currentChatSession = data.session_id;
+        
+        // Show 4Ls Chat Interface
+        show4LsChatInterface(retroId);
+        
+      } catch (error) {
+        console.error('Start 4Ls chat error:', error);
+        showToast('Failed to start chat. Please try again.', 'danger');
+      }
+    }
+    
+    function show4LsChatInterface(retroId) {
+      // Show retrospectives section
+      showSection('retrospectives');
+      
+      // Hide start button, show chat interface
+      document.getElementById('retroStartSection').style.display = 'none';
+      document.getElementById('retroChatSection').style.display = 'block';
+      
+      // Load chat session
+      loadChatSession();
+    }
+    
+    async function loadChatSession() {
+      if (!currentChatSession) return;
+      
+      try {
+        const response = await fetch(`/api/v1/fourls-chat/${currentChatSession}`, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          
+          // Update progress with current category
+          updateRetroProgressSidebar(data.progress, data.current_category);
+          
+          // Display messages
+          const messagesDiv = document.getElementById('retroChatMessages');
+          messagesDiv.innerHTML = '';
+          
+          data.messages.forEach(msg => {
+            addRetroMessage(msg.content, msg.message_type);
+          });
+        }
+      } catch (error) {
+        console.error('Load chat session error:', error);
+      }
+    }
+    
+    function updateRetroProgressSidebar(progress, currentCategory = null) {
+      progressData = progress;
+      
+      // Update checkboxes - PERMANENT once checked
+      ['liked', 'learned', 'lacked', 'longed_for'].forEach(cat => {
+        const checkbox = document.getElementById(`retro-check-${cat}`);
+        const item = document.getElementById(`retro-progress-${cat}`);
+        
+        if (progress[cat]) {
+          // Mark as complete - PERMANENT
+          checkbox.innerHTML = '✅';
+          item.style.background = '#d4edda';
+          item.style.borderColor = '#28a745';
+          item.style.fontWeight = 'bold';
+        } else if (currentCategory === cat) {
+          // Currently active category
+          checkbox.innerHTML = '▶';
+          item.style.background = '#e7f1ff';
+          item.style.borderColor = '#4154f1';
+          item.style.fontWeight = 'bold';
+        } else {
+          // Not yet complete
+          checkbox.innerHTML = '☐';
+          item.style.background = '#fff';
+          item.style.borderColor = '#dee2e6';
+          item.style.fontWeight = 'normal';
+        }
+      });
+      
+      // Button is now always visible - users can proceed whenever they're ready
+    }
+    
+    function addRetroMessage(message, type) {
+      const messagesDiv = document.getElementById('retroChatMessages');
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `message ${type}`;
+      
+      const icon = type === 'user' ? 
+        '<i class="bi bi-person-circle"></i>' : 
+        '<i class="bi bi-robot"></i>';
+      
+      messageDiv.innerHTML = `
+        <div class="message-avatar">${icon}</div>
+        <div class="message-content">${message}</div>
+      `;
+      
+      messagesDiv.appendChild(messageDiv);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+    
+    async function sendRetroMessage() {
+      const input = document.getElementById('retroChatInput');
+      const message = input.value.trim();
+      
+      if (!message) return;
+      
+      addRetroMessage(message, 'user');
+      input.value = '';
+      
+      try {
+        const response = await fetch(`/api/v1/fourls-chat/${currentChatSession}/message`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ message: message })  // FIXED: Send as object with 'message' key
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          
+          // Display AI response
+          addRetroMessage(data.message, 'assistant');
+          
+          // Update progress with current category
+          updateRetroProgressSidebar(data.progress, data.current_category);
+          
+          // Check if all completed
+          if (data.is_completed) {
+            showToast('All categories completed! Click "Finish & Proceed" to continue.', 'success');
+          }
+        } else {
+          const error = await response.json();
+          console.error('API error:', error);
+          addRetroMessage('Sorry, I encountered an error: ' + (error.detail || 'Unknown error'), 'assistant');
+        }
+      } catch (error) {
+        console.error('Send message error:', error);
+        addRetroMessage('Sorry, I encountered an error. Please try again.', 'assistant');
+      }
+    }
+    
+    async function finishRetroAndProceed() {
+      try {
+        await fetch(`/api/v1/fourls-chat/${currentChatSession}/complete`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        showToast('Input complete! Moving to grouping phase...', 'success');
+        
+        // Move to grouping - show in main area
+        setTimeout(() => showGroupingInMain(currentRetrospective.id), 1000);
+        
+      } catch (error) {
+        console.error('Finish chat error:', error);
+      }
+    }
+    
+    function focusRetroCategory(category) {
+      // Visual feedback only
+      ['liked', 'learned', 'lacked', 'longed_for'].forEach(cat => {
+        const item = document.getElementById(`retro-progress-${cat}`);
+        if (cat === category) {
+          item.style.background = '#e7f1ff';
+        } else if (!progressData[cat]) {
+          item.style.background = 'white';
+        }
+      });
+    }
+    
+    // NEW: Show grouping in a modal/overlay instead of replacing whole page
+    async function showGroupingInMain(retroId) {
+      // Create grouping overlay
+      const overlay = document.createElement('div');
+      overlay.id = 'groupingOverlay';
+      overlay.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); z-index:9998; overflow-y:auto; padding:40px;';
+      overlay.innerHTML = `
+        <div style="max-width:1200px; margin:0 auto; background:white; padding:40px; border-radius:15px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:30px;">
+            <h2 style="color:#667eea; margin:0;">
+              <i class="bi bi-diagram-3"></i> AI Theme Grouping
+            </h2>
+            <button onclick="closeGroupingOverlay()" class="btn btn-outline-secondary">
+              <i class="bi bi-x-lg"></i> Close
+            </button>
+          </div>
+          <p style="color:#666; margin-bottom:30px;">AI will analyze all team responses and group them into meaningful themes.</p>
+          
+          <button onclick="generateGrouping(${retroId})" class="btn btn-primary btn-lg mb-4">
+            <i class="bi bi-magic"></i> Generate AI Grouping
+          </button>
+          
+          <div id="groupingResults" style="margin-top:30px;">
+            <!-- Themes will appear here -->
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+    }
+    
+    function closeGroupingOverlay() {
+      const overlay = document.getElementById('groupingOverlay');
+      if (overlay) overlay.remove();
+    }
+    
+    // ==================== AI GROUPING INTERFACE ====================
+    
+    async function showGroupingInterface(retroId) {
+      const container = document.getElementById('appContainer');
+      container.innerHTML = `
+        <div style="padding:40px; max-width:1200px; margin:0 auto;">
+          <h2 style="color:#667eea; margin-bottom:10px;">
+            <i class="bi bi-diagram-3"></i> AI Theme Grouping
+          </h2>
+          <p style="color:#666; margin-bottom:30px;">AI will analyze all team responses and group them into meaningful themes.</p>
+          
+          <button onclick="generateGrouping(${retroId})" class="btn btn-primary btn-lg mb-4">
+            <i class="bi bi-magic"></i> Generate AI Grouping
+          </button>
+          
+          <div id="groupingResults" style="margin-top:30px;">
+            <!-- Themes will appear here -->
+          </div>
+        </div>
+      `;
+    }
+    
+    async function generateGrouping(retroId) {
+      showToast('Generating AI grouping... This may take a moment.', 'info');
+      
+      try {
+        const response = await fetch(`/api/v1/grouping/${retroId}/generate`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (!response.ok) throw new Error('Grouping failed');
+        
+        const data = await response.json();
+        showToast(`Created ${data.groups_created} theme groups!`, 'success');
+        
+        // Load and display grouping results
+        loadGroupingResults(retroId);
+        
+      } catch (error) {
+        console.error('Generate grouping error:', error);
+        showToast('Failed to generate grouping. Please try again.', 'danger');
+      }
+    }
+    
+    async function loadGroupingResults(retroId) {
+      try {
+        const response = await fetch(`/api/v1/grouping/${retroId}`, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (!response.ok) return;
+        
+        const data = await response.json();
+        displayGroupingResults(data, retroId);
+        
+      } catch (error) {
+        console.error('Load grouping error:', error);
+      }
+    }
+    
+    function displayGroupingResults(data, retroId) {
+      const container = document.getElementById('groupingResults');
+      
+      let html = '';
+      
+      // Theme Groups
+      data.theme_groups.forEach((theme, idx) => {
+        html += `
+          <div class="card mb-3" style="border-left:4px solid #667eea;">
+            <div class="card-body">
+              <div style="display:flex; justify-content:space-between; align-items:start;">
+                <h5 style="color:#667eea; margin:0;">${escapeHtml(theme.title)}</h5>
+                <button onclick="deleteTheme(${theme.id}, ${retroId})" class="btn btn-sm btn-outline-danger">
+                  <i class="bi bi-trash"></i> Delete
+                </button>
+              </div>
+              <p style="color:#666; margin:10px 0;">${escapeHtml(theme.description)}</p>
+              <div style="background:#f8f9fa; padding:15px; border-radius:8px; margin-top:15px;">
+                <strong style="color:#444;">Responses (${theme.response_count}):</strong>
+                <ul style="margin:10px 0 0 0; padding-left:20px;">
+                  ${theme.responses.map(r => `
+                    <li style="margin:8px 0; color:#555;">
+                      "${escapeHtml(r.content)}" 
+                      <span style="color:#888; font-size:13px;">- ${escapeHtml(r.author_name)}</span>
+                    </li>
+                  `).join('')}
+                </ul>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      
+      // Ungrouped Items
+      if (data.ungrouped_responses.length > 0) {
+        html += `
+          <div class="card mb-3" style="border-left:4px solid #ffc107;">
+            <div class="card-body">
+              <h5 style="color:#ffc107; margin:0;">
+                <i class="bi bi-exclamation-triangle"></i> Ungrouped Items (${data.ungrouped_responses.length})
+              </h5>
+              <ul style="margin:15px 0 0 0; padding-left:20px;">
+                ${data.ungrouped_responses.map(r => `
+                  <li style="margin:8px 0; color:#555;">
+                    "${escapeHtml(r.content)}" 
+                    <span style="color:#888; font-size:13px;">- ${escapeHtml(r.author_name)}</span>
+                  </li>
+                `).join('')}
+              </ul>
+            </div>
+          </div>
+        `;
+      }
+      
+      html += `
+        <button onclick="proceedToVoting(${retroId})" class="btn btn-primary btn-lg mt-4">
+          <i class="bi bi-arrow-right"></i> Proceed to Voting
+        </button>
+      `;
+      
+      container.innerHTML = html;
+    }
+    
+    async function deleteTheme(themeId, retroId) {
+      if (!confirm('Delete this theme? Responses will become ungrouped.')) return;
+      
+      try {
+        const response = await fetch(`/api/v1/grouping/theme/${themeId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          showToast('Theme deleted', 'success');
+          loadGroupingResults(retroId);
+        }
+      } catch (error) {
+        console.error('Delete theme error:', error);
+      }
+    }
+    
+    // ==================== VOTING SYSTEM ====================
+    
+    async function proceedToVoting(retroId) {
+      try {
+        // Start voting session
+        await fetch(`/api/v1/voting/${retroId}/start`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        showVotingInterface(retroId);
+        
+      } catch (error) {
+        console.error('Start voting error:', error);
+      }
+    }
+    
+    async function showVotingInterface(retroId) {
+      const container = document.getElementById('appContainer');
+      container.innerHTML = `
+        <div style="padding:40px; max-width:1000px; margin:0 auto;">
+          <h2 style="color:#667eea; margin-bottom:10px;">
+            <i class="bi bi-hand-thumbs-up"></i> Vote on Themes
+          </h2>
+          <p style="color:#666; margin-bottom:30px;">You have 10 votes to allocate to the most important themes.</p>
+          
+          <div id="voteCounter" style="padding:20px; background:#f8f9fa; border-radius:10px; margin-bottom:30px; text-align:center;">
+            <h4 style="margin:0;">Votes: <span id="votesUsed">0</span>/10 used | <span id="votesRemaining">10</span> remaining</h4>
+          </div>
+          
+          <div id="votingThemes">
+            <!-- Loading themes... -->
+          </div>
+          
+          <div id="votingResults" style="margin-top:40px;">
+            <!-- Results will appear here -->
+          </div>
+          
+          <button onclick="finalizeVoting(${retroId})" class="btn btn-success btn-lg mt-4">
+            <i class="bi bi-check-circle"></i> Finalize Voting & Proceed to Discussion
+          </button>
+        </div>
+      `;
+      
+      loadVotingStatus(retroId);
+    }
+    
+    async function loadVotingStatus(retroId) {
+      try {
+        const response = await fetch(`/api/v1/voting/${retroId}/status`, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (!response.ok) return;
+        
+        const data = await response.json();
+        
+        // Update vote counter
+        document.getElementById('votesUsed').textContent = data.votes_used;
+        document.getElementById('votesRemaining').textContent = data.votes_remaining;
+        
+        // Display themes
+        const themesDiv = document.getElementById('votingThemes');
+        let html = '';
+        
+        data.theme_votes.forEach(theme => {
+          html += `
+            <div class="card mb-3">
+              <div class="card-body">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <div style="flex:1;">
+                    <h5 style="color:#667eea; margin:0 0 5px 0;">${escapeHtml(theme.theme_title)}</h5>
+                    <p style="color:#666; margin:0;">${escapeHtml(theme.theme_description)}</p>
+                  </div>
+                  <div style="text-align:center; margin-left:20px;">
+                    <div style="font-size:24px; font-weight:bold; color:#667eea;">${theme.total_votes}</div>
+                    <div style="font-size:12px; color:#888;">total votes</div>
+                  </div>
+                </div>
+                <div style="margin-top:15px; display:flex; align-items:center; gap:10px;">
+                  <button onclick="castVote(${retroId}, ${theme.theme_id}, 1)" class="btn btn-sm btn-primary">
+                    <i class="bi bi-plus"></i> Vote
+                  </button>
+                  <span style="color:#666;">Your votes: <strong>${theme.my_votes}</strong></span>
+                </div>
+              </div>
+            </div>
+          `;
+        });
+        
+        themesDiv.innerHTML = html;
+        
+        // Show results (ranked)
+        displayVotingResults(data.theme_votes);
+        
+      } catch (error) {
+        console.error('Load voting status error:', error);
+      }
+    }
+    
+    function displayVotingResults(themes) {
+      const resultsDiv = document.getElementById('votingResults');
+      
+      const sorted = [...themes].sort((a, b) => b.total_votes - a.total_votes);
+      
+      let html = `
+        <h4 style="color:#667eea; margin-bottom:20px;">
+          <i class="bi bi-trophy"></i> Voting Results (Top Themes for Discussion)
+        </h4>
+        <div class="list-group">
+      `;
+      
+      sorted.forEach((theme, idx) => {
+        if (theme.total_votes >= 3) {  // Min votes for discussion
+          html += `
+            <div class="list-group-item" style="border-left:4px solid #28a745;">
+              <div style="display:flex; justify-content:between; align-items:center;">
+                <div style="flex:1;">
+                  <h6 style="margin:0; color:#28a745;">#${idx + 1}. ${escapeHtml(theme.theme_title)}</h6>
+                  <small style="color:#666;">${theme.total_votes} votes</small>
+                </div>
+                <span class="badge bg-success">Will Discuss</span>
+              </div>
+            </div>
+          `;
+        }
+      });
+      
+      html += '</div>';
+      resultsDiv.innerHTML = html;
+    }
+    
+    async function castVote(retroId, themeId, votes) {
+      try {
+        const response = await fetch(`/api/v1/voting/${retroId}/vote`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            theme_group_id: themeId,
+            votes: votes
+          })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          showToast(data.message, 'success');
+          
+          // Reload voting status
+          loadVotingStatus(retroId);
+        } else {
+          const error = await response.json();
+          showToast(error.detail, 'danger');
+        }
+      } catch (error) {
+        console.error('Cast vote error:', error);
+        showToast('Failed to cast vote', 'danger');
+      }
+    }
+    
+    async function finalizeVoting(retroId) {
+      try {
+        const response = await fetch(`/api/v1/voting/${retroId}/finalize`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          showToast(`Voting finalized! ${data.discussion_topics_created} topics for discussion.`, 'success');
+          
+          // Move to discussion
+          setTimeout(() => showDiscussionInterface(retroId), 1000);
+        }
+      } catch (error) {
+        console.error('Finalize voting error:', error);
+      }
+    }
+    
+    // ==================== DISCUSSION INTERFACE ====================
+    
+    async function showDiscussionInterface(retroId) {
+      const container = document.getElementById('appContainer');
+      container.innerHTML = `
+        <div style="padding:40px; max-width:1000px; margin:0 auto;">
+          <h2 style="color:#667eea; margin-bottom:10px;">
+            <i class="bi bi-chat-quote"></i> Team Discussion
+          </h2>
+          <p style="color:#666; margin-bottom:30px;">Discuss the top-voted themes with your team and YodaAI.</p>
+          
+          <div id="discussionTopics">
+            <!-- Loading topics... -->
+          </div>
+          
+          <button onclick="proceedToSummary(${retroId})" class="btn btn-primary btn-lg mt-4">
+            <i class="bi bi-arrow-right"></i> Proceed to Summary
+          </button>
+        </div>
+      `;
+      
+      loadDiscussionTopics(retroId);
+    }
+    
+    async function loadDiscussionTopics(retroId) {
+      try {
+        const response = await fetch(`/api/v1/discussion/${retroId}/topics`, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (!response.ok) return;
+        
+        const topics = await response.json();
+        const container = document.getElementById('discussionTopics');
+        
+        let html = '';
+        topics.forEach(topic => {
+          html += `
+            <div class="card mb-3" style="border-left:4px solid ${topic.is_discussed ? '#28a745' : '#667eea'};">
+              <div class="card-body">
+                <div style="display:flex; justify-content:space-between; align-items:start;">
+                  <div>
+                    <h5 style="color:#667eea; margin:0 0 5px 0;">
+                      #${topic.rank}. ${escapeHtml(topic.theme_title)}
+                    </h5>
+                    <p style="color:#666; margin:0 0 10px 0;">${escapeHtml(topic.theme_description)}</p>
+                    <span class="badge bg-primary">${topic.total_votes} votes</span>
+                  </div>
+                  ${topic.is_discussed ? 
+                    '<span class="badge bg-success">Discussed ✓</span>' : 
+                    `<button onclick="startDiscussion(${topic.id})" class="btn btn-sm btn-primary">
+                      <i class="bi bi-chat"></i> Discuss
+                    </button>`
+                  }
+                </div>
+              </div>
+            </div>
+          `;
+        });
+        
+        container.innerHTML = html;
+        
+      } catch (error) {
+        console.error('Load discussion topics error:', error);
+      }
+    }
+    
+    async function startDiscussion(topicId) {
+      // For MVP, show simple message
+      showToast('Discussion started! In full version, this opens a team chat.', 'info');
+    }
+    
+    // ==================== SUMMARY GENERATION ====================
+    
+    async function proceedToSummary(retroId) {
+      showToast('Generating AI summary...', 'info');
+      
+      try {
+        const response = await fetch(`/api/v1/discussion/${retroId}/generate-summary`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          const summary = await response.json();
+          showSummaryInterface(summary, retroId);
+        }
+      } catch (error) {
+        console.error('Generate summary error:', error);
+      }
+    }
+    
+    function showSummaryInterface(summary, retroId) {
+      const container = document.getElementById('appContainer');
+      container.innerHTML = `
+        <div style="padding:40px; max-width:1000px; margin:0 auto;">
+          <h2 style="color:#667eea; margin-bottom:10px;">
+            <i class="bi bi-file-text"></i> Sprint Summary
+          </h2>
+          <p style="color:#666; margin-bottom:30px;">AI-generated insights from your retrospective</p>
+          
+          <div class="card mb-4" style="border-left:4px solid #667eea;">
+            <div class="card-body">
+              <h5 style="color:#667eea;">
+                <i class="bi bi-graph-up"></i> Overall Assessment - ${escapeHtml(summary.sprint_name || 'Current Sprint')}
+              </h5>
+              <p style="color:#555; line-height:1.6; margin-top:15px;">${escapeHtml(summary.summary)}</p>
+            </div>
+          </div>
+          
+          <div class="card mb-4" style="border-left:4px solid #28a745;">
+            <div class="card-body">
+              <h5 style="color:#28a745;">
+                <i class="bi bi-trophy"></i> Top Achievements
+              </h5>
+              <ul style="margin-top:15px;">
+                ${(summary.achievements || []).map(a => `<li style="margin:8px 0; color:#555;">${escapeHtml(a)}</li>`).join('')}
+              </ul>
+            </div>
+          </div>
+          
+          <div class="card mb-4" style="border-left:4px solid #ffc107;">
+            <div class="card-body">
+              <h5 style="color:#ffc107;">
+                <i class="bi bi-exclamation-triangle"></i> Main Challenges
+              </h5>
+              <ul style="margin-top:15px;">
+                ${(summary.challenges || []).map(c => `<li style="margin:8px 0; color:#555;">${escapeHtml(c)}</li>`).join('')}
+              </ul>
+            </div>
+          </div>
+          
+          <div class="card mb-4" style="border-left:4px solid #17a2b8;">
+            <div class="card-body">
+              <h5 style="color:#17a2b8;">
+                <i class="bi bi-lightbulb"></i> Recommendations
+              </h5>
+              <ul style="margin-top:15px;">
+                ${(summary.recommendations || []).map(r => `<li style="margin:8px 0; color:#555;">${escapeHtml(r)}</li>`).join('')}
+              </ul>
+            </div>
+          </div>
+          
+          <div style="text-align:center; margin-top:40px;">
+            <button onclick="completeRetrospective()" class="btn btn-success btn-lg">
+              <i class="bi bi-check-circle"></i> Complete Retrospective
+            </button>
+          </div>
+        </div>
+      `;
+    }
+    
+    function completeRetrospective() {
+      showToast('Retrospective completed! Great work!', 'success');
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    }
+
+    console.log('YodaAI Application Ready!');
+  </script>
+
+</body>
+
+</html>

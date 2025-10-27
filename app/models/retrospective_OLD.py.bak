@@ -16,7 +16,7 @@ class Retrospective(Base):
     title = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     sprint_id = Column(String, nullable=True)  # Reference to sprint
-    team_id = Column(String, nullable=True)    # Reference to team
+    team_id = Column(Integer, ForeignKey("teams.id"), nullable=True)  # Foreign key to teams table
     
     # Session status
     status = Column(String, default="active")  # active, completed, archived
