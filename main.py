@@ -11,7 +11,11 @@ import uvicorn
 from contextlib import asynccontextmanager
 
 from app.core.config import settings
-from app.api.routes import auth, retrospectives, uploads, teams, action_items, ai_chat, google_auth, pdf_analysis, ai_chat_openai
+from app.api.routes import (
+    retrospectives, teams, action_items, 
+    ai_chat, ai_chat_openai, onboarding, scheduling, user_auth,
+    workspaces, retrospectives_full, fourls_chat, grouping, voting, discussion_summary
+)
 from app.database.database import init_db
 
 
@@ -43,17 +47,20 @@ app.add_middleware(
 )
 
 # Include API routes
-# Firebase-only: keep /auth router for potential status endpoints, but no local login/register
-app.include_router(auth.router, prefix="/api/v1/auth", tags=["authentication"])
-app.include_router(google_auth.router, prefix="/api/v1/auth", tags=["authentication"])
-app.include_router(retrospectives.router, prefix="/api/v1/retrospectives", tags=["retrospectives"])
-app.include_router(uploads.router, prefix="/api/v1/uploads", tags=["uploads"])
-app.include_router(teams.router, prefix="/api/v1/teams", tags=["teams"])
+app.include_router(user_auth.router, prefix="/api/v1/user-auth", tags=["authentication"])
+app.include_router(workspaces.router)  # Has its own prefix
+app.include_router(retrospectives_full.router)  # Has its own prefix
+app.include_router(fourls_chat.router)  # Has its own prefix
+app.include_router(grouping.router)  # Has its own prefix
+app.include_router(voting.router)  # Has its own prefix
+app.include_router(discussion_summary.router)  # Has its own prefix
 app.include_router(action_items.router, prefix="/api/v1/action-items", tags=["action-items"])
+app.include_router(onboarding.router, prefix="/api/v1/onboarding", tags=["onboarding"])
+app.include_router(scheduling.router, prefix="/api/v1/scheduling", tags=["scheduling"])
+app.include_router(retrospectives.router, prefix="/api/v1/retrospectives-old", tags=["retrospectives-old"])
+app.include_router(teams.router, prefix="/api/v1/teams", tags=["teams"])
 app.include_router(ai_chat.router, prefix="/api/v1/ai-chat", tags=["ai-chat"])
-# include OpenAI-backed thematic analysis routes (same prefix)
-app.include_router(ai_chat_openai.router, prefix="/api/v1/ai-chat", tags=["ai-chat-openai"])
-app.include_router(pdf_analysis.router, prefix="/api/v1/pdf", tags=["pdf-analysis"])
+app.include_router(ai_chat_openai.router, prefix="/api/v1/ai-chat-openai", tags=["ai-chat-openai"])
 
 # Mount static UI under /ui
 app.mount("/ui", StaticFiles(directory="app/ui", html=True), name="ui")
@@ -61,12 +68,9 @@ app.mount("/ui", StaticFiles(directory="app/ui", html=True), name="ui")
 
 @app.get("/")
 async def root():
-    """Root endpoint"""
-    return {
-        "message": "Welcome to YodaAI - Conversational 4Ls Retrospective Assistant",
-        "version": "1.0.0",
-        "status": "running"
-    }
+    """Root endpoint - redirects to main app"""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/ui/yodaai-app.html")
 
 
 @app.get("/health")

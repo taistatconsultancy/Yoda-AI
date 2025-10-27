@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 from app.database.database import get_db
-from app.models.team import Team, TeamMember
+from app.models.workspace import Workspace as Team, WorkspaceMember as TeamMember
 from app.schemas.team import TeamCreate, TeamResponse, TeamUpdate, TeamMemberCreate, TeamMemberResponse
 from app.services.team_service import TeamService
 from app.api.dependencies.auth import get_current_user

@@ -5,7 +5,7 @@ Team service for managing teams and team members
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from typing import List, Optional
-from app.models.team import Team, TeamMember
+from app.models.workspace import Workspace as Team, WorkspaceMember as TeamMember
 from app.schemas.team import TeamCreate, TeamUpdate, TeamMemberCreate
 
 

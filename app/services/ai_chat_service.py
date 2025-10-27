@@ -7,8 +7,7 @@ from sqlalchemy import and_
 from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime
-from app.models.ai_chat import ChatSession, ChatMessage
-from app.models.retrospective import Retrospective, RetrospectiveResponse
+from app.models.retrospective_new import ChatSession, ChatMessage, Retrospective, RetrospectiveResponse
 from app.schemas.ai_chat import ChatSessionCreate, ChatRequest
 from app.services.enhanced_ai_service import EnhancedAIService
 from app.services.firebase_service import FirebaseService
@@ -94,7 +93,7 @@ class AIChatService:
     def _has_project_context(self, user_id: int, retrospective_id: Optional[int] = None) -> bool:
         """Check if user has project context (team membership or uploaded documents)"""
         # Check if user is part of any team
-        from app.models.team import Team, TeamMember
+        from app.models.workspace import Workspace as Team, WorkspaceMember as TeamMember
         team_membership = self.db.query(TeamMember).filter(
             TeamMember.user_id == user_id
         ).first()
@@ -122,7 +121,7 @@ class AIChatService:
         """Get project context for the user"""
         try:
             # Get team information
-            from app.models.team import Team, TeamMember
+            from app.models.workspace import Workspace as Team, WorkspaceMember as TeamMember
             team_membership = self.db.query(TeamMember).filter(
                 TeamMember.user_id == user_id
             ).first()
