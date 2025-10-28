@@ -31,9 +31,10 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480  # 8 hours - enough for retrospective sessions
     
     # Firebase (optional)
-    FIREBASE_PROJECT_ID: Optional[str] = None
-    FIREBASE_PRIVATE_KEY: Optional[str] = None
-    FIREBASE_CLIENT_EMAIL: Optional[str] = None
+    FIREBASE_PROJECT_ID: Optional[str] = os.getenv("FIREBASE_PROJECT_ID")
+    FIREBASE_PRIVATE_KEY: Optional[str] = os.getenv("FIREBASE_PRIVATE_KEY")
+    FIREBASE_CLIENT_EMAIL: Optional[str] = os.getenv("FIREBASE_CLIENT_EMAIL")
+    FIREBASE_SERVICE_ACCOUNT_JSON: Optional[str] = None  # Path to credentials.json or JSON content
     
     # Email Service Configuration
     SMTP_HOST: Optional[str] = "smtp.gmail.com"

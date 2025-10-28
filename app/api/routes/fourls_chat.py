@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 import json
 from openai import OpenAI
@@ -335,7 +335,7 @@ Be conversational, encouraging, and concise. Always use the category name when t
         # Update session
         session.current_category = new_category
         session.categories_completed = categories_completed
-        session.last_activity_at = datetime.utcnow()
+        session.last_activity_at = datetime.now(timezone.utc)
         
         # Save AI message
         ai_msg = ChatMessage(
@@ -392,7 +392,7 @@ async def complete_session(
             raise HTTPException(status_code=404, detail="Session not found")
         
         session.is_completed = True
-        session.completed_at = datetime.utcnow()
+        session.completed_at = datetime.now(timezone.utc)
         session.is_active = False
         
         # Mark participant as having completed input

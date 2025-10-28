@@ -24,8 +24,11 @@ if config.config_file_name is not None:
 # add your model's MetaData object here
 # for 'autogenerate' support
 import app.models.user  # noqa: F401
-import app.models.retrospective  # noqa: F401
-import app.models.sprint_summary  # noqa: F401
+import app.models.email_verification  # noqa: F401
+import app.models.workspace  # noqa: F401
+import app.models.retrospective_new  # noqa: F401
+import app.models.action_item  # noqa: F401
+import app.models.onboarding  # noqa: F401
 from app.database.database import Base
 
 target_metadata = Base.metadata

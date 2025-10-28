@@ -2,11 +2,11 @@
 Complete Retrospective Management Routes
 Handles all 6 phases of retrospective
 """
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Response
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.database.database import get_db
 from app.models.retrospective_new import (
@@ -18,6 +18,9 @@ from app.models.workspace import Workspace, WorkspaceMember
 from app.models.user import User
 from app.models.action_item import ActionItem
 from app.api.dependencies.auth import get_current_user
+from app.services.calendar_service import CalendarService
+from app.services.email_service import EmailService
+from app.core.config import settings
 
 router = APIRouter(prefix="/api/v1/retrospectives", tags=["retrospectives"])
 
@@ -41,6 +44,8 @@ class RetrospectiveResponse(BaseModel):
     facilitator_id: int
     scheduled_start_time: datetime = None
     scheduled_end_time: datetime = None
+    actual_start_time: datetime = None
+    actual_end_time: datetime = None
     status: str
     current_phase: str
     created_at: datetime
@@ -97,6 +102,7 @@ async def create_retrospective(
             description=retro_data.description,
             sprint_name=retro_data.sprint_name,
             facilitator_id=current_user.id,
+            created_by=current_user.id,
             scheduled_start_time=retro_data.scheduled_start_time,
             scheduled_end_time=retro_data.scheduled_end_time,
             status='scheduled',
@@ -121,7 +127,53 @@ async def create_retrospective(
         db.commit()
         db.refresh(new_retro)
         
-        # TODO: Send email notifications to all participants
+        # Generate calendar invites for all participants
+        try:
+            # Get workspace details
+            workspace = db.query(Workspace).filter(Workspace.id == retro_data.workspace_id).first()
+            
+            # Generate .ics calendar file
+            calendar_service = CalendarService()
+            print(f"🔧 Generating calendar for retrospective: {new_retro.title}")
+            print(f"   Start time: {new_retro.scheduled_start_time}")
+            print(f"   End time: {new_retro.scheduled_end_time}")
+            
+            ics_content = calendar_service.generate_retrospective_calendar(
+                retrospective_id=new_retro.id,
+                title=new_retro.title,
+                sprint_name=new_retro.sprint_name or "Sprint",
+                start_time=new_retro.scheduled_start_time,
+                end_time=new_retro.scheduled_end_time,
+                workspace_name=workspace.name if workspace else "Workspace",
+                facilitator_name=current_user.full_name
+            )
+            
+            print(f"✅ Generated iCal content: {len(ics_content)} bytes")
+            if b'\x00' in ics_content:
+                print("⚠️ iCal content contains null bytes!")
+            
+            # Send calendar invites to all participants
+            email_service = EmailService()
+            retro_link = f"{settings.APP_URL}/retrospectives/{new_retro.id}"
+            
+            for member in members:
+                user = db.query(User).filter(User.id == member.user_id).first()
+                if user and user.email:
+                    email_service.send_calendar_invite_email(
+                        to_email=user.email,
+                        full_name=user.full_name,
+                        retrospective_title=new_retro.title,
+                        sprint_name=new_retro.sprint_name or "Sprint",
+                        start_time=new_retro.scheduled_start_time,
+                        end_time=new_retro.scheduled_end_time,
+                        workspace_name=workspace.name if workspace else "Workspace",
+                        facilitator_name=current_user.full_name,
+                        ics_content=ics_content,
+                        retro_link=retro_link
+                    )
+        except Exception as email_error:
+            # Don't fail retrospective creation if email fails
+            print(f"Failed to send calendar invites: {email_error}")
         
         return RetrospectiveResponse(
             id=new_retro.id,
@@ -143,6 +195,66 @@ async def create_retrospective(
         db.rollback()
         print(f"Create retrospective error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create retrospective: {str(e)}")
+
+
+@router.get("/", response_model=List[RetrospectiveResponse])
+async def get_retrospectives(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    workspace_id: Optional[int] = None
+):
+    """
+    Get all retrospectives for the current user
+    If workspace_id is provided, filter to that workspace
+    """
+    try:
+        # Get workspaces the user is a member of
+        user_workspaces = db.query(WorkspaceMember).filter(
+            WorkspaceMember.user_id == current_user.id,
+            WorkspaceMember.is_active == True
+        ).all()
+        
+        workspace_ids = [w.workspace_id for w in user_workspaces]
+        
+        if not workspace_ids:
+            return []
+        
+        # Build query
+        query = db.query(Retrospective).filter(
+            Retrospective.workspace_id.in_(workspace_ids)
+        )
+        
+        # Filter by workspace if specified
+        if workspace_id:
+            query = query.filter(Retrospective.workspace_id == workspace_id)
+        
+        # Get retrospectives where user is participant
+        retrospectives = db.query(Retrospective).join(
+            RetrospectiveParticipant,
+            RetrospectiveParticipant.retrospective_id == Retrospective.id
+        ).filter(
+            RetrospectiveParticipant.user_id == current_user.id
+        ).order_by(Retrospective.created_at.desc()).all()
+        
+        return [RetrospectiveResponse(
+            id=r.id,
+            workspace_id=r.workspace_id,
+            title=r.title,
+            description=r.description,
+            sprint_name=r.sprint_name,
+            facilitator_id=r.facilitator_id,
+            scheduled_start_time=r.scheduled_start_time,
+            scheduled_end_time=r.scheduled_end_time,
+            actual_start_time=r.actual_start_time,
+            actual_end_time=r.actual_end_time,
+            status=r.status,
+            current_phase=r.current_phase,
+            created_at=r.created_at
+        ) for r in retrospectives]
+        
+    except Exception as e:
+        print(f"Get retrospectives error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch retrospectives: {str(e)}")
 
 
 @router.get("/workspace/{workspace_id}", response_model=List[RetrospectiveResponse])
@@ -179,6 +291,8 @@ async def get_workspace_retrospectives(
             facilitator_id=r.facilitator_id,
             scheduled_start_time=r.scheduled_start_time,
             scheduled_end_time=r.scheduled_end_time,
+            actual_start_time=r.actual_start_time,
+            actual_end_time=r.actual_end_time,
             status=r.status,
             current_phase=r.current_phase,
             created_at=r.created_at
@@ -224,6 +338,8 @@ async def get_retrospective(
             facilitator_id=retro.facilitator_id,
             scheduled_start_time=retro.scheduled_start_time,
             scheduled_end_time=retro.scheduled_end_time,
+            actual_start_time=retro.actual_start_time,
+            actual_end_time=retro.actual_end_time,
             status=retro.status,
             current_phase=retro.current_phase,
             created_at=retro.created_at
@@ -234,6 +350,63 @@ async def get_retrospective(
     except Exception as e:
         print(f"Get retrospective error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch retrospective: {str(e)}")
+
+
+@router.get("/{retro_id}/calendar")
+async def download_calendar(
+    retro_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Download .ics calendar file for retrospective
+    """
+    try:
+        retro = db.query(Retrospective).filter(Retrospective.id == retro_id).first()
+        
+        if not retro:
+            raise HTTPException(status_code=404, detail="Retrospective not found")
+        
+        # Verify user is participant
+        participant = db.query(RetrospectiveParticipant).filter(
+            RetrospectiveParticipant.retrospective_id == retro_id,
+            RetrospectiveParticipant.user_id == current_user.id
+        ).first()
+        
+        if not participant:
+            raise HTTPException(status_code=403, detail="You are not a participant in this retrospective")
+        
+        # Get workspace and facilitator details
+        workspace = db.query(Workspace).filter(Workspace.id == retro.workspace_id).first()
+        facilitator = db.query(User).filter(User.id == retro.facilitator_id).first()
+        
+        # Generate calendar file
+        calendar_service = CalendarService()
+        ics_content = calendar_service.generate_retrospective_calendar(
+            retrospective_id=retro.id,
+            title=retro.title,
+            sprint_name=retro.sprint_name or "Sprint",
+            start_time=retro.scheduled_start_time,
+            end_time=retro.scheduled_end_time,
+            workspace_name=workspace.name if workspace else "Workspace",
+            facilitator_name=facilitator.full_name if facilitator else "Facilitator"
+        )
+        
+        # Return as downloadable file
+        filename = f"retrospective_{retro.id}.ics"
+        return Response(
+            content=ics_content,
+            media_type="text/calendar",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}"
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Download calendar error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate calendar file: {str(e)}")
 
 
 @router.get("/{retro_id}/participants", response_model=List[ParticipantResponse])
@@ -304,8 +477,19 @@ async def start_retrospective(
         if retro.status != 'scheduled':
             raise HTTPException(status_code=400, detail=f"Retrospective is already {retro.status}")
         
+        # Check if scheduled time has arrived
+        now_utc = datetime.now(timezone.utc)
+        if retro.scheduled_start_time and retro.scheduled_start_time > now_utc:
+            time_until_start = (retro.scheduled_start_time - now_utc).total_seconds()
+            hours = int(time_until_start // 3600)
+            minutes = int((time_until_start % 3600) // 60)
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Retrospective is scheduled to start in {hours}h {minutes}m. Please wait until the scheduled time."
+            )
+        
         retro.status = 'in_progress'
-        retro.actual_start_time = datetime.utcnow()
+        retro.actual_start_time = now_utc
         retro.current_phase = 'input'
         
         db.commit()
@@ -318,6 +502,70 @@ async def start_retrospective(
         db.rollback()
         print(f"Start retrospective error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to start retrospective: {str(e)}")
+
+
+@router.get("/user/dashboard")
+async def get_user_dashboard_retrospectives(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get user's retrospectives grouped by status for dashboard
+    Returns: upcoming (scheduled), in_progress, completed
+    """
+    try:
+        # Get all retrospectives where user is participant
+        retrospectives = db.query(Retrospective).join(
+            RetrospectiveParticipant,
+            RetrospectiveParticipant.retrospective_id == Retrospective.id
+        ).filter(
+            RetrospectiveParticipant.user_id == current_user.id
+        ).order_by(Retrospective.scheduled_start_time.desc()).all()
+        
+        now_utc = datetime.now(timezone.utc)
+        
+        # Group by status
+        upcoming = []
+        in_progress = []
+        completed = []
+        
+        for retro in retrospectives:
+            retro_data = RetrospectiveResponse(
+                id=retro.id,
+                workspace_id=retro.workspace_id,
+                title=retro.title,
+                description=retro.description,
+                sprint_name=retro.sprint_name,
+                facilitator_id=retro.facilitator_id,
+                scheduled_start_time=retro.scheduled_start_time,
+                scheduled_end_time=retro.scheduled_end_time,
+                actual_start_time=retro.actual_start_time,
+                actual_end_time=retro.actual_end_time,
+                status=retro.status,
+                current_phase=retro.current_phase,
+                created_at=retro.created_at
+            )
+            
+            if retro.status == 'completed':
+                completed.append(retro_data)
+            elif retro.status == 'in_progress':
+                in_progress.append(retro_data)
+            elif retro.status == 'scheduled':
+                # Check if scheduled time has passed
+                if retro.scheduled_start_time and retro.scheduled_start_time <= now_utc:
+                    in_progress.append(retro_data)
+                else:
+                    upcoming.append(retro_data)
+        
+        return {
+            "upcoming": upcoming,
+            "in_progress": in_progress,
+            "completed": completed
+        }
+        
+    except Exception as e:
+        print(f"Get dashboard retrospectives error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch dashboard data: {str(e)}")
 
 
 @router.post("/{retro_id}/advance-phase")
@@ -349,7 +597,7 @@ async def advance_phase(
         
         if next_phase == 'completed':
             retro.status = 'completed'
-            retro.actual_end_time = datetime.utcnow()
+            retro.actual_end_time = datetime.now(timezone.utc)
         
         db.commit()
         

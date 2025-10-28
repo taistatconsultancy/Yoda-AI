@@ -13,6 +13,7 @@ from pydantic import BaseModel, EmailStr
 import bcrypt
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
+from datetime import timezone
 from app.core.config import settings
 from typing import Optional
 import secrets
@@ -114,41 +115,58 @@ async def register(
         # Hash password
         hashed_password = get_password_hash(user_data.password)
         
-        # Create user
+        # Create user (not verified yet)
         new_user = User(
             email=user_data.email,
             username=username,
             full_name=user_data.full_name,
             hashed_password=hashed_password,
             email_verified=False,  # Requires email verification
-            is_active=True,
-            last_login_at=func.now()
+            is_active=True
         )
-        
-        # Auto-verify user (no email verification needed)
-        new_user.email_verified = True
-        new_user.email_verified_at = datetime.utcnow()
         
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
         
-        # Create access token - user can login immediately
-        access_token = create_access_token(
-            data={"sub": str(new_user.id), "email": new_user.email}
+        # Generate verification token
+        from app.services.email_service import EmailService
+        from app.models.email_verification import EmailVerificationToken
+        
+        email_service = EmailService()
+        verification_token = email_service.generate_verification_token()
+        
+        # Create verification token record
+        token_record = EmailVerificationToken(
+            user_id=new_user.id,
+            token=verification_token,
+            expires_at=datetime.now(timezone.utc) + timedelta(days=1)  # 24 hours
+        )
+        db.add(token_record)
+        db.commit()
+        
+        # Generate verification link
+        base_url = settings.APP_URL
+        verification_link = f"{base_url}/api/v1/user-auth/verify-email?token={verification_token}"
+        
+        # Send verification email
+        email_sent = email_service.send_verification_email(
+            to_email=new_user.email,
+            verification_link=verification_link,
+            full_name=new_user.full_name
         )
         
-        return TokenResponse(
-            access_token=access_token,
-            token_type="bearer",
-            user=UserResponse(
-                id=new_user.id,
-                email=new_user.email,
-                username=new_user.username,
-                full_name=new_user.full_name,
-                email_verified=new_user.email_verified,
-                default_role=new_user.default_role
-            )
+        if email_sent:
+            print(f"✅ Verification email sent to: {new_user.email}")
+        else:
+            print(f"⚠️ Failed to send verification email. Token: {verification_link}")
+            print(f"Verification link (check console): {verification_link}")
+        
+        # Return response indicating email verification required
+        from fastapi import HTTPException as HTTP403
+        raise HTTP403(
+            status_code=403,
+            detail="Verification email sent. Please check your email to verify your account."
         )
     except HTTPException:
         raise
@@ -189,6 +207,17 @@ async def login(
                 status_code=400,
                 detail="Account is inactive"
             )
+        
+        # Check email verification
+        if not user.email_verified:
+            raise HTTPException(
+                status_code=403,
+                detail="Please verify your email address before logging in. Check your inbox for the verification email."
+            )
+        
+        # Update last login
+        user.last_login_at = datetime.now(timezone.utc)
+        db.commit()
         
         # Create access token
         access_token = create_access_token(
@@ -275,12 +304,13 @@ async def verify_email(
         if not token_record:
             raise HTTPException(status_code=400, detail="Invalid or already used verification token")
         
-        # Check if expired
-        if token_record.expires_at < datetime.utcnow():
+        # Check if expired - use timezone-aware datetime
+        now = datetime.now(timezone.utc)
+        if token_record.expires_at < now:
             raise HTTPException(status_code=400, detail="Verification token has expired")
         
         # Mark token as used
-        token_record.used_at = datetime.utcnow()
+        token_record.used_at = now
         
         # Update user email_verified status
         user = db.query(User).filter(User.id == token_record.user_id).first()
@@ -288,24 +318,25 @@ async def verify_email(
             raise HTTPException(status_code=404, detail="User not found")
         
         user.email_verified = True
-        user.email_verified_at = datetime.utcnow()
+        user.email_verified_at = now
         
+        # Commit changes
         db.commit()
         
         # Return HTML page with success message
-        html_content = """
+        html_content = f"""
         <!DOCTYPE html>
         <html>
         <head>
             <title>Email Verified - YodaAI</title>
             <style>
-                body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-                .container { background: white; padding: 40px; border-radius: 15px; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.2); max-width: 500px; }
-                .icon { font-size: 64px; margin-bottom: 20px; }
-                h1 { color: #667eea; margin-bottom: 10px; }
-                p { color: #666; font-size: 16px; line-height: 1.6; }
-                .button { display: inline-block; margin-top: 20px; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; }
-                .button:hover { background: #5568d3; }
+                body {{ font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }}
+                .container {{ background: white; padding: 40px; border-radius: 15px; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.2); max-width: 500px; }}
+                .icon {{ font-size: 64px; margin-bottom: 20px; }}
+                h1 {{ color: #667eea; margin-bottom: 10px; }}
+                p {{ color: #666; font-size: 16px; line-height: 1.6; }}
+                .button {{ display: inline-block; margin-top: 20px; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; }}
+                .button:hover {{ background: #5568d3; }}
             </style>
         </head>
         <body>
@@ -313,7 +344,7 @@ async def verify_email(
                 <div class="icon">✅</div>
                 <h1>Email Verified Successfully!</h1>
                 <p>Your email address has been verified. You can now access all features of YodaAI!</p>
-                <p><strong>Welcome to YodaAI, """ + user.full_name + """!</strong></p>
+                <p><strong>Welcome to YodaAI, {user.full_name}!</strong></p>
                 <a href="http://localhost:8000/" class="button">Go to YodaAI App</a>
             </div>
         </body>
