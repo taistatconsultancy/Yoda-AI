@@ -19,11 +19,6 @@ class FirebaseService:
     """Simple Firestore helper for chat sessions and messages."""
 
     def __init__(self):
-        project = settings.FIREBASE_PROJECT_ID or os.getenv("FIREBASE_PROJECT_ID")
-        client_email = settings.FIREBASE_CLIENT_EMAIL or os.getenv("FIREBASE_CLIENT_EMAIL")
-        private_key = settings.FIREBASE_PRIVATE_KEY or os.getenv("FIREBASE_PRIVATE_KEY")
-        service_json = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON") or None
-
         self.enabled = False
         self.client = None
 
@@ -31,17 +26,25 @@ class FirebaseService:
             print("Warning: google-cloud-firestore or google-auth not installed; Firestore unavailable.")
             return
 
-        if service_json:
+        # Method 1: Try credentials.json file
+        if os.path.exists("credentials.json"):
             try:
-                info = json.loads(service_json)
-                if "private_key" in info and isinstance(info["private_key"], str):
-                    info["private_key"] = info["private_key"].replace("\\n", "\n")
-                creds = service_account.Credentials.from_service_account_info(info)
-                self.client = firestore.Client(project=info.get("project_id"), credentials=creds)
-                self.enabled = True
-                return
+                with open("credentials.json", "r") as f:
+                    cred_info = json.load(f)
+                    if "private_key" in cred_info and isinstance(cred_info["private_key"], str):
+                        cred_info["private_key"] = cred_info["private_key"].replace("\\n", "\n")
+                    creds = service_account.Credentials.from_service_account_info(cred_info)
+                    self.client = firestore.Client(project=cred_info.get("project_id"), credentials=creds)
+                    self.enabled = True
+                    print("✅ Firestore initialized from credentials.json")
+                    return
             except Exception as e:
-                print(f"Warning: invalid FIREBASE_SERVICE_ACCOUNT_JSON: {e}")
+                print(f"Warning: Could not load credentials.json: {e}")
+
+        # Method 2: Try environment variables
+        project = settings.FIREBASE_PROJECT_ID or os.getenv("FIREBASE_PROJECT_ID")
+        client_email = settings.FIREBASE_CLIENT_EMAIL or os.getenv("FIREBASE_CLIENT_EMAIL")
+        private_key = settings.FIREBASE_PRIVATE_KEY or os.getenv("FIREBASE_PRIVATE_KEY")
 
         if project and client_email and private_key:
             try:
@@ -55,10 +58,11 @@ class FirebaseService:
                 creds = service_account.Credentials.from_service_account_info(info)
                 self.client = firestore.Client(project=project, credentials=creds)
                 self.enabled = True
+                print("✅ Firestore initialized from environment variables")
             except Exception as e:
                 print(f"Warning: Failed to init Firestore: {e}")
         else:
-            print("Firestore not configured (missing FIREBASE_PROJECT_ID / FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY)")
+            print("⚠️ Firestore not configured (missing FIREBASE_PROJECT_ID / FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY)")
 
     def create_chat_session(self, session_id: str, session_data: Dict[str, Any]) -> Optional[str]:
         if not self.enabled:

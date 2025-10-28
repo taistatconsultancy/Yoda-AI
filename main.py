@@ -14,7 +14,7 @@ from app.core.config import settings
 from app.api.routes import (
     retrospectives, teams, action_items, 
     ai_chat, ai_chat_openai, onboarding, scheduling, user_auth,
-    workspaces, retrospectives_full, fourls_chat, grouping, voting, discussion_summary
+    workspaces, retrospectives_full, fourls_chat, grouping, voting, discussion_summary, google_auth
 )
 from app.database.database import init_db
 
@@ -48,6 +48,7 @@ app.add_middleware(
 
 # Include API routes
 app.include_router(user_auth.router, prefix="/api/v1/user-auth", tags=["authentication"])
+app.include_router(google_auth.router, prefix="/api/v1/user-auth", tags=["authentication"])
 app.include_router(workspaces.router)  # Has its own prefix
 app.include_router(retrospectives_full.router)  # Has its own prefix
 app.include_router(fourls_chat.router)  # Has its own prefix

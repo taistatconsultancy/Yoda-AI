@@ -24,9 +24,8 @@ class ActionItemService:
             priority=action_item_data.priority,
             due_date=action_item_data.due_date,
             assigned_to=action_item_data.assigned_to,
-            assigned_by=user_id,
-            retrospective_id=action_item_data.retrospective_id,
-            team_id=action_item_data.team_id
+            created_by=user_id,
+            retrospective_id=action_item_data.retrospective_id
         )
         self.db.add(action_item)
         self.db.commit()
@@ -36,7 +35,7 @@ class ActionItemService:
     def get_action_items(
         self, 
         user_id: int, 
-        skip: int = 0, 
+        skip: int = 0,
         limit: int = 100,
         retrospective_id: Optional[int] = None,
         team_id: Optional[int] = None,
@@ -46,7 +45,7 @@ class ActionItemService:
         query = self.db.query(ActionItem).filter(
             or_(
                 ActionItem.assigned_to == user_id,
-                ActionItem.assigned_by == user_id
+                ActionItem.created_by == user_id
             )
         )
         
@@ -69,7 +68,7 @@ class ActionItemService:
                 ActionItem.id == action_item_id,
                 or_(
                     ActionItem.assigned_to == user_id,
-                    ActionItem.assigned_by == user_id
+                    ActionItem.created_by == user_id
                 )
             )
         ).first()
@@ -105,7 +104,7 @@ class ActionItemService:
         action_item = self.db.query(ActionItem).filter(
             and_(
                 ActionItem.id == action_item_id,
-                ActionItem.assigned_by == user_id
+                ActionItem.created_by == user_id
             )
         ).first()
         
@@ -135,7 +134,7 @@ class ActionItemService:
             and_(
                 or_(
                     ActionItem.assigned_to == user_id,
-                    ActionItem.assigned_by == user_id
+                    ActionItem.created_by == user_id
                 ),
                 ActionItem.status != "completed",
                 ActionItem.due_date < now
@@ -149,7 +148,7 @@ class ActionItemService:
                 ActionItem.team_id == team_id,
                 or_(
                     ActionItem.assigned_to == user_id,
-                    ActionItem.assigned_by == user_id
+                    ActionItem.created_by == user_id
                 )
             )
         ).all()
@@ -161,7 +160,7 @@ class ActionItemService:
                 ActionItem.retrospective_id == retrospective_id,
                 or_(
                     ActionItem.assigned_to == user_id,
-                    ActionItem.assigned_by == user_id
+                    ActionItem.created_by == user_id
                 )
             )
         ).all()

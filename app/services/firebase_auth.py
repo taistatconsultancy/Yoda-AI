@@ -3,6 +3,8 @@ Firebase authentication: initialize Admin SDK and verify ID tokens.
 """
 
 from typing import Optional, Dict, Any
+import os
+import json
 
 import firebase_admin
 from firebase_admin import auth as fb_auth, credentials
@@ -19,10 +21,24 @@ def _ensure_initialized() -> None:
         return
 
     # Initialize using service account JSON path or JSON content
-    # Prefer GOOGLE_APPLICATION_CREDENTIALS path if set via env, otherwise
-    # use credential.json in project root if present.
+    # Try multiple methods: credentials.json file, env vars, or application default
     try:
-        cred: credentials.Base
+        cred: credentials.Base = None
+        
+        # Method 1: Try credentials.json file in project root
+        if os.path.exists("credentials.json"):
+            try:
+                with open("credentials.json", "r") as f:
+                    cred_info = json.load(f)
+                    cred = credentials.Certificate(cred_info)
+                    print("✅ Firebase initialized from credentials.json")
+                    firebase_admin.initialize_app(cred)
+                    _app_initialized = True
+                    return
+            except Exception as e:
+                print(f"Warning: Could not load credentials.json: {e}")
+        
+        # Method 2: Try environment variables
         if settings.FIREBASE_PRIVATE_KEY and settings.FIREBASE_CLIENT_EMAIL and settings.FIREBASE_PROJECT_ID:
             cred = credentials.Certificate({
                 "type": "service_account",
@@ -36,13 +52,22 @@ def _ensure_initialized() -> None:
                 "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
                 "client_x509_cert_url": f"https://www.googleapis.com/robot/v1/metadata/x509/{settings.FIREBASE_CLIENT_EMAIL}",
             })
-        else:
-            cred = credentials.ApplicationDefault()
+            print("✅ Firebase initialized from environment variables")
+            firebase_admin.initialize_app(cred)
+            _app_initialized = True
+            return
+        
+        # Method 3: Application default credentials (for GCP environments)
+        cred = credentials.ApplicationDefault()
+        print("✅ Firebase initialized using application default credentials")
         firebase_admin.initialize_app(cred)
         _app_initialized = True
-    except Exception:
+        
+    except Exception as e:
         # Fallback to default app if already initialized elsewhere
         if not firebase_admin._apps:
+            print(f"⚠️ Warning: Firebase initialization failed: {e}")
+            print("⚠️ Firebase features will be unavailable")
             raise
         _app_initialized = True
 

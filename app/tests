@@ -1,0 +1,62 @@
+#!/usr/bin/env python3
+"""
+Test calendar service functionality
+"""
+from app.services.calendar_service import CalendarService
+from datetime import datetime, timezone, timedelta
+
+def test_calendar_generation():
+    """Test calendar generation"""
+    calendar_service = CalendarService()
+    
+    # Create test datetime
+    start_time = datetime.now(timezone.utc) + timedelta(hours=1)
+    end_time = start_time + timedelta(hours=1)
+    
+    print('Testing calendar generation...')
+    print(f'Start time: {start_time}')
+    print(f'End time: {end_time}')
+    
+    try:
+        ics_content = calendar_service.generate_retrospective_calendar(
+            retrospective_id=1,
+            title='Test Retrospective',
+            sprint_name='Test Sprint',
+            start_time=start_time,
+            end_time=end_time,
+            workspace_name='Test Workspace',
+            facilitator_name='Test User'
+        )
+        
+        print(f'✅ Generated iCal content: {len(ics_content)} bytes')
+        print(f'Content type: {type(ics_content)}')
+        
+        # Check for null bytes
+        null_bytes = b'\x00'
+        if null_bytes in ics_content:
+            print('⚠️ Found null bytes in iCal content')
+            print(f'Null byte count: {ics_content.count(null_bytes)}')
+        else:
+            print('✅ No null bytes found')
+        
+        # Show first 200 characters
+        print(f'Content preview: {ics_content[:200]}')
+        
+        # Try to decode as string to see if it's valid
+        try:
+            decoded = ics_content.decode('utf-8')
+            print('✅ Content can be decoded as UTF-8')
+            print(f'Decoded preview: {decoded[:200]}')
+        except UnicodeDecodeError as e:
+            print(f'❌ Cannot decode as UTF-8: {e}')
+        
+        return ics_content
+        
+    except Exception as e:
+        print(f'❌ Error generating calendar: {e}')
+        import traceback
+        traceback.print_exc()
+        return None
+
+if __name__ == "__main__":
+    test_calendar_generation()

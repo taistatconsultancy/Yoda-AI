@@ -22,6 +22,7 @@ class Retrospective(Base):
     
     # Facilitation
     facilitator_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     
     # Scheduling
     scheduled_start_time = Column(DateTime(timezone=True), nullable=True, index=True)
