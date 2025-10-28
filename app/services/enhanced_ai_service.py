@@ -11,9 +11,9 @@ except Exception:
 from typing import List, Dict, Any, Optional
 import os
 from app.core.config import settings
-from app.models.retrospective import Retrospective
+from app.models.retrospective_new import Retrospective
 from app.models.user import User
-from app.models.team import Team, TeamMember
+from app.models.workspace import Workspace as Team, WorkspaceMember as TeamMember
 
 
 class EnhancedAIService:

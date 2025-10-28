@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 from typing import List, Optional
 from datetime import datetime
-from app.models.action_item import ActionItem, ActionItemStatus
+from app.models.action_item import ActionItem
 from app.schemas.action_item import ActionItemCreate, ActionItemUpdate
 
 
@@ -57,11 +57,8 @@ class ActionItemService:
             query = query.filter(ActionItem.team_id == team_id)
         
         if status:
-            try:
-                status_enum = ActionItemStatus(status)
-                query = query.filter(ActionItem.status == status_enum)
-            except ValueError:
-                pass  # Invalid status, ignore filter
+            # Filter by status string directly
+            query = query.filter(ActionItem.status == status)
         
         return query.offset(skip).limit(limit).all()
     
@@ -92,7 +89,7 @@ class ActionItemService:
             action_item.priority = action_item_data.priority
         if action_item_data.status is not None:
             action_item.status = action_item_data.status
-            if action_item_data.status == ActionItemStatus.COMPLETED:
+            if action_item_data.status == "completed":
                 action_item.completed_at = datetime.utcnow()
         if action_item_data.assigned_to is not None:
             action_item.assigned_to = action_item_data.assigned_to
@@ -125,7 +122,7 @@ class ActionItemService:
         if not action_item:
             return False
         
-        action_item.status = ActionItemStatus.COMPLETED
+        action_item.status = "completed"
         action_item.completed_at = datetime.utcnow()
         
         self.db.commit()
@@ -140,7 +137,7 @@ class ActionItemService:
                     ActionItem.assigned_to == user_id,
                     ActionItem.assigned_by == user_id
                 ),
-                ActionItem.status != ActionItemStatus.COMPLETED,
+                ActionItem.status != "completed",
                 ActionItem.due_date < now
             )
         ).all()

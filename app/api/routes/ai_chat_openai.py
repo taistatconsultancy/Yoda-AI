@@ -6,7 +6,7 @@ import uuid
 from sqlalchemy.orm import Session
 from typing import List
 from app.database.database import get_db
-from app.models.ai_chat import ChatSession, ChatMessage
+from app.models.retrospective_new import ChatSession, ChatMessage
 from app.schemas.ai_chat import (
     ChatSessionCreate,
     ChatSessionResponse,
