@@ -43,6 +43,7 @@ class User(Base):
     verification_tokens = relationship("EmailVerificationToken", back_populates="user", cascade="all, delete-orphan")
     created_workspaces = relationship("Workspace", foreign_keys="Workspace.created_by", back_populates="creator")
     workspace_memberships = relationship("WorkspaceMember", back_populates="user", cascade="all, delete-orphan")
+    sent_invitations = relationship("WorkspaceInvitation", back_populates="inviter", cascade="all, delete-orphan")
     facilitated_retrospectives = relationship("Retrospective", foreign_keys="Retrospective.facilitator_id", back_populates="facilitator")
     retrospective_participations = relationship("RetrospectiveParticipant", back_populates="user")
     chat_sessions = relationship("ChatSession", back_populates="user", cascade="all, delete-orphan")

@@ -29,7 +29,9 @@ class AutomationService:
         created_by: int,
         scheduled_date: datetime,
         description: Optional[str] = None,
-        duration_minutes: int = 60
+        duration_minutes: int = 60,
+        reminder_subject: Optional[str] = None,
+        reminder_message: Optional[str] = None,
     ) -> ScheduledRetrospective:
         """Schedule a new retrospective with automated reminders"""
         scheduled_retro = ScheduledRetrospective(
@@ -46,13 +48,22 @@ class AutomationService:
         db.refresh(scheduled_retro)
         
         # Create automated reminders
-        AutomationService._create_reminders(db, scheduled_retro)
+        AutomationService._create_reminders(
+            db, scheduled_retro,
+            reminder_subject=reminder_subject,
+            reminder_message=reminder_message,
+        )
         
         logger.info(f"Scheduled retrospective {scheduled_retro.id} for {scheduled_date}")
         return scheduled_retro
     
     @staticmethod
-    def _create_reminders(db: Session, scheduled_retro: ScheduledRetrospective):
+    def _create_reminders(
+        db: Session,
+        scheduled_retro: ScheduledRetrospective,
+        reminder_subject: Optional[str] = None,
+        reminder_message: Optional[str] = None,
+    ):
         """Create automated reminders for scheduled retrospective"""
         # Get team members
         team = db.query(Team).filter(Team.id == scheduled_retro.team_id).first()
@@ -69,8 +80,8 @@ class AutomationService:
                     user_id=member.user_id,
                     scheduled_retro_id=scheduled_retro.id,
                     scheduled_for=scheduled_retro.scheduled_date - timedelta(days=7),
-                    subject=f"Retrospective scheduled in 1 week: {scheduled_retro.title}",
-                    message=AutomationService._generate_week_before_message(scheduled_retro)
+                    subject=(reminder_subject or f"Retrospective in 1 week: {scheduled_retro.title}"),
+                    message=(reminder_message or AutomationService._generate_week_before_message(scheduled_retro))
                 )
                 db.add(week_reminder)
             
@@ -81,8 +92,8 @@ class AutomationService:
                     user_id=member.user_id,
                     scheduled_retro_id=scheduled_retro.id,
                     scheduled_for=scheduled_retro.scheduled_date - timedelta(hours=24),
-                    subject=f"Retrospective tomorrow: {scheduled_retro.title}",
-                    message=AutomationService._generate_day_before_message(scheduled_retro)
+                    subject=(reminder_subject or f"Retrospective tomorrow: {scheduled_retro.title}"),
+                    message=(reminder_message or AutomationService._generate_day_before_message(scheduled_retro))
                 )
                 db.add(day_reminder)
         

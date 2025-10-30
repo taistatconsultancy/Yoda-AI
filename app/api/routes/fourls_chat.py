@@ -18,6 +18,7 @@ from app.models.retrospective_new import (
 )
 from app.models.user import User
 from app.api.dependencies.auth import get_current_user
+from app.core.config import settings
 
 router = APIRouter(prefix="/api/v1/fourls-chat", tags=["4ls-chat"])
 
@@ -136,6 +137,113 @@ async def start_4ls_chat(
         db.rollback()
         print(f"Start 4Ls chat error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to start chat: {str(e)}")
+
+
+@router.get("/link/by-retro/{retrospective_id}")
+async def get_or_create_session_link(
+    retrospective_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Return a session link for the given retrospective, creating a session if needed."""
+    # Verify user is participant
+    participant = db.query(RetrospectiveParticipant).filter(
+        RetrospectiveParticipant.retrospective_id == retrospective_id,
+        RetrospectiveParticipant.user_id == current_user.id
+    ).first()
+    if not participant:
+        raise HTTPException(status_code=403, detail="You are not a participant in this retrospective")
+
+    # Find existing active session
+    session = db.query(ChatSession).filter(
+        ChatSession.retrospective_id == retrospective_id,
+        ChatSession.user_id == current_user.id,
+        ChatSession.is_active == True
+    ).first()
+
+    if not session:
+        import secrets
+        session_id_str = secrets.token_urlsafe(16)
+        session = ChatSession(
+            retrospective_id=retrospective_id,
+            user_id=current_user.id,
+            session_id=session_id_str,
+            session_type='4ls_input',
+            current_category='liked',
+            is_active=True,
+            is_completed=False
+        )
+        db.add(session)
+        db.flush()
+
+        welcome_msg = ChatMessage(
+            session_id=session.id,
+            content=f"Welcome {current_user.full_name}! Let's start our retrospective with what you LIKED.",
+            message_type='assistant',
+            current_category='liked',
+            ai_model='gpt-4'
+        )
+        db.add(welcome_msg)
+        db.commit()
+
+    url = f"{settings.APP_URL}/ui/yodaai-app.html?session_id={session.session_id}"
+    return {"session_id": session.session_id, "url": url}
+
+
+@router.get("/email-link/{retrospective_id}/{user_id}")
+async def get_email_session_link(
+    retrospective_id: int,
+    user_id: int,
+    db: Session = Depends(get_db)
+):
+    """Public endpoint for email links - creates session and returns direct chat URL."""
+    # Verify user exists and is participant
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    participant = db.query(RetrospectiveParticipant).filter(
+        RetrospectiveParticipant.retrospective_id == retrospective_id,
+        RetrospectiveParticipant.user_id == user_id
+    ).first()
+    if not participant:
+        raise HTTPException(status_code=403, detail="User is not a participant in this retrospective")
+
+    # Find or create session
+    session = db.query(ChatSession).filter(
+        ChatSession.retrospective_id == retrospective_id,
+        ChatSession.user_id == user_id,
+        ChatSession.is_active == True
+    ).first()
+
+    if not session:
+        import secrets
+        session_id_str = secrets.token_urlsafe(16)
+        session = ChatSession(
+            retrospective_id=retrospective_id,
+            user_id=user_id,
+            session_id=session_id_str,
+            session_type='4ls_input',
+            current_category='liked',
+            is_active=True,
+            is_completed=False
+        )
+        db.add(session)
+        db.flush()
+
+        welcome_msg = ChatMessage(
+            session_id=session.id,
+            content=f"Welcome {user.full_name}! Let's start our retrospective with what you LIKED.",
+            message_type='assistant',
+            current_category='liked',
+            ai_model='gpt-4'
+        )
+        db.add(welcome_msg)
+        db.commit()
+
+    # Return direct URL to chat with session_id
+    chat_url = f"{settings.APP_URL}/ui/yodaai-app.html?session_id={session.session_id}"
+    return {"redirect_url": chat_url}
 
 
 @router.get("/{session_id}")

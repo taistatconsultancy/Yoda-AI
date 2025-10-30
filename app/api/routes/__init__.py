@@ -3,6 +3,7 @@ API Routes Package
 """
 from . import (
     user_auth,
+    users,
     workspaces,
     retrospectives_full,
     fourls_chat,
@@ -20,6 +21,7 @@ from . import (
 
 __all__ = [
     "user_auth",
+    "users",
     "workspaces",
     "retrospectives_full",
     "fourls_chat",

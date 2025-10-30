@@ -13,9 +13,11 @@ from contextlib import asynccontextmanager
 from app.core.config import settings
 from app.api.routes import (
     retrospectives, teams, action_items, 
-    ai_chat, ai_chat_openai, onboarding, scheduling, user_auth,
-    workspaces, retrospectives_full, fourls_chat, grouping, voting, discussion_summary, google_auth
+    ai_chat, ai_chat_openai, onboarding, scheduling, user_auth, users,
+    workspaces, retrospectives_full, fourls_chat, grouping, voting, discussion_summary, google_auth,
 )
+from app.api.routes import workspace_invitations
+from app.api.routes import reminders
 from app.database.database import init_db
 
 
@@ -49,8 +51,18 @@ app.add_middleware(
 # Include API routes
 app.include_router(user_auth.router, prefix="/api/v1/user-auth", tags=["authentication"])
 app.include_router(google_auth.router, prefix="/api/v1/user-auth", tags=["authentication"])
+app.include_router(users.router, prefix="/api/v1/users", tags=["users"])
 app.include_router(workspaces.router)  # Has its own prefix
+app.include_router(workspace_invitations.router)
+app.include_router(workspace_invitations.token_router)
 app.include_router(retrospectives_full.router)  # Has its own prefix
+
+# Add redirect for old retrospective paths
+@app.get("/retrospectives/{retro_id}")
+async def redirect_retrospective(retro_id: int):
+    """Redirect old retrospective paths to new API format"""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url=f"/ui/yodaai-app.html?retro_id={retro_id}", status_code=301)
 app.include_router(fourls_chat.router)  # Has its own prefix
 app.include_router(grouping.router)  # Has its own prefix
 app.include_router(voting.router)  # Has its own prefix
@@ -62,6 +74,7 @@ app.include_router(retrospectives.router, prefix="/api/v1/retrospectives-old", t
 app.include_router(teams.router, prefix="/api/v1/teams", tags=["teams"])
 app.include_router(ai_chat.router, prefix="/api/v1/ai-chat", tags=["ai-chat"])
 app.include_router(ai_chat_openai.router, prefix="/api/v1/ai-chat-openai", tags=["ai-chat-openai"])
+app.include_router(reminders.router)
 
 # Mount static UI under /ui
 app.mount("/ui", StaticFiles(directory="app/ui", html=True), name="ui")

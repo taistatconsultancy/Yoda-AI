@@ -25,6 +25,8 @@ class ScheduleRetrospectiveRequest(BaseModel):
     duration_minutes: Optional[int] = 60
     send_1_week_reminder: Optional[bool] = True
     send_24_hour_reminder: Optional[bool] = True
+    reminder_subject: Optional[str] = None
+    reminder_message: Optional[str] = None
 
 
 class PreparationQuestionResponse(BaseModel):
@@ -51,7 +53,9 @@ async def schedule_retrospective(
             created_by=current_user.id,
             scheduled_date=request.scheduled_date,
             description=request.description,
-            duration_minutes=request.duration_minutes
+            duration_minutes=request.duration_minutes,
+            reminder_subject=request.reminder_subject,
+            reminder_message=request.reminder_message,
         )
         
         # Update send_reminder preferences
