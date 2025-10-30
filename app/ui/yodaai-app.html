@@ -871,6 +871,11 @@
           </a>
         </li>
         <li class="nav-item">
+          <a class="nav-link" href="#" onclick="showCreateWorkspaceModal()">
+            <i class="bi bi-building"></i><span>Workspace</span>
+          </a>
+        </li>
+        <li class="nav-item">
           <a class="nav-link" href="#" onclick="showSection('retrospectives')">
             <i class="bi bi-chat-dots"></i><span>Retrospectives</span>
           </a>
@@ -914,22 +919,12 @@
           <div class="card-body">
             <h5>Welcome back, <span id="welcomeName">User</span>!</h5>
             <p class="text-muted">Ready to conduct another insightful retrospective? Let's help your team reflect, learn, and improve together.</p>
+            <div id="workspaceList" class="mt-3"></div>
+            <div id="invitesBanner" class="mt-3"></div>
           </div>
         </div>
 
         <div class="row">
-          <div class="col-lg-4 mb-4">
-            <div class="card h-100 text-center">
-              <div class="card-body">
-                <i class="bi bi-building display-1 text-info"></i>
-                <h5 class="mt-3">Create Workspace</h5>
-                <p class="text-muted">Required before starting retros</p>
-                <button class="btn btn-info w-100" onclick="showCreateWorkspaceModal()">
-                  <i class="bi bi-plus-circle"></i> Create Workspace
-                </button>
-              </div>
-            </div>
-          </div>
           
           <div class="col-lg-4 mb-4">
             <div class="card h-100 text-center">
@@ -1230,34 +1225,14 @@
         <h1 class="mb-4">Team Management</h1>
 
         <div class="card">
-          <div class="card-body">
-            <h5>Add Team Member</h5>
-            <form class="row g-3">
-              <div class="col-md-4">
-                <label class="form-label">Name *</label>
-                <input type="text" class="form-control" id="memberName">
-              </div>
-              <div class="col-md-4">
-                <label class="form-label">Email *</label>
-                <input type="email" class="form-control" id="memberEmail">
-              </div>
-              <div class="col-md-4">
-                <label class="form-label">Role *</label>
-                <select class="form-select" id="memberRole">
-                  <option value="developer">Developer</option>
-                  <option value="scrum-master">Scrum Master</option>
-                  <option value="product-owner">Product Owner</option>
-                  <option value="qa">QA Engineer</option>
-                  <option value="designer">Designer</option>
-                  <option value="devops">DevOps</option>
-                </select>
-              </div>
-              <div class="col-12">
-                <button type="button" class="btn btn-primary" onclick="addTeamMember()">
-                  <i class="bi bi-person-plus"></i> Add Member
-                </button>
-              </div>
-            </form>
+          <div class="card-body d-flex justify-content-between align-items-center">
+            <div>
+              <h5 class="mb-1">Team Members</h5>
+              <small class="text-muted">Add existing users to this workspace</small>
+            </div>
+            <button type="button" class="btn btn-primary" onclick="showAddMemberModal()">
+              <i class="bi bi-person-plus"></i> Add Member
+            </button>
           </div>
         </div>
 
@@ -1291,7 +1266,7 @@
 
       <!-- Analytics -->
       <section id="analyticsSection" class="content-section">
-        <h1 class="mb-4">Analytics & Insights</h1>
+        <h1 class="mb-4" id="analyticsTitle">Analytics & Insights</h1>
 
         <div class="row g-3 mb-4">
           <div class="col-md-3">
@@ -1430,8 +1405,131 @@
         currentUser = JSON.parse(savedUser);
         authToken = savedToken;
         showApp();
+        
+        // Check for session_id in URL parameters
+        handleUrlSessionId();
       }
     });
+
+    // ==================== URL PARAMETER HANDLING ====================
+    function handleUrlSessionId() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const sessionId = urlParams.get('session_id');
+      const retroId = urlParams.get('retro_id');
+      
+      if (sessionId) {
+        console.log('Session ID found in URL:', sessionId);
+        // Store session ID for after login
+        localStorage.setItem('pending_session_id', sessionId);
+        
+        if (currentUser && authToken) {
+          // User is logged in, start the session
+          startChatWithSessionId(sessionId);
+        } else {
+          // User not logged in, show login prompt
+          showNotification('Please log in to access your retrospective chat session.', 'info');
+          showLoginModal();
+        }
+      }
+      
+      if (retroId) {
+        console.log('Retrospective ID found in URL:', retroId);
+        // Store retrospective ID for after login
+        localStorage.setItem('pending_retro_id', retroId);
+        
+        if (currentUser && authToken) {
+          // User is logged in, load the retrospective
+          loadRetrospectiveById(parseInt(retroId));
+        } else {
+          // User not logged in, show login prompt
+          showNotification('Please log in to access your retrospective.', 'info');
+          showLoginModal();
+        }
+      }
+    }
+
+    // Check for pending session after login
+    function checkPendingSession() {
+      const pendingSessionId = localStorage.getItem('pending_session_id');
+      const pendingRetroId = localStorage.getItem('pending_retro_id');
+      
+      if (pendingSessionId && currentUser && authToken) {
+        localStorage.removeItem('pending_session_id');
+        startChatWithSessionId(pendingSessionId);
+      }
+      
+      if (pendingRetroId && currentUser && authToken) {
+        localStorage.removeItem('pending_retro_id');
+        loadRetrospectiveById(parseInt(pendingRetroId));
+      }
+    }
+
+    async function loadRetrospectiveById(retroId) {
+      try {
+        const response = await fetch(`/api/v1/retrospectives/${retroId}`, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
+        
+        if (response.ok) {
+          const retrospective = await response.json();
+          console.log('Retrospective loaded:', retrospective);
+          
+          // Show the retrospective details
+          showRetrospectiveDetails(retrospective);
+          showNotification('Retrospective loaded successfully!', 'success');
+        } else {
+          console.error('Failed to load retrospective:', response.statusText);
+          showNotification('Failed to load retrospective. Please try again.', 'error');
+        }
+      } catch (error) {
+        console.error('Error loading retrospective:', error);
+        showNotification('Error loading retrospective. Please try again.', 'error');
+      }
+    }
+
+    function showRetrospectiveDetails(retrospective) {
+      // Show the retrospectives section and display the retrospective
+      showSection('retrospectives');
+      
+      // You can add specific logic here to highlight or focus on the specific retrospective
+      console.log('Showing retrospective:', retrospective.title);
+    }
+
+    async function startChatWithSessionId(sessionId) {
+      try {
+        // First, get the session details
+        const response = await fetch(`/api/v1/fourls-chat/${sessionId}`, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
+        
+        if (response.ok) {
+          const sessionData = await response.json();
+          console.log('Session data:', sessionData);
+          
+          // Set the current session
+          currentChatSession = sessionId;
+          
+          // Show the chat interface
+          showChatInterface();
+          
+          // Load the chat messages
+          loadChatMessages();
+          
+          // Show success message
+          showNotification('Chat session loaded successfully!', 'success');
+        } else {
+          console.error('Failed to load session:', response.statusText);
+          showNotification('Failed to load chat session. Please try again.', 'error');
+        }
+      } catch (error) {
+        console.error('Error loading session:', error);
+        showNotification('Error loading chat session. Please try again.', 'error');
+      }
+    }
 
     // ==================== AUTHENTICATION ====================
     
@@ -1486,6 +1584,7 @@
         
         console.log('Sign in successful:', currentUser.email);
         showApp();
+        checkPendingSession();
       } catch (error) {
         console.error('Sign in error:', error);
         showAuthError(error.message || 'Invalid email or password. Try signing up or use demo mode.');
@@ -1580,6 +1679,7 @@
         
         console.log('Sign up successful:', currentUser.email);
         showApp();
+        checkPendingSession();
         
         // Show onboarding for new users
         setTimeout(() => {
@@ -1641,6 +1741,7 @@
         
         closeLoginModal();
         showApp();
+        checkPendingSession();
         showToast('Successfully signed in with Google!', 'success');
         
       } catch (error) {
@@ -1684,6 +1785,7 @@
         
         closeLoginModal();
         showApp();
+        checkPendingSession();
         showToast('Welcome to Demo Mode! Explore all features.', 'info');
       } catch (error) {
         console.error('Demo login error:', error);
@@ -1710,6 +1812,8 @@
       updateUserInfo();
       loadDashboardData();
       checkAndLoadWorkspaces();  // NEW: Check workspace on login
+      handleInviteFromUrl();
+      loadMyInvitationsBanner();
     }
 
     function updateUserInfo() {
@@ -1749,6 +1853,107 @@
           link.classList.add('active');
         }
       });
+
+      if (sectionName === 'analytics') {
+        renderAnalyticsForWorkspace();
+      }
+      if (sectionName === 'teams') {
+        loadWorkspaceMembers();
+      }
+    }
+
+    async function handleInviteFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get('invite');
+      if (!token || !authToken) return;
+      try {
+        const statusResp = await fetch(`/api/v1/invitations/${encodeURIComponent(token)}`);
+        if (!statusResp.ok) return;
+        const status = await statusResp.json();
+        if (status.status === 'expired') {
+          showToast('Invitation has expired', 'danger');
+          return;
+        }
+        const accept = confirm(`You have been invited to join workspace ${status.workspace_id}. Accept invitation?`);
+        if (!accept) return;
+        const resp = await fetch('/api/v1/invitations/accept', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token })
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.detail || 'Failed to accept invitation');
+        }
+        showToast('Invitation accepted', 'success');
+        await checkAndLoadWorkspaces();
+        showSection('teams');
+      } catch (e) {
+        showToast(e.message || 'Unable to process invitation', 'danger');
+      }
+    }
+
+    async function loadMyInvitationsBanner() {
+      if (!authToken) return;
+      const banner = document.getElementById('invitesBanner');
+      if (!banner) return;
+      try {
+        const resp = await fetch('/api/v1/invitations/mine', {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (!resp.ok) return;
+        const invites = await resp.json();
+        const pending = (invites || []).filter(i => i.status !== 'expired');
+        if (pending.length === 0) { banner.innerHTML = ''; return; }
+        const rows = pending.map(i => `
+          <div class="alert alert-warning d-flex justify-content-between align-items-center">
+            <div>
+              <i class="bi bi-envelope-open"></i>
+              You have an invitation to join workspace ${i.workspace_id}.
+              ${i.message ? `<span class="text-muted">Message: ${escapeHtml(i.message)}</span>` : ''}
+            </div>
+            <div class="d-flex gap-2">
+              <button class="btn btn-sm btn-primary" onclick="acceptInviteToken('${i.token}')">Accept</button>
+              <button class="btn btn-sm btn-outline-secondary" onclick="declineInviteToken('${i.token}')">Decline</button>
+            </div>
+          </div>
+        `).join('');
+        banner.innerHTML = rows;
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    async function acceptInviteToken(token) {
+      if (!authToken) return;
+      const resp = await fetch('/api/v1/invitations/accept', {
+        method: 'POST', headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token })
+      });
+      if (resp.ok) {
+        showToast('Invitation accepted', 'success');
+        await checkAndLoadWorkspaces();
+        await loadMyInvitationsBanner();
+        showSection('teams');
+      } else {
+        const err = await resp.json().catch(() => ({}));
+        showToast(err.detail || 'Failed to accept invitation', 'danger');
+      }
+    }
+
+    async function declineInviteToken(token) {
+      if (!authToken) return;
+      const resp = await fetch('/api/v1/invitations/decline', {
+        method: 'POST', headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token })
+      });
+      if (resp.ok) {
+        showToast('Invitation declined', 'info');
+        await loadMyInvitationsBanner();
+      } else {
+        const err = await resp.json().catch(() => ({}));
+        showToast(err.detail || 'Failed to decline invitation', 'danger');
+      }
     }
 
     // ==================== ONBOARDING ====================
@@ -1933,52 +2138,193 @@
 
     // ==================== TEAM MANAGEMENT ====================
     
-    async function addTeamMember() {
-      const name = document.getElementById('memberName').value;
-      const email = document.getElementById('memberEmail').value;
-      const role = document.getElementById('memberRole').value;
+    let verifyUserTimer = null;
+    let verifiedUserCandidate = null;
 
-      if (!name || !email) {
-        showToast('Please fill in all fields', 'danger');
+    function showAddMemberModal() {
+      if (!currentWorkspace) {
+        showToast('Please select or create a workspace first', 'warning');
         return;
       }
+      const modal = document.getElementById('addMemberModal') || createAddMemberModal();
+      resetAddMemberModal();
+      modal.style.display = 'flex';
+    }
 
-      const member = {name, email, role};
-      teamMembers.push(member);
-
-      // Save to backend with auth token
-      if (authToken) {
-        try {
-          await fetch('/api/v1/teams/members', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${authToken}`
-            },
-            body: JSON.stringify({name, email, role})
-          });
-        } catch (e) {
-          console.log('Team API:', e);
-        }
-      }
-
-      // Add to UI
-      const teamGrid = document.getElementById('teamGrid');
-      const card = document.createElement('div');
-      card.className = 'team-member-card';
-      card.innerHTML = `
-        <div class="member-avatar">${name.charAt(0).toUpperCase()}</div>
-        <div class="fw-bold">${name}</div>
-        <div class="text-muted small">${role.replace('-', ' ')}</div>
+    function createAddMemberModal() {
+      const modal = document.createElement('div');
+      modal.id = 'addMemberModal';
+      modal.style.cssText = 'display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;';
+      modal.innerHTML = `
+        <div style="background:white; padding:32px; border-radius:12px; max-width:560px; width:90%;">
+          <h4 class="mb-3">Add Member to ${currentWorkspace ? currentWorkspace.name : 'Workspace'}</h4>
+          <div class="mb-3">
+            <label class="form-label">User Email *</label>
+            <input type="email" class="form-control" id="addMemberEmail" placeholder="name@company.com" oninput="debouncedVerifyUser()">
+            <div id="verifyStatus" class="form-text mt-1"></div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Workspace Role *</label>
+            <select class="form-select" id="addMemberRole">
+              <option value="member">Member</option>
+              <option value="facilitator">Facilitator</option>
+              <option value="owner">Owner</option>
+            </select>
+          </div>
+          <div class="d-flex justify-content-end gap-2">
+            <button class="btn btn-secondary" onclick="closeAddMemberModal()">Cancel</button>
+            <button id="confirmAddMemberBtn" class="btn btn-primary" onclick="confirmAddWorkspaceMember()" disabled>
+              <i class="bi bi-person-plus"></i> Add to Workspace
+            </button>
+          </div>
+          <div id="addMemberError" class="mt-2 text-danger" style="display:none;"></div>
+        </div>
       `;
-      teamGrid.appendChild(card);
+      modal.addEventListener('click', e => { if (e.target === modal) closeAddMemberModal(); });
+      document.body.appendChild(modal);
+      return modal;
+    }
 
-      document.getElementById('teamCount').textContent = `(${teamMembers.length})`;
-      document.getElementById('memberName').value = '';
-      document.getElementById('memberEmail').value = '';
+    function resetAddMemberModal() {
+      const emailEl = document.getElementById('addMemberEmail');
+      const statusEl = document.getElementById('verifyStatus');
+      const errorEl = document.getElementById('addMemberError');
+      const btn = document.getElementById('confirmAddMemberBtn');
+      if (emailEl) emailEl.value = '';
+      if (statusEl) statusEl.innerHTML = '';
+      if (errorEl) { errorEl.style.display = 'none'; errorEl.textContent = ''; }
+      if (btn) btn.disabled = true;
+      verifiedUserCandidate = null;
+    }
 
-      showToast('Team member added successfully!', 'success');
-      completeStep('team_members_added');
+    function closeAddMemberModal() {
+      const modal = document.getElementById('addMemberModal');
+      if (modal) modal.style.display = 'none';
+    }
+
+    function debouncedVerifyUser() {
+      clearTimeout(verifyUserTimer);
+      verifyUserTimer = setTimeout(verifyUserByEmail, 400);
+    }
+
+    function isValidEmail(email) {
+      return /.+@.+\..+/.test(email);
+    }
+
+    async function verifyUserByEmail() {
+      const email = (document.getElementById('addMemberEmail')?.value || '').trim();
+      const statusEl = document.getElementById('verifyStatus');
+      const btn = document.getElementById('confirmAddMemberBtn');
+      verifiedUserCandidate = null;
+      if (!email || !isValidEmail(email)) {
+        if (statusEl) statusEl.innerHTML = '<span class="text-muted">Enter a valid email to verify.</span>';
+        if (btn) btn.disabled = true;
+        return;
+      }
+      if (!authToken) {
+        if (statusEl) statusEl.innerHTML = '<span class="text-danger">You are not authenticated.</span>';
+        if (btn) btn.disabled = true;
+        return;
+      }
+      try {
+        if (statusEl) statusEl.innerHTML = '<span class="text-info"><i class="bi bi-hourglass-split"></i> Verifying...</span>';
+        const resp = await fetch(`/api/v1/users/lookup?email=${encodeURIComponent(email)}`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (resp.status === 404) {
+          if (statusEl) statusEl.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle"></i> No account found for this email.</span>';
+          if (btn) btn.disabled = true;
+          return;
+        }
+        if (!resp.ok) throw new Error('Verification failed');
+        const user = await resp.json();
+        verifiedUserCandidate = user;
+        if (statusEl) statusEl.innerHTML = `<span class="text-success"><i class="bi bi-check-circle"></i> Found: ${user.displayName || user.name || user.email}</span>`;
+        if (btn) btn.disabled = false;
+      } catch (e) {
+        if (statusEl) statusEl.innerHTML = '<span class="text-danger">Could not verify right now. Try again.</span>';
+        if (btn) btn.disabled = true;
+      }
+    }
+
+    async function confirmAddWorkspaceMember() {
+      const errorEl = document.getElementById('addMemberError');
+      if (!currentWorkspace) {
+        showToast('Please select or create a workspace first', 'warning');
+        return;
+      }
+      if (!verifiedUserCandidate) {
+        if (errorEl) { errorEl.style.display = 'block'; errorEl.textContent = 'Please verify a valid user email first.'; }
+        return;
+      }
+      const role = document.getElementById('addMemberRole')?.value || 'member';
+      const btn = document.getElementById('confirmAddMemberBtn');
+      try {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Adding...';
+        const resp = await fetch(`/api/v1/workspaces/${currentWorkspace.id}/invitations`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ email: verifiedUserCandidate.email, role })
+        });
+        if (resp.status === 409) {
+          showToast('User is already a member of this workspace', 'info');
+          closeAddMemberModal();
+          return loadWorkspaceMembers();
+        }
+        if (resp.status === 403) {
+          showToast('Only facilitators or owners can send invitations', 'danger');
+          return;
+        }
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.detail || 'Failed to send invitation');
+        }
+        showToast('Invitation sent successfully', 'success');
+        closeAddMemberModal();
+        // Member list updates after acceptance
+      } catch (e) {
+        if (errorEl) { errorEl.style.display = 'block'; errorEl.textContent = e.message; }
+      } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-person-plus"></i> Add to Workspace'; }
+      }
+    }
+
+    async function loadWorkspaceMembers() {
+      if (!currentWorkspace || !authToken) return;
+      try {
+        const resp = await fetch(`/api/v1/workspaces/${currentWorkspace.id}/members`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (!resp.ok) throw new Error('Failed to load members');
+        const members = await resp.json();
+        renderTeamMembers(members);
+      } catch (e) {
+        console.error('Load members error:', e);
+      }
+    }
+
+    function renderTeamMembers(members) {
+      const grid = document.getElementById('teamGrid');
+      const count = document.getElementById('teamCount');
+      if (!grid) return;
+      grid.innerHTML = '';
+      (members || []).forEach(m => {
+        const card = document.createElement('div');
+        card.className = 'team-member-card';
+        const name = m.display_name || m.name || m.email || 'User';
+        const role = m.role || 'member';
+        card.innerHTML = `
+          <div class="member-avatar">${(name.charAt(0) || 'U').toUpperCase()}</div>
+          <div class="fw-bold text-truncate" title="${name}">${name}</div>
+          <div class="text-muted small text-truncate" title="${role}">${role}</div>
+        `;
+        grid.appendChild(card);
+      });
+      if (count) count.textContent = `(${members ? members.length : 0})`;
     }
 
     // ==================== SCHEDULE ====================
@@ -2233,9 +2579,79 @@
             currentWorkspace = userWorkspaces[0];
             localStorage.setItem('current_workspace', JSON.stringify(currentWorkspace));
           }
+
+          renderWorkspaceList();
         }
       } catch (error) {
         console.error('Load workspaces error:', error);
+      }
+    }
+
+    function renderWorkspaceList() {
+      const container = document.getElementById('workspaceList');
+      if (!container) return;
+      if (!userWorkspaces || userWorkspaces.length === 0) {
+        container.innerHTML = '<div class="alert alert-info mb-0"><i class="bi bi-info-circle"></i> No workspaces yet. Use Workspace in the left nav to create one.</div>';
+        return;
+      }
+
+      const items = userWorkspaces.map(ws => `
+        <div class="d-flex align-items-center justify-content-between py-1">
+          <div class="text-truncate" title="${ws.description || ''}"><i class="bi bi-building text-secondary"></i> <strong>${ws.name}</strong></div>
+          <button class="btn btn-sm btn-outline-primary" onclick="goToAnalyticsForWorkspace('${ws.id}')">
+            <i class="bi bi-graph-up"></i> Analytics
+          </button>
+        </div>
+      `).join('');
+
+      container.innerHTML = `
+        <h6 class="mb-2">Your Workspaces</h6>
+        <div class="list-group-flush">
+          ${items}
+        </div>
+      `;
+    }
+
+    function goToAnalyticsForWorkspace(workspaceId) {
+      if (!userWorkspaces || userWorkspaces.length === 0) return;
+      const selected = userWorkspaces.find(w => String(w.id) === String(workspaceId));
+      if (selected) {
+        currentWorkspace = selected;
+        localStorage.setItem('current_workspace', JSON.stringify(currentWorkspace));
+      }
+      showSection('analytics');
+      renderAnalyticsForWorkspace();
+    }
+
+    function renderAnalyticsForWorkspace() {
+      const titleEl = document.getElementById('analyticsTitle');
+      const insightsEl = document.getElementById('aiInsights');
+      if (currentWorkspace && titleEl) {
+        titleEl.textContent = `Analytics & Insights — ${currentWorkspace.name}`;
+      }
+      if (insightsEl) {
+        if (!currentWorkspace) {
+          insightsEl.innerHTML = '<p class="text-muted">Select a workspace to view insights.</p>';
+          return;
+        }
+        insightsEl.innerHTML = `
+          <div class="mb-3">
+            <h6 class="mb-1"><i class="bi bi-lightbulb"></i> AI Highlights</h6>
+            <ul class="mb-0">
+              <li>Top themes across recent retrospectives in ${currentWorkspace.name}</li>
+              <li>Action item completion trend and blockers</li>
+              <li>Participation and engagement signals</li>
+            </ul>
+          </div>
+          <div>
+            <h6 class="mb-1"><i class="bi bi-activity"></i> Recommendations</h6>
+            <ul class="mb-0">
+              <li>Focus area for next sprint</li>
+              <li>Suggested experiments to try</li>
+              <li>Follow-ups from last retro</li>
+            </ul>
+          </div>
+        `;
       }
     }
     
@@ -2327,6 +2743,7 @@
         currentWorkspace = workspace;
         userWorkspaces.push(workspace);
         localStorage.setItem('current_workspace', JSON.stringify(workspace));
+        renderWorkspaceList();
         
         document.getElementById('workspaceModal').style.display = 'none';
         showToast(`Workspace "${workspace.name}" created successfully!`, 'success');
@@ -2365,7 +2782,7 @@
       modal.id = 'retroModal';
       modal.style.cssText = 'display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;';
       modal.innerHTML = `
-        <div style="background:white; padding:40px; border-radius:15px; max-width:600px; width:90%;">
+        <div style="background:white; padding:40px; border-radius:15px; max-width:700px; width:90%; max-height:80vh; overflow-y:auto; -webkit-overflow-scrolling:touch;">
           <h3 style="color:#667eea; margin-bottom:20px;">Create Retrospective</h3>
           
           <div style="margin-bottom:15px;">
@@ -2387,15 +2804,35 @@
           </div>
           
           <div style="display:flex; gap:15px; margin-bottom:15px;">
-            <div style="flex:1;">
-              <label style="display:block; margin-bottom:5px; font-weight:600;">Start Date/Time *</label>
-              <input type="datetime-local" id="retroStartTime" 
+            <div style="flex:2;">
+              <label style="display:block; margin-bottom:5px; font-weight:600;">Date & Time *</label>
+              <input type="datetime-local" id="retroDateTime" 
                      style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;">
             </div>
             <div style="flex:1;">
-              <label style="display:block; margin-bottom:5px; font-weight:600;">End Date/Time *</label>
-              <input type="datetime-local" id="retroEndTime" 
+              <label style="display:block; margin-bottom:5px; font-weight:600;">Duration (minutes) *</label>
+              <input type="number" min="15" step="5" value="60" id="retroDuration" 
                      style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;">
+            </div>
+          </div>
+
+          <div style="margin-bottom:15px; padding:12px; border:1px solid #eee; border-radius:8px;">
+            <div style="font-weight:600; margin-bottom:8px;">Automated Reminders</div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="remindWeek" checked>
+              <label class="form-check-label" for="remindWeek">1 week before</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="remindDay" checked>
+              <label class="form-check-label" for="remindDay">24 hours before</label>
+            </div>
+            <div class="mt-2">
+              <label style="display:block; margin-bottom:5px; font-weight:600;">Reminder Subject (optional)</label>
+              <input type="text" id="reminderSubject" placeholder="e.g., Upcoming Retrospective: {{title}}" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;">
+            </div>
+            <div class="mt-2">
+              <label style="display:block; margin-bottom:5px; font-weight:600;">Reminder Message (optional)</label>
+              <textarea id="reminderMessage" placeholder="Customize the message shown in reminders" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px; min-height:60px;"></textarea>
             </div>
           </div>
           
@@ -2424,10 +2861,14 @@
       const title = document.getElementById('retroTitle').value.trim();
       const sprintName = document.getElementById('retroSprintName').value.trim();
       const description = document.getElementById('retroDescription').value.trim();
-      const startTime = document.getElementById('retroStartTime').value;
-      const endTime = document.getElementById('retroEndTime').value;
+      const dateTime = document.getElementById('retroDateTime').value;
+      const durationMinutes = parseInt(document.getElementById('retroDuration').value || '60', 10);
+      const remindWeek = document.getElementById('remindWeek').checked;
+      const remindDay = document.getElementById('remindDay').checked;
+      const reminderSubject = document.getElementById('reminderSubject').value.trim();
+      const reminderMessage = document.getElementById('reminderMessage').value.trim();
       
-      if (!title || !sprintName || !startTime || !endTime) {
+      if (!title || !sprintName || !dateTime || !durationMinutes) {
         document.getElementById('retroError').textContent = 'Please fill in all required fields';
         document.getElementById('retroError').style.display = 'block';
         return;
@@ -2447,6 +2888,10 @@
       btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Creating...';
       
       try {
+        // Compute start/end times
+        const startIso = new Date(dateTime).toISOString();
+        const endIso = new Date(new Date(dateTime).getTime() + durationMinutes * 60000).toISOString();
+
         const response = await fetch('/api/v1/retrospectives/', {
           method: 'POST',
           headers: {
@@ -2458,8 +2903,8 @@
             title: title,
             sprint_name: sprintName,
             description: description,
-            scheduled_start_time: new Date(startTime).toISOString(),
-            scheduled_end_time: new Date(endTime).toISOString()
+            scheduled_start_time: startIso,
+            scheduled_end_time: endIso
           })
         });
         
@@ -2469,6 +2914,30 @@
         }
         
         const retro = await response.json();
+        
+        // Also schedule automated reminders (populate existing tables)
+        try {
+          await fetch('/api/v1/scheduling/schedule', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${authToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              title: title,
+              team_id: currentWorkspace.id,
+              scheduled_date: startIso,
+              description: description,
+              duration_minutes: durationMinutes,
+              send_1_week_reminder: remindWeek,
+              send_24_hour_reminder: remindDay,
+              reminder_subject: reminderSubject || null,
+              reminder_message: reminderMessage || null
+            })
+          });
+        } catch (e) {
+          // non-blocking
+        }
         currentRetrospective = retro;
         
         closeRetroModal();
