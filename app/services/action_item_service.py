@@ -26,7 +26,9 @@ class ActionItemService:
             assigned_to=action_item_data.assigned_to,
             created_by=user_id,
             retrospective_id=action_item_data.retrospective_id,
-            workspace_id=action_item_data.workspace_id
+            workspace_id=action_item_data.workspace_id,
+            discussion_topic_id=action_item_data.discussion_topic_id,
+            progress_percentage=action_item_data.progress_percentage or 0
         )
         self.db.add(action_item)
         self.db.commit()
@@ -39,7 +41,7 @@ class ActionItemService:
         skip: int = 0,
         limit: int = 100,
         retrospective_id: Optional[int] = None,
-        team_id: Optional[int] = None,
+        workspace_id: Optional[int] = None,
         status: Optional[str] = None
     ) -> List[ActionItem]:
         """Get action items with optional filters"""
@@ -53,8 +55,8 @@ class ActionItemService:
         if retrospective_id:
             query = query.filter(ActionItem.retrospective_id == retrospective_id)
         
-        if team_id:
-            query = query.filter(ActionItem.team_id == team_id)
+        if workspace_id:
+            query = query.filter(ActionItem.workspace_id == workspace_id)
         
         if status:
             # Filter by status string directly
@@ -95,6 +97,8 @@ class ActionItemService:
             action_item.assigned_to = action_item_data.assigned_to
         if action_item_data.due_date is not None:
             action_item.due_date = action_item_data.due_date
+        if action_item_data.progress_percentage is not None:
+            action_item.progress_percentage = action_item_data.progress_percentage
         
         self.db.commit()
         self.db.refresh(action_item)
@@ -139,18 +143,6 @@ class ActionItemService:
                 ),
                 ActionItem.status != "completed",
                 ActionItem.due_date < now
-            )
-        ).all()
-    
-    def get_action_items_by_team(self, team_id: int, user_id: int) -> List[ActionItem]:
-        """Get action items for a specific team"""
-        return self.db.query(ActionItem).filter(
-            and_(
-                ActionItem.team_id == team_id,
-                or_(
-                    ActionItem.assigned_to == user_id,
-                    ActionItem.created_by == user_id
-                )
             )
         ).all()
     

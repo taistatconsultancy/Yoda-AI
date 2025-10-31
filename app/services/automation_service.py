@@ -12,6 +12,8 @@ from app.models.user import User
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 import logging
+import secrets
+import string
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +41,7 @@ class AutomationService:
             description=description,
             scheduled_date=scheduled_date,
             duration_minutes=duration_minutes,
-            team_id=team_id,
+            workspace_id=team_id,  # team_id parameter maps to workspace_id
             created_by=created_by
         )
         
@@ -66,11 +68,11 @@ class AutomationService:
     ):
         """Create automated reminders for scheduled retrospective"""
         # Get team members
-        team = db.query(Team).filter(Team.id == scheduled_retro.team_id).first()
+        team = db.query(Team).filter(Team.id == scheduled_retro.workspace_id).first()
         if not team:
             return
         
-        members = db.query(TeamMember).filter(TeamMember.team_id == team.id).all()
+        members = db.query(TeamMember).filter(TeamMember.workspace_id == team.id).all()
         
         for member in members:
             # 1 week before reminder
@@ -115,7 +117,7 @@ class AutomationService:
         
         # Get team members
         members = db.query(TeamMember).filter(
-            TeamMember.team_id == scheduled_retro.team_id
+            TeamMember.workspace_id == scheduled_retro.workspace_id
         ).all()
         
         preparations = []
@@ -142,13 +144,13 @@ class AutomationService:
         """Generate personalized preparation questions"""
         # Get previous retrospective data
         previous_retros = db.query(Retrospective).filter(
-            Retrospective.team_id == scheduled_retro.team_id,
+            Retrospective.workspace_id == scheduled_retro.workspace_id,
             Retrospective.status == "completed"
         ).order_by(Retrospective.created_at.desc()).limit(3).all()
         
         # Get pending action items
         pending_actions = db.query(ActionItem).filter(
-            ActionItem.team_id == scheduled_retro.team_id,
+            ActionItem.workspace_id == scheduled_retro.workspace_id,
             ActionItem.status != "completed"
         ).all()
         
@@ -241,13 +243,29 @@ YodaAI Team
         if not scheduled_retro:
             raise ValueError(f"Scheduled retrospective {scheduled_retro_id} not found")
         
+        # Generate unique code for retrospective
+        def generate_code():
+            """Generate a random 5-character alphanumeric code"""
+            alphabet = string.ascii_uppercase + string.digits
+            alphabet = ''.join(c for c in alphabet if c not in '0O1IL')
+            while True:
+                code = ''.join(secrets.choice(alphabet) for _ in range(5))
+                existing = db.query(Retrospective).filter(Retrospective.code == code).first()
+                if not existing:
+                    return code
+        
+        retro_code = generate_code()
+        
         # Create actual retrospective
         retrospective = Retrospective(
+            code=retro_code,
             title=scheduled_retro.title,
             description=scheduled_retro.description,
-            team_id=scheduled_retro.team_id,
+            workspace_id=scheduled_retro.workspace_id,
             created_by=scheduled_retro.created_by,
-            status="active"
+            facilitator_id=scheduled_retro.created_by,
+            status="active",
+            current_phase="input"
         )
         
         db.add(retrospective)
@@ -279,7 +297,7 @@ YodaAI Team
         
         # Mark as completed
         retrospective.status = "completed"
-        retrospective.completed_at = datetime.now()
+        retrospective.actual_end_time = datetime.now()
         db.commit()
         
         # Generate and send summary
@@ -297,7 +315,7 @@ YodaAI Team
             "retrospective_id": retrospective_id,
             "summary": summary,
             "action_items_created": len(action_items),
-            "completed_at": retrospective.completed_at
+            "completed_at": retrospective.actual_end_time
         }
     
     @staticmethod
@@ -356,10 +374,10 @@ YodaAI Team
     ):
         """Schedule follow-up reminders for action items"""
         # Get team members
-        if not retrospective.team_id:
+        if not retrospective.workspace_id:
             return
         
-        members = db.query(TeamMember).filter(TeamMember.team_id == retrospective.team_id).all()
+        members = db.query(TeamMember).filter(TeamMember.workspace_id == retrospective.workspace_id).all()
         
         for member in members:
             # Weekly check-in reminder
@@ -404,18 +422,18 @@ YodaAI Team
         one_month_ago = datetime.now() - timedelta(days=30)
         
         retrospectives = db.query(Retrospective).filter(
-            Retrospective.team_id == str(team_id),
+            Retrospective.workspace_id == team_id,
             Retrospective.created_at >= one_month_ago,
             Retrospective.status == "completed"
         ).all()
         
         # Get action items
         action_items = db.query(ActionItem).filter(
-            ActionItem.team_id == team_id,
+            ActionItem.workspace_id == team_id,
             ActionItem.created_at >= one_month_ago
         ).all()
         
-        completed_actions = [ai for ai in action_items if ai.status.value == "completed"]
+        completed_actions = [ai for ai in action_items if ai.status == "completed"]
         
         report = {
             "period": "Last 30 days",

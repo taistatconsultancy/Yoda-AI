@@ -490,6 +490,371 @@ Disciplined Agile Enterprise
 A Disciplined Agile Enterprise (DAE) is able to anticipate and respond swiftly to changes in the marketplace. It does this through an organizational culture and structure that facilitates change within the context of the situation that it faces. Such organizations require a learning mindset in the mainstream business and underlying lean and agile processes to drive innovation.
 
 
+DISCIPLINED AGILE
+An Overview
 
+Dimitris Lazos MSc, PMP, | DA Champion, PMI Cyprus Chapter
+06 02 2020
+
+Introduction
+to DA
+Who is Disciplined Agile?
+
+7 FEBRUARY 2020 2
+DA was created by Mark Lines and Scott Ambler in
+Canada
+
+Part of the PMI family as of August 2019
+
+DA is a toolkit of Agile strategies and practices to
+complement any agile framework or method such as
+Scrum or SAFe
+
+Classic
+Project
+Management
+Disciplined
+Agile
+PMI’s Classic PM & DA Guidance are for Different Purposes but Complimentary
+
+3
+The New PMBOK Guide
+includes Agile content
+DA includes guidance on Risk
+Management & Governance
+D E F I N I T I O N
+Disciplined
+
+Agile (DA)
+
+Disciplined Agile (DA) is a process-decision toolkit that
+provides straightforward guidance to help people, teams,
+and organizations to streamline their processes in a
+context-sensitive manner in all levels of the organization.
+DA provides a solid foundation for business agility by
+showing how the various activities such as Solution
+Delivery (software development), IT Operations, Enterprise
+Architecture, Portfolio Management, Security, Finance,
+Procurement and many others work together. DA also
+describes what these activities should address, provides a
+range of options for doing so, and describes the trade-offs
+associated with each option.
+4
+Successful Agile Organizations Take Responsibility
+
+for Evolving their own Agility
+
+Success doesn’t come from adopting a
+prescriptive framework or methodology
+such as Scrum or SAFe, although it may
+be a good start!
+For true business agility, we need to
+“Choose our agile way of working (WoW)”,
+optimizing for our unique situations
+5
+5
+Choose Your Wow! is DA’s BOK for Disciplined Agile Delivery
+Agile has
+Devolved
+into Chaos
+Hundreds of
+Practices
+Significant overlap
+Significant gaps
+Conflicting advice
+Niche
+Certifications
+7 FEBRUARY 2020 6
+
+The Seven Principles of
+Disciplined Agile
+
+7
+Delight
+Customers
+Pragmatism
+Be
+Awesome
+Context
+Counts
+Choice is
+Good
+Optimize
+Flow
+Enterprise
+Awareness
+Mindset
+
+Disciplined
+Agile (DA) is
+described in
+four views
+8
+People
+
+Flow Practices
+
+Roles &
+responsibilities
+Team structures
+Lifecycles
+
+Workflows
+Goal diagrams
+Principles and
+guidelines
+Primary Roles on Disciplined Agile Delivery (DAD) Teams
+
+Foundations of Disciplined Agile © 2019 Project Management Institute, Inc. NOVEMBER 2019 9
+Team Lead
+Agile process expert, keeps team focused on achievement of
+goals, removes impediments (iecall Agile PM, Scrum Master)
+Product Owner
+Owns the product vision, scope and priorities of the solution
+Architecture Owner
+Owns the architecture decisions and technical priorities,
+mitigates key technical risks
+Team Member
+Cross-functional team members that deliver the solution
+Stakeholder
+Includes the customer but also other stakeholders such as the
+sponsor, operations engineers, support staff, architecture,
+database groups, finance, and more
+Disciplined
+Agile is an
+agnostic
+hybrid that
+leverages
+strategies
+from a
+variety of
+sources
+10
+Scrum
+Extreme Programming
+
+Kanban Lean
+Unified Process Agile Modeling
+PMIBokGuide® “Traditional” Agile Data
+SAFe® DevOps ...and more
+Your team
+interacts
+with others,
+and they
+need to
+become
+agile too!
+Leading the Transformation © 2019 Project Management Institute, Inc.^11 FEBRUARY 20^11
+Finance
+Marketing
+Procurement
+Enterprise
+Architecture
+
+People
+Management
+Strategy
+IT Operations
+Security
+And many
+more...
+D E F I N I T I O N
+Process
+
+Blade
+
+12
+A process blade addresses a specific organizational
+capability, such as finance, people management, data
+management, agile solution delivery, procurement, and
+more.
+A process blade encompasses a cohesive collection of
+process options – including practices, strategies, and
+work flows – that should be chosen and then applied in a
+context sensitive manner.
+Leading the Transformation © 2019 Project Management Institute, Inc. FEBRUARY 20 13
+Process blades
+encompass lots
+of practices
+
+Leading the Transformation © 2019 Project Management Institute, Inc. FEBRUARY 20^14
+Data
+
+Management
+
+Goal Diagram
+
+C O A C H E S C O R N E R
+Teams
+
+should
+
+choose an
+
+appropriate
+
+lifecycle for
+
+their
+
+situation
+
+16
+Program
+Exploratory
+Lean Continuous
+Delivery: Lean
+Continuous
+Delivery: Agile
+Agile
+The Agile Lifecycle
+
+17
+The Continuous Delivery: Lean Lifecycle
+
+18
+The Business Service Team Lifecycle
+
+19
+DAD milestones – Lightweight and consistent
+
+Milestone Fundamental Question Asked
+Stakeholder vision Do stakeholders agree with yourstrategy?
+Proven architecture Can you actually build this?
+Continued viability Does the effort still make sense?
+Sufficientfunctionality Has the team produced (at least) a minimum
+business increment (MBI)?
+Production ready Will the solution work in production?
+Delighted stakeholders Are stakeholders happy with the deployed solution? 20
+Guided
+Continuous
+Improvement
+(GCI)
+Identify Problem
+Identify Potential
+Solution(s)
+Try the Solution(s)
+Assess
+Effectiveness
+Adopt What Works Abandon What Doesn’t Work
+Share Learnings
+Some experiments fail.
+You learn something, but
+it’s still a failure.
+Failing fast is fine, but
+succeeding early is better.
+If we get better at this,
+we succeed more often
+and we improve faster.
+We can do this if we have
+access to an experienced
+agile coach, but they’re
+expensive and hard to find.
+
+We can do this if we have
+access to a process
+knowledgebase, like the
+Disciplined Agile (DA)
+toolkit.^21
+
+22
+Start where you are,
+do the best that you can in the situation that you face,
+and always strive to get better.
+
+“Better
+Decisions Lead
+to Better
+Outcomes”
+23
+Disciplined Agile is a rich, comprehensive and
+well-organized toolkit of strategies to help your
+organization be more successful with Agile
+DA brings a disciplined, agnostic, professional,
+enterprise approach to agile which is what our
+industry has been lacking in the past
+Understanding what your options are, and
+which ones work in different contexts leads to
+better decisions
+Better decisions lead to better outcomes
+In Summary
+
+Disciplined Agile 7 FEBRUARY 2020
+DA
+
+Certification
+
+DA Certifications
+
+7 FEBRUARY 2020 24
+There are 6 DA certifications
+The DA certification program is a principled approach based on the
+Shu-Ha-Ri Philosophy of learning
+DA
+
+Certification
+
+Disciplined Agilist
+
+7 FEBRUARY 2020 25
+Complete training by certified DA Instructor
+Apply for membership ($50)
+DA
+
+Certification
+
+Certified DA
+
+7 FEBRUARY 2020 26
+DA
+
+Certification
+
+Certified DA Practitioner
+
+7 FEBRUARY 2020 27
+DA
+
+Certification
+
+DA Lean Scrum Master (DALSM)
+
+7 FEBRUARY 2020 28
+DA
+
+Certification
+
+Certified DA Coach
+
+7 FEBRUARY 2020 29
+DA
+
+Certification
+
+Certified DA Instructor (CDAI)
+
+7 FEBRUARY 2020 30
+DA
+
+Certification
+
+Certified DA Instructor (con’t)
+
+7 FEBRUARY 2020 31
+HOW TO FIND TRAINING
+& MORE INFORMATION
+ON DA MEMBERSHIP &
+CERTIFICATION
+
+http://www.disciplinedagaileconsortium.org
+http://www.disciplinedagiledelivery.com/
+
+DA Certification Overview 7 FEBRUARY 2020^32
+Sign up for the free Newsletter!
+
+THANK YOU
+DIMITRIS LAZOSDISCIPLINED AGILE CHAMPION
+PMI CYPRUSCHAPTER
+da.chapterchamp@pmi-cyprus.org.cy
 
 

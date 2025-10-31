@@ -37,11 +37,12 @@ class Settings(BaseSettings):
     FIREBASE_SERVICE_ACCOUNT_JSON: Optional[str] = None  # Path to credentials.json or JSON content
     
     # Email Service Configuration
+    
     SMTP_HOST: Optional[str] = "smtp.gmail.com"
     SMTP_PORT: Optional[int] = 587
     SMTP_USER: Optional[str] = None
     SMTP_PASSWORD: Optional[str] = None
-    SMTP_FROM_EMAIL: Optional[str] = "noreply@yodaai.com"
+    SMTP_FROM_EMAIL: Optional[str] = "noreply@taistatInfo"
     SMTP_FROM_NAME: Optional[str] = "YodaAI"
     
     # Application
@@ -50,10 +51,10 @@ class Settings(BaseSettings):
     APP_URL: str = "http://localhost:8000"
     
     # Feature Flags
-    ENABLE_EMAIL_NOTIFICATIONS: bool = False
-    ENABLE_CALENDAR_INTEGRATION: bool = False
+    ENABLE_EMAIL_NOTIFICATIONS: bool = True
+    ENABLE_CALENDAR_INTEGRATION: bool = True
     ENABLE_AI_ANALYSIS: bool = True
-    ENABLE_AUTOMATED_REMINDERS: bool = False
+    ENABLE_AUTOMATED_REMINDERS: bool = True
     
     # AI Service Configuration
     AI_TEMPERATURE: float = 0.7

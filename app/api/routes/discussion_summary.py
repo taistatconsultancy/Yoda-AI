@@ -49,6 +49,10 @@ class DiscussionMessageResponse(BaseModel):
         from_attributes = True
 
 
+class MessageRequest(BaseModel):
+    message: str
+
+
 class SprintSummary(BaseModel):
     retrospective_id: int
     sprint_name: str
@@ -111,7 +115,7 @@ async def get_discussion_topics(
 @router.post("/{topic_id}/message")
 async def send_discussion_message(
     topic_id: int,
-    message: str,
+    message_req: MessageRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -133,11 +137,16 @@ async def send_discussion_message(
         if not participant:
             raise HTTPException(status_code=403, detail="Not a participant")
         
+        # Check if this is the first message (discussion hasn't started yet)
+        if not topic.discussion_started_at:
+            topic.discussion_started_at = datetime.utcnow()
+            topic.is_discussed = True
+        
         # Save user message
         user_msg = DiscussionMessage(
             discussion_topic_id=topic_id,
             user_id=current_user.id,
-            content=message,
+            content=message_req.message,
             message_type='user'
         )
         db.add(user_msg)
@@ -262,6 +271,93 @@ async def get_discussion_messages(
     except Exception as e:
         print(f"Get discussion messages error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch messages: {str(e)}")
+
+
+@router.post("/{retro_id}/chat")
+async def general_discussion_chat(
+    retro_id: int,
+    message_req: MessageRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    General discussion chat for asking questions about themes and DA recommendations
+    """
+    try:
+        # Verify participant
+        participant = db.query(RetrospectiveParticipant).filter(
+            RetrospectiveParticipant.retrospective_id == retro_id,
+            RetrospectiveParticipant.user_id == current_user.id
+        ).first()
+        
+        if not participant:
+            raise HTTPException(status_code=403, detail="Not a participant")
+        
+        # Get topics and DA recommendations for context
+        topics = db.query(DiscussionTopic, ThemeGroup).join(
+            ThemeGroup, DiscussionTopic.theme_group_id == ThemeGroup.id
+        ).filter(
+            DiscussionTopic.retrospective_id == retro_id
+        ).order_by(DiscussionTopic.total_votes.desc()).limit(5).all()
+        
+        # Get DA recommendations
+        da_rec = db.query(DARecommendation).filter(
+            DARecommendation.retrospective_id == retro_id
+        ).first()
+        
+        # Build context
+        themes_context = "\n".join([
+            f"- {theme.title}: {theme.description} ({topic.total_votes} votes)"
+            for topic, theme in topics
+        ])
+        
+        da_context = da_rec.content if da_rec else "No DA recommendations generated yet."
+        
+        # Build AI prompt with context
+        system_prompt = f"""You are YodaAI, helping teams understand their retrospective themes and Disciplined Agile recommendations.
+
+Top Discussion Themes:
+{themes_context}
+
+Disciplined Agile Recommendations:
+{da_context}
+
+Your role:
+1. Help clarify themes and their implications
+2. Explain how DA recommendations apply to their situation
+3. Suggest concrete implementation steps
+4. Answer questions about agile practices
+
+Be conversational, practical, and focused on action. Keep responses concise (2-3 sentences max)."""
+        
+        # Get AI response
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": message_req.message}
+                ],
+                temperature=0.7,
+                max_tokens=300
+            )
+            
+            ai_content = response.choices[0].message.content
+            
+        except Exception as ai_error:
+            print(f"OpenAI general chat error: {ai_error}")
+            ai_content = "Thank you for your question. Could you please rephrase it or ask about specific themes?"
+        
+        return {
+            "message": ai_content,
+            "type": "ai_assistant"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"General discussion chat error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to process message: {str(e)}")
 
 
 # ============================================================================
@@ -507,7 +603,12 @@ Generate a concise 1-page summary with:
 2. Recommended workflow improvements
 3. Tools and techniques to implement
 
-Format as clear, actionable recommendations suitable for a team to implement."""
+IMPORTANT: Format your response using clear bullet points (- or •) for each recommendation. Use markdown-style formatting:
+- **Category Name**: Description or header
+  - Sub-point 1
+  - Sub-point 2
+
+Keep each bullet point concise and actionable. Structure the output in an organized, easy-to-read format."""
         
         # Check if DA recommendations already exist in database
         existing_da_rec = db.query(DARecommendation).filter(
@@ -586,24 +687,34 @@ async def download_summary_pdf(
         if not participant:
             raise HTTPException(status_code=403, detail="Not a participant")
         
-        if not retro.ai_summary:
-            raise HTTPException(status_code=404, detail="Summary not yet generated")
+        # Get DA recommendations and top themes
+        da_rec = db.query(DARecommendation).filter(
+            DARecommendation.retrospective_id == retro_id
+        ).first()
+        
+        # Get top discussion topics
+        topics = db.query(DiscussionTopic, ThemeGroup).join(
+            ThemeGroup, DiscussionTopic.theme_group_id == ThemeGroup.id
+        ).filter(
+            DiscussionTopic.retrospective_id == retro_id
+        ).order_by(DiscussionTopic.total_votes.desc()).limit(5).all()
         
         insights = retro.ai_insights or {}
         
-        # Generate PDF using reportlab or similar
+        # Generate PDF using reportlab
         try:
             from reportlab.lib.pagesizes import letter
             from reportlab.lib import colors
             from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
             from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
             from reportlab.lib.units import inch
+            from reportlab.pdfgen import canvas
             import io
             
             buffer = io.BytesIO()
             doc = SimpleDocTemplate(buffer, pagesize=letter,
                                   rightMargin=72, leftMargin=72,
-                                  topMargin=72, bottomMargin=18)
+                                  topMargin=72, bottomMargin=72)
             
             # Container for the 'Flowable' objects
             elements = []
@@ -615,7 +726,8 @@ async def download_summary_pdf(
                 parent=styles['Heading1'],
                 fontSize=24,
                 textColor=colors.HexColor('#667eea'),
-                spaceAfter=30,
+                spaceAfter=20,
+                alignment=1,  # Center alignment
             )
             heading_style = ParagraphStyle(
                 'CustomHeading',
@@ -623,23 +735,60 @@ async def download_summary_pdf(
                 fontSize=16,
                 textColor=colors.HexColor('#667eea'),
                 spaceAfter=12,
+                spaceBefore=12,
+            )
+            subheading_style = ParagraphStyle(
+                'SubHeading',
+                parent=styles['Heading3'],
+                fontSize=14,
+                textColor=colors.HexColor('#4a5568'),
+                spaceAfter=8,
+            )
+            normal_style = ParagraphStyle(
+                'Normal',
+                parent=styles['Normal'],
+                fontSize=11,
+                leading=14,
             )
             
             # Title
-            elements.append(Paragraph(f"Sprint Summary - {retro.sprint_name or 'Unnamed Sprint'}", title_style))
-            elements.append(Spacer(1, 0.2*inch))
+            elements.append(Paragraph(f"Retrospective Summary", title_style))
+            elements.append(Paragraph(f"{retro.title or 'Team Retrospective'}", styles['Title']))
+            if retro.sprint_name:
+                elements.append(Paragraph(f"Sprint: {retro.sprint_name}", styles['Normal']))
+            if retro.actual_start_time:
+                elements.append(Paragraph(
+                    f"Date: {retro.actual_start_time.strftime('%B %d, %Y')}", 
+                    styles['Normal']
+                ))
+            elements.append(Spacer(1, 0.3*inch))
+            
+            # Top Themes for Discussion
+            if topics:
+                elements.append(Paragraph("Top Themes Discussed", heading_style))
+                for i, (topic, theme) in enumerate(topics, 1):
+                    elements.append(Paragraph(
+                        f"{i}. {theme.title} ({topic.total_votes} votes)",
+                        subheading_style
+                    ))
+                    if theme.description:
+                        elements.append(Paragraph(theme.description, normal_style))
+                    elements.append(Spacer(1, 0.1*inch))
+                elements.append(Spacer(1, 0.2*inch))
             
             # Overall Assessment
-            elements.append(Paragraph("Overall Assessment", heading_style))
-            elements.append(Paragraph(retro.ai_summary, styles['Normal']))
-            elements.append(Spacer(1, 0.3*inch))
+            if retro.ai_summary:
+                elements.append(PageBreak())
+                elements.append(Paragraph("Overall Assessment", heading_style))
+                elements.append(Paragraph(retro.ai_summary, normal_style))
+                elements.append(Spacer(1, 0.3*inch))
             
             # Achievements
             achievements = insights.get('achievements', [])
             if achievements:
-                elements.append(Paragraph("Top Achievements", heading_style))
+                elements.append(Paragraph("Key Achievements", heading_style))
                 for achievement in achievements:
-                    elements.append(Paragraph(f"• {achievement}", styles['Normal']))
+                    elements.append(Paragraph(f"✓ {achievement}", normal_style))
                 elements.append(Spacer(1, 0.3*inch))
             
             # Challenges
@@ -647,15 +796,22 @@ async def download_summary_pdf(
             if challenges:
                 elements.append(Paragraph("Main Challenges", heading_style))
                 for challenge in challenges:
-                    elements.append(Paragraph(f"• {challenge}", styles['Normal']))
+                    elements.append(Paragraph(f"⚠ {challenge}", normal_style))
                 elements.append(Spacer(1, 0.3*inch))
             
-            # Recommendations
+            # Disciplined Agile Recommendations
+            if da_rec and da_rec.content:
+                elements.append(PageBreak())
+                elements.append(Paragraph("Disciplined Agile Recommendations", heading_style))
+                elements.append(Paragraph(da_rec.content, normal_style))
+                elements.append(Spacer(1, 0.3*inch))
+            
+            # Recommendations (if in insights)
             recommendations = insights.get('recommendations', [])
             if recommendations:
-                elements.append(Paragraph("Recommendations", heading_style))
+                elements.append(Paragraph("Action Items", heading_style))
                 for recommendation in recommendations:
-                    elements.append(Paragraph(f"• {recommendation}", styles['Normal']))
+                    elements.append(Paragraph(f"→ {recommendation}", normal_style))
                 elements.append(Spacer(1, 0.3*inch))
             
             # Build PDF
@@ -670,7 +826,7 @@ async def download_summary_pdf(
                 content=pdf,
                 media_type="application/pdf",
                 headers={
-                    "Content-Disposition": f"attachment; filename=sprint_summary_{retro.sprint_name or retro_id}.pdf"
+                    "Content-Disposition": f"attachment; filename=retrospective_summary_{retro.code or retro_id}.pdf"
                 }
             )
             

@@ -1,0 +1,85 @@
+# Production requirements for Vercel deployment
+# Optimized to reduce bundle size and build time
+
+# Core framework
+fastapi==0.118.2
+uvicorn==0.37.0
+starlette==0.48.0
+
+# Data validation and serialization
+pydantic==2.12.0
+pydantic-settings==2.11.0
+pydantic-core==2.41.1
+
+# Database
+sqlalchemy==2.0.43
+psycopg2==2.9.11
+
+# Database migrations
+alembic==1.16.5
+
+# Authentication
+python-jose==3.5.0
+bcrypt==5.0.0
+passlib==1.7.4
+
+# Environment and configuration
+python-dotenv==1.1.1
+
+# HTTP and API
+httpx==0.28.1
+requests==2.32.5
+
+# AI services
+openai==2.3.0
+
+# PDF generation
+reportlab==4.0.9
+
+# Email
+email-validator==2.3.0
+
+# File handling
+python-multipart==0.0.20
+
+# Security
+cryptography==46.0.2
+
+# Date/time
+python-dateutil==2.9.0.post0
+
+# JSON handling
+orjson==3.11.3
+
+# Firebase (OPTIONAL - uncomment if using Google OAuth)
+# firebase-admin==7.1.0
+
+# Chroma (OPTIONAL - uncomment if using vector database)
+# chromadb==1.1.1
+
+# Langchain (OPTIONAL - uncomment if using advanced AI features)
+# langchain==0.3.27
+# langchain-core==0.3.79
+# langchain-openai==0.3.35
+
+# Google AI (OPTIONAL - uncomment if using Gemini)
+# google-ai-generativelanguage==0.6.15
+# google-api-core==2.26.0
+# google-generativeai==0.8.5
+
+# For JSON serialization
+jsonpatch==1.33
+
+# Progress bars and utilities
+tqdm==4.67.1
+
+# Additional utilities
+click==8.3.0
+
+# Note: Removed development-only packages
+# - black, flake8, pytest (testing)
+# - ipython, colorama (debugging)
+# - jupyter (development)
+# - kubernetes (orchestration)
+# - numpy, sympy (heavy math libraries - add if needed)
+

@@ -69,7 +69,7 @@ async def schedule_retrospective(
                 "id": scheduled_retro.id,
                 "title": scheduled_retro.title,
                 "scheduled_date": scheduled_retro.scheduled_date,
-                "team_id": scheduled_retro.team_id
+                "workspace_id": scheduled_retro.workspace_id
             }
         }
     except Exception as e:
@@ -162,7 +162,7 @@ async def get_scheduled_retrospectives(
     query = db.query(ScheduledRetrospective)
     
     if team_id:
-        query = query.filter(ScheduledRetrospective.team_id == team_id)
+        query = query.filter(ScheduledRetrospective.workspace_id == team_id)
     
     scheduled_retros = query.filter(
         ScheduledRetrospective.status.in_(["scheduled", "in_progress"])
@@ -175,7 +175,7 @@ async def get_scheduled_retrospectives(
             "description": sr.description,
             "scheduled_date": sr.scheduled_date,
             "duration_minutes": sr.duration_minutes,
-            "team_id": sr.team_id,
+            "workspace_id": sr.workspace_id,
             "status": sr.status
         }
         for sr in scheduled_retros

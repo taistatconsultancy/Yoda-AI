@@ -26,6 +26,11 @@ class VoteRequest(BaseModel):
     votes: int  # Number of votes to allocate
 
 
+class BatchVoteRequest(BaseModel):
+    """Bulk vote submission"""
+    allocations: List[VoteRequest]  # List of theme_id and votes pairs
+
+
 class ThemeVoteSummary(BaseModel):
     theme_id: int
     theme_title: str
@@ -42,6 +47,9 @@ class VotingStatus(BaseModel):
     votes_remaining: int
     theme_votes: List[ThemeVoteSummary]
     can_vote: bool
+    all_participants_voted: bool = False
+    participants_who_voted: int = 0
+    total_participants: int = 0
 
 
 # ============================================================================
@@ -167,13 +175,28 @@ async def get_voting_status(
         for idx, theme in enumerate(theme_summaries, 1):
             theme.rank = idx
         
+        # Get participant voting stats
+        total_participants = db.query(RetrospectiveParticipant).filter(
+            RetrospectiveParticipant.retrospective_id == retro_id
+        ).count()
+        
+        participants_who_voted = db.query(RetrospectiveParticipant).filter(
+            RetrospectiveParticipant.retrospective_id == retro_id,
+            RetrospectiveParticipant.completed_voting == True
+        ).count()
+        
+        all_participants_voted = participants_who_voted >= total_participants
+        
         return VotingStatus(
             voting_session_id=session.id,
             votes_per_member=session.votes_per_member,
             votes_used=user_votes,
             votes_remaining=session.votes_per_member - user_votes,
             theme_votes=theme_summaries,
-            can_vote=user_votes < session.votes_per_member
+            can_vote=user_votes < session.votes_per_member,
+            all_participants_voted=all_participants_voted,
+            participants_who_voted=participants_who_voted,
+            total_participants=total_participants
         )
         
     except HTTPException:
@@ -275,6 +298,95 @@ async def cast_vote(
         db.rollback()
         print(f"Cast vote error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to cast vote: {str(e)}")
+
+
+@router.post("/{retro_id}/submit-votes")
+async def submit_votes_batch(
+    retro_id: int,
+    batch_req: BatchVoteRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Submit all votes at once (batch)
+    """
+    try:
+        # Get voting session
+        session = db.query(VotingSession).filter(
+            VotingSession.retrospective_id == retro_id,
+            VotingSession.is_active == True
+        ).first()
+        
+        if not session:
+            raise HTTPException(status_code=404, detail="No active voting session")
+        
+        # Verify participant
+        participant = db.query(RetrospectiveParticipant).filter(
+            RetrospectiveParticipant.retrospective_id == retro_id,
+            RetrospectiveParticipant.user_id == current_user.id
+        ).first()
+        
+        if not participant:
+            raise HTTPException(status_code=403, detail="Not a participant")
+        
+        # Calculate total votes to be allocated
+        total_votes = sum(alloc.votes for alloc in batch_req.allocations)
+        
+        # Check if exceeds votes_per_member
+        if total_votes > session.votes_per_member:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Total votes ({total_votes}) exceeds maximum ({session.votes_per_member})"
+            )
+        
+        # Check for negative votes
+        if any(alloc.votes < 0 for alloc in batch_req.allocations):
+            raise HTTPException(status_code=400, detail="Votes must be non-negative")
+        
+        # Get all themes to verify they exist
+        theme_ids = {alloc.theme_group_id for alloc in batch_req.allocations}
+        themes = db.query(ThemeGroup).filter(
+            ThemeGroup.id.in_(theme_ids),
+            ThemeGroup.retrospective_id == retro_id
+        ).all()
+        
+        if len(themes) != len(theme_ids):
+            raise HTTPException(status_code=404, detail="Some themes not found")
+        
+        # Delete existing votes for this user in this session
+        db.query(VoteAllocation).filter(
+            VoteAllocation.voting_session_id == session.id,
+            VoteAllocation.user_id == current_user.id
+        ).delete()
+        
+        # Create new vote allocations
+        for alloc in batch_req.allocations:
+            new_vote = VoteAllocation(
+                voting_session_id=session.id,
+                theme_group_id=alloc.theme_group_id,
+                user_id=current_user.id,
+                votes_allocated=alloc.votes
+            )
+            db.add(new_vote)
+        
+        # Mark this participant as having completed voting
+        if participant:
+            participant.completed_voting = True
+        
+        db.commit()
+        
+        return {
+            "message": f"Successfully submitted {total_votes} votes",
+            "votes_allocated": total_votes,
+            "votes_remaining": session.votes_per_member - total_votes
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        print(f"Submit votes batch error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to submit votes: {str(e)}")
 
 
 @router.post("/{retro_id}/finalize")

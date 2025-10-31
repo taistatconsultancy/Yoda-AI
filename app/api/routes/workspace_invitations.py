@@ -13,6 +13,7 @@ from app.database.database import get_db
 from app.api.dependencies.auth import get_current_user
 from app.models.workspace import Workspace, WorkspaceMember
 from app.models.workspace import WorkspaceInvitation
+from app.models.user import User
 from app.core.config import settings
 from app.services.email_service import EmailService
 
@@ -55,6 +56,52 @@ async def create_workspace_invitation(
     if not membership or membership.role not in allowed_roles:
         raise HTTPException(status_code=403, detail="Only owners and facilitators can invite members")
 
+    # Check if the email is already a workspace member
+    invited_email_lower = str(payload.email).lower()
+    existing_member = db.query(WorkspaceMember).join(User, WorkspaceMember.user_id == User.id).filter(
+        User.email == invited_email_lower,
+        WorkspaceMember.workspace_id == workspace_id,
+        WorkspaceMember.is_active == True
+    ).first()
+    
+    if existing_member:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"This email ({payload.email}) is already a member of this workspace"
+        )
+    
+    # Check if there's a pending invitation for this email and workspace
+    existing_invitation = db.query(WorkspaceInvitation).filter(
+        WorkspaceInvitation.email == invited_email_lower,
+        WorkspaceInvitation.workspace_id == workspace_id,
+        WorkspaceInvitation.status == "pending",
+        WorkspaceInvitation.expires_at > datetime.now(timezone.utc)
+    ).first()
+    
+    if existing_invitation:
+        raise HTTPException(
+            status_code=400,
+            detail=f"An active invitation already exists for {payload.email}. Please wait for it to expire or have the user accept/decline it."
+        )
+    
+    # Check if the email is a registered user
+    invited_user = db.query(User).filter(
+        User.email == invited_email_lower
+    ).first()
+    
+    if not invited_user:
+        raise HTTPException(
+            status_code=400,
+            detail=f"This email ({payload.email}) is not registered. Please ask the user to create an account first."
+        )
+    
+    # Check if the email is verified
+    if not invited_user.email_verified:
+        raise HTTPException(
+            status_code=400,
+            detail=f"This email ({payload.email}) is registered but not verified. The user must verify their email before being invited."
+        )
+
     # Create invitation with 12-hour expiry
     token = generate_invite_token()
     expires_at = datetime.now(timezone.utc) + timedelta(hours=12)
@@ -62,7 +109,7 @@ async def create_workspace_invitation(
     invitation = WorkspaceInvitation(
         workspace_id=workspace_id,
         invited_by=current_user.id,
-        email=str(payload.email).lower(),
+        email=invited_email_lower,
         role=payload.role,
         token=token,
         status="pending",
@@ -96,6 +143,8 @@ async def create_workspace_invitation(
             print(f"Workspace: {workspace.name}")
             print(f"Invitee: {invitation.email}")
             print(f"Role: {invitation.role or 'member'}")
+            print(f"User: {invited_user.email} (ID: {invited_user.id})")
+            print(f"Email verified: ✅ Yes")
             print(f"\nInvitation link: {invite_link}")
             print("="*60)
         
@@ -240,5 +289,99 @@ async def decline_invitation(body: InvitationToken, db: Session = Depends(get_db
     inv.status = "declined"
     db.commit()
     return {"detail": "Invitation declined"}
+
+
+@router.get("/{workspace_id}/invitations/validate-email")
+async def validate_email_for_invitation(
+    workspace_id: int,
+    email: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+):
+    """
+    Validate if an email can be invited to the workspace.
+    Returns information about the user's registration status and membership.
+    """
+    # Ensure workspace exists and user has permission
+    workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+    if not workspace:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    # Check if user has permission to invite
+    membership = db.query(WorkspaceMember).filter(
+        WorkspaceMember.workspace_id == workspace_id,
+        WorkspaceMember.user_id == current_user.id,
+        WorkspaceMember.is_active == True
+    ).first()
+    
+    allowed_roles = ['owner', 'facilitator', 'Scrum Master', 'Project Manager']
+    if not membership or membership.role not in allowed_roles:
+        raise HTTPException(status_code=403, detail="Only owners and facilitators can invite members")
+
+    # Validate email format
+    if not email or '@' not in email:
+        return {
+            "valid": False,
+            "reason": "invalid_format",
+            "message": "Please enter a valid email address"
+        }
+
+    email_lower = email.lower().strip()
+    
+    # Check if already a member
+    existing_member = db.query(WorkspaceMember).join(User, WorkspaceMember.user_id == User.id).filter(
+        User.email == email_lower,
+        WorkspaceMember.workspace_id == workspace_id,
+        WorkspaceMember.is_active == True
+    ).first()
+    
+    if existing_member:
+        return {
+            "valid": False,
+            "reason": "already_member",
+            "message": "This user is already a member of this workspace"
+        }
+    
+    # Check for pending invitation
+    existing_invitation = db.query(WorkspaceInvitation).filter(
+        WorkspaceInvitation.email == email_lower,
+        WorkspaceInvitation.workspace_id == workspace_id,
+        WorkspaceInvitation.status == "pending",
+        WorkspaceInvitation.expires_at > datetime.now(timezone.utc)
+    ).first()
+    
+    if existing_invitation:
+        return {
+            "valid": False,
+            "reason": "pending_invitation",
+            "message": "An active invitation already exists for this email"
+        }
+    
+    # Check if user is registered
+    user = db.query(User).filter(User.email == email_lower).first()
+    if not user:
+        return {
+            "valid": False,
+            "reason": "not_registered",
+            "message": "This email is not registered. User must create an account first."
+        }
+    
+    # Check if email is verified
+    if not user.email_verified:
+        return {
+            "valid": False,
+            "reason": "email_not_verified",
+            "message": "This email is not verified. User must verify their email first."
+        }
+    
+    # All checks passed
+    return {
+        "valid": True,
+        "message": f"Ready to invite {user.full_name or user.email}",
+        "user": {
+            "full_name": user.full_name,
+            "email": user.email
+        }
+    }
 
 

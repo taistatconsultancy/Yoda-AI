@@ -16,12 +16,32 @@ from app.models.retrospective_new import (
     Retrospective, RetrospectiveResponse, ThemeGroup, RetrospectiveParticipant
 )
 from app.models.user import User
+from app.models.workspace import WorkspaceMember
 from app.api.dependencies.auth import get_current_user
 
 router = APIRouter(prefix="/api/v1/grouping", tags=["grouping"])
 
 # Initialize OpenAI client
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+
+def can_edit_grouping(db: Session, current_user: User, retro: Retrospective) -> bool:
+    """Check if user can edit grouping - facilitator, Scrum Master, or Project Manager"""
+    # Check if user is facilitator
+    if retro.facilitator_id == current_user.id:
+        return True
+    
+    # Check workspace role
+    membership = db.query(WorkspaceMember).filter(
+        WorkspaceMember.workspace_id == retro.workspace_id,
+        WorkspaceMember.user_id == current_user.id,
+        WorkspaceMember.is_active == True
+    ).first()
+    
+    if membership and membership.role in ['Scrum Master', 'Project Manager']:
+        return True
+    
+    return False
 
 
 # Pydantic Models
@@ -379,8 +399,8 @@ async def delete_theme_group(
             Retrospective.id == theme.retrospective_id
         ).first()
         
-        if retro.facilitator_id != current_user.id:
-            raise HTTPException(status_code=403, detail="Only facilitator can delete themes")
+        if not can_edit_grouping(db, current_user, retro):
+            raise HTTPException(status_code=403, detail="Only facilitator, Scrum Master, or Project Manager can delete themes")
         
         # Ungroup all responses in this theme
         responses = db.query(RetrospectiveResponse).filter(
@@ -431,8 +451,8 @@ async def move_response_to_theme(
             Retrospective.id == response.retrospective_id
         ).first()
         
-        if retro.facilitator_id != current_user.id:
-            raise HTTPException(status_code=403, detail="Only facilitator can move responses")
+        if not can_edit_grouping(db, current_user, retro):
+            raise HTTPException(status_code=403, detail="Only facilitator, Scrum Master, or Project Manager can move responses")
         
         response.theme_group_id = theme_id
         db.commit()
@@ -463,8 +483,8 @@ async def create_theme(
         if not retro:
             raise HTTPException(status_code=404, detail="Retrospective not found")
         
-        if retro.facilitator_id != current_user.id:
-            raise HTTPException(status_code=403, detail="Only facilitator can create themes")
+        if not can_edit_grouping(db, current_user, retro):
+            raise HTTPException(status_code=403, detail="Only facilitator, Scrum Master, or Project Manager can create themes")
         
         # Get max display_order for this retrospective
         max_order = db.query(ThemeGroup.display_order).filter(
@@ -522,8 +542,8 @@ async def update_theme(
         
         retro = db.query(Retrospective).filter(Retrospective.id == theme.retrospective_id).first()
         
-        if retro.facilitator_id != current_user.id:
-            raise HTTPException(status_code=403, detail="Only facilitator can update themes")
+        if not can_edit_grouping(db, current_user, retro):
+            raise HTTPException(status_code=403, detail="Only facilitator, Scrum Master, or Project Manager can update themes")
         
         if 'title' in theme_data:
             theme.title = theme_data['title']
@@ -559,8 +579,8 @@ async def reorder_themes(
         if not retro:
             raise HTTPException(status_code=404, detail="Retrospective not found")
         
-        if retro.facilitator_id != current_user.id:
-            raise HTTPException(status_code=403, detail="Only facilitator can reorder themes")
+        if not can_edit_grouping(db, current_user, retro):
+            raise HTTPException(status_code=403, detail="Only facilitator, Scrum Master, or Project Manager can reorder themes")
         
         theme_ids = order_data.get('theme_ids', [])
         category = order_data.get('category', 'liked')
