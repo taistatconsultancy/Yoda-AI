@@ -22,8 +22,13 @@ from app.core.config import settings
 
 router = APIRouter(prefix="/api/v1/fourls-chat", tags=["4ls-chat"])
 
-# Initialize OpenAI client
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+def get_openai_client():
+    """Get OpenAI client with API key from settings"""
+    api_key = settings.OPENAI_API_KEY
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY is not set")
+    return OpenAI(api_key=api_key)
 
 
 # Pydantic Models
@@ -390,7 +395,8 @@ Be conversational, encouraging, and concise. Always use the category name when t
         
         # Call OpenAI
         try:
-            response = client.chat.completions.create(
+            openai_client = get_openai_client()
+            response = openai_client.chat.completions.create(
                 model="gpt-4",
                 messages=messages_for_ai,
                 temperature=0.7,
