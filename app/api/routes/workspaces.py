@@ -1,7 +1,8 @@
 """
 Workspace Management Routes
 """
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, UploadFile, File
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from typing import List
 from pydantic import BaseModel, EmailStr
@@ -22,7 +23,7 @@ email_service = EmailService()
 class WorkspaceCreate(BaseModel):
     name: str
     description: str = None
-    your_role: str = "facilitator"  # User's role in workspace
+    your_role: str = "Developer"  # Business role in workspace
 
 
 class WorkspaceResponse(BaseModel):
@@ -72,6 +73,11 @@ async def create_workspace(
     Create a new workspace
     """
     try:
+        # Enforce role-based workspace creation (only Scrum Master and Project Manager)
+        allowed_creators = {"Scrum Master", "Project Manager"}
+        if workspace_data.your_role not in allowed_creators:
+            raise HTTPException(status_code=403, detail="Only Scrum Master or Project Manager can create a workspace")
+
         # Create workspace
         new_workspace = Workspace(
             name=workspace_data.name,
@@ -86,6 +92,7 @@ async def create_workspace(
         creator_membership = WorkspaceMember(
             workspace_id=new_workspace.id,
             user_id=current_user.id,
+            # Store the business role directly
             role=workspace_data.your_role,
             is_active=True
         )
@@ -113,6 +120,60 @@ async def create_workspace(
         db.rollback()
         print(f"Create workspace error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create workspace: {str(e)}")
+
+
+@router.post("/{workspace_id}/upload-pdf")
+async def upload_workspace_pdf(
+    workspace_id: int,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Upload a reference PDF for the workspace and store path in settings.reference_pdf."""
+    try:
+        # Check membership
+        membership = db.query(WorkspaceMember).filter(
+            WorkspaceMember.workspace_id == workspace_id,
+            WorkspaceMember.user_id == current_user.id,
+            WorkspaceMember.is_active == True
+        ).first()
+
+        if not membership:
+            raise HTTPException(status_code=403, detail="You are not a member of this workspace")
+
+        # Basic content type check
+        if not file.filename.lower().endswith('.pdf'):
+            raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+
+        # Save file to disk under app/docs/uploads/workspaces/<id>/
+        import os
+        from pathlib import Path
+
+        base_dir = Path("app/docs/uploads/workspaces") / str(workspace_id)
+        base_dir.mkdir(parents=True, exist_ok=True)
+        dest = base_dir / "reference.pdf"
+
+        contents = await file.read()
+        with open(dest, 'wb') as f:
+            f.write(contents)
+
+        # Update workspace settings JSON with reference_pdf path
+        workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+        if not workspace:
+            raise HTTPException(status_code=404, detail="Workspace not found")
+
+        settings_obj = workspace.settings or {}
+        settings_obj["reference_pdf"] = str(dest)
+        workspace.settings = settings_obj
+        db.add(workspace)
+        db.commit()
+
+        return {"message": "PDF uploaded", "path": str(dest)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to upload PDF: {e}")
 
 
 @router.get("/", response_model=List[WorkspaceResponse])
@@ -282,7 +343,9 @@ async def invite_member(
             WorkspaceMember.is_active == True
         ).first()
         
-        if not membership or membership.role not in ['owner', 'facilitator']:
+        # Allow Scrum Master and Project Manager (workspace creators) to invite
+        allowed_roles = ['owner', 'facilitator', 'Scrum Master', 'Project Manager']
+        if not membership or membership.role not in allowed_roles:
             raise HTTPException(status_code=403, detail="Only owners and facilitators can invite members")
         
         workspace = db.query(Workspace).filter(Workspace.id == workspace_id).first()

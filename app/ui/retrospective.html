@@ -1,0 +1,1276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YodaAI - Retrospective Session</title>
+  
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+  <!-- Sortable.js for drag-drop -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+  
+  <style>
+    :root {
+      --primary-color: #667eea;
+      --secondary-color: #764ba2;
+      --success-color: #10b981;
+      --warning-color: #f59e0b;
+      --danger-color: #ef4444;
+      --info-color: #3b82f6;
+    }
+    
+    body {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
+    .retro-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    .retro-header {
+      background: white;
+      border-radius: 15px;
+      padding: 20px 30px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    
+    .retro-code {
+      font-size: 24px;
+      font-weight: bold;
+      color: var(--primary-color);
+      font-family: 'Courier New', monospace;
+    }
+    
+    .phase-indicator {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 30px;
+      gap: 10px;
+      overflow-x: auto;
+      padding: 10px 0;
+    }
+    
+    .phase-step {
+      flex: 1;
+      min-width: 120px;
+      text-align: center;
+      padding: 15px;
+      background: white;
+      border-radius: 10px;
+      cursor: default;
+      transition: all 0.3s;
+      opacity: 0.5;
+    }
+    
+    .phase-step.active {
+      opacity: 1;
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      color: white;
+      transform: scale(1.05);
+    }
+    
+    .phase-step.completed {
+      opacity: 1;
+      background: var(--success-color);
+      color: white;
+    }
+    
+    .main-content {
+      background: white;
+      border-radius: 15px;
+      padding: 30px;
+      min-height: 600px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    
+    .chat-container {
+      height: 500px;
+      overflow-y: auto;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 20px;
+      background: #f9fafb;
+    }
+    
+    .message {
+      margin-bottom: 15px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      max-width: 80%;
+      animation: fadeIn 0.3s;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .message.user {
+      background: #e0e7ff;
+      margin-left: auto;
+      text-align: right;
+    }
+    
+    .message.ai {
+      background: white;
+      border: 1px solid #e5e7eb;
+    }
+    
+    .message.system {
+      background: #fef3c7;
+      text-align: center;
+      max-width: 100%;
+      font-style: italic;
+    }
+    
+    .fourls-category {
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-left: 4px solid;
+    }
+    
+    .fourls-category.liked { border-color: #10b981; }
+    .fourls-category.learned { border-color: #3b82f6; }
+    .fourls-category.lacked { border-color: #f59e0b; }
+    .fourls-category.longed { border-color: #8b5cf6; }
+    
+    .theme-item {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 12px 15px;
+      margin-bottom: 10px;
+      cursor: move;
+      transition: all 0.2s;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .theme-item:hover {
+      background: #f3f4f6;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .theme-item.dragging {
+      opacity: 0.5;
+    }
+    
+    .vote-count {
+      display: inline-block;
+      background: var(--primary-color);
+      color: white;
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-weight: bold;
+      margin-left: 10px;
+    }
+    
+    .facilitator-controls {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 1000;
+    }
+    
+    .btn-next-phase {
+      padding: 15px 30px;
+      font-size: 18px;
+      border-radius: 50px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    }
+    
+    .participant-list {
+      background: #f9fafb;
+      border-radius: 10px;
+      padding: 15px;
+      margin-top: 20px;
+    }
+    
+    .participant {
+      display: inline-block;
+      background: white;
+      border-radius: 20px;
+      padding: 5px 15px;
+      margin: 5px;
+      border: 1px solid #e5e7eb;
+    }
+    
+    .participant.online {
+      border-color: var(--success-color);
+    }
+    
+    .participant.facilitator {
+      background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      color: white;
+      border: none;
+    }
+    
+    .da-recommendation {
+      background: linear-gradient(135deg, #fef3c7, #fde68a);
+      border-radius: 10px;
+      padding: 20px;
+      margin-top: 20px;
+      border-left: 4px solid #f59e0b;
+    }
+    
+    .summary-section {
+      margin-top: 30px;
+    }
+    
+    .summary-card {
+      background: #f9fafb;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 15px;
+    }
+    
+    .loading-spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid var(--primary-color);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  
+  <div class="retro-container">
+    <!-- Header -->
+    <div class="retro-header">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h2 class="mb-1">4Ls Retrospective</h2>
+          <p class="text-muted mb-0" id="retroTitle">Loading retrospective...</p>
+        </div>
+        <div class="text-end">
+          <div class="retro-code" id="retroCode">-----</div>
+          <small class="text-muted">Session Code</small>
+        </div>
+      </div>
+      
+      <div class="participant-list" id="participantList">
+        <small class="text-muted">Participants:</small>
+        <div id="participants">
+          <span class="participant">Loading...</span>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Phase Indicator -->
+    <div class="phase-indicator">
+      <div class="phase-step" data-phase="1">
+        <i class="bi bi-heart"></i>
+        <div><strong>Liked</strong></div>
+        <small>What went well</small>
+      </div>
+      <div class="phase-step" data-phase="2">
+        <i class="bi bi-lightbulb"></i>
+        <div><strong>Learned</strong></div>
+        <small>New insights</small>
+      </div>
+      <div class="phase-step" data-phase="3">
+        <i class="bi bi-exclamation-triangle"></i>
+        <div><strong>Lacked</strong></div>
+        <small>What was missing</small>
+      </div>
+      <div class="phase-step" data-phase="4">
+        <i class="bi bi-star"></i>
+        <div><strong>Longed For</strong></div>
+        <small>Desired changes</small>
+      </div>
+      <div class="phase-step" data-phase="5">
+        <i class="bi bi-collection"></i>
+        <div><strong>Grouping</strong></div>
+        <small>AI categorization</small>
+      </div>
+      <div class="phase-step" data-phase="6">
+        <i class="bi bi-hand-thumbs-up"></i>
+        <div><strong>Voting</strong></div>
+        <small>Prioritize themes</small>
+      </div>
+      <div class="phase-step" data-phase="7">
+        <i class="bi bi-chat-dots"></i>
+        <div><strong>Discussion</strong></div>
+        <small>Deep dive</small>
+      </div>
+      <div class="phase-step" data-phase="8">
+        <i class="bi bi-file-text"></i>
+        <div><strong>Summary</strong></div>
+        <small>Wrap up</small>
+      </div>
+    </div>
+    
+    <!-- Main Content Area -->
+    <div class="main-content" id="mainContent">
+      <div class="text-center py-5">
+        <div class="loading-spinner mb-3"></div>
+        <p class="text-muted">Loading retrospective session...</p>
+      </div>
+    </div>
+    
+    <!-- Facilitator Controls (shown only to facilitator) -->
+    <div class="facilitator-controls" id="facilitatorControls" style="display: none;">
+      <button class="btn btn-primary btn-next-phase" onclick="nextPhase()">
+        <i class="bi bi-arrow-right-circle"></i> Next Phase
+      </button>
+    </div>
+  </div>
+  
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  
+  <!-- Main JavaScript -->
+  <script>
+    // Global variables
+    let retroCode = '';
+    let retroData = null;
+    let currentPhase = 1;
+    let currentUser = null;
+    let authToken = null;
+    let isFacilitator = false;
+    let chatMessages = [];
+    let themes = {
+      liked: [],
+      learned: [],
+      lacked: [],
+      longedFor: []
+    };
+    
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', async function() {
+      // Extract retro code from URL
+      const pathParts = window.location.pathname.split('/');
+      retroCode = pathParts[pathParts.length - 1] || pathParts[pathParts.length - 2];
+      
+      // Get auth token from localStorage or URL params
+      authToken = localStorage.getItem('yodaai_token') || new URLSearchParams(window.location.search).get('token');
+      const userStr = localStorage.getItem('yodaai_user');
+      if (userStr) {
+        currentUser = JSON.parse(userStr);
+      }
+      
+      if (!authToken) {
+        showError('Please log in to join this retrospective.');
+        return;
+      }
+      
+      // Load retrospective data
+      await loadRetrospective();
+      
+      // Start polling for updates (every 3 seconds)
+      setInterval(pollForUpdates, 3000);
+    });
+    
+    async function loadRetrospective() {
+      try {
+        const response = await fetch(`/api/v1/retrospectives/code/${retroCode}`, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error('Retrospective not found');
+        }
+        
+        retroData = await response.json();
+        
+        // Update UI
+        document.getElementById('retroCode').textContent = retroCode;
+        document.getElementById('retroTitle').textContent = retroData.title || 'Untitled Retrospective';
+        
+        // Check if current user is facilitator
+        isFacilitator = currentUser && retroData.facilitator_id === currentUser.id;
+        
+        // Show facilitator controls if applicable
+        if (isFacilitator) {
+          document.getElementById('facilitatorControls').style.display = 'block';
+        }
+        
+        // Set current phase
+        currentPhase = retroData.current_phase || 1;
+        updatePhaseIndicator();
+        
+        // Load participants
+        loadParticipants();
+        
+        // Render current phase
+        renderPhase(currentPhase);
+        
+      } catch (error) {
+        console.error('Load retrospective error:', error);
+        showError('Failed to load retrospective: ' + error.message);
+      }
+    }
+    
+    function updatePhaseIndicator() {
+      document.querySelectorAll('.phase-step').forEach((step, index) => {
+        const phaseNum = index + 1;
+        step.classList.remove('active', 'completed');
+        
+        if (phaseNum === currentPhase) {
+          step.classList.add('active');
+        } else if (phaseNum < currentPhase) {
+          step.classList.add('completed');
+        }
+      });
+    }
+    
+    async function loadParticipants() {
+      try {
+        const response = await fetch(`/api/v1/retrospectives/${retroData.id}/participants`, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
+        
+        if (response.ok) {
+          const participants = await response.json();
+          displayParticipants(participants);
+        }
+      } catch (error) {
+        console.error('Load participants error:', error);
+      }
+    }
+    
+    function displayParticipants(participants) {
+      const container = document.getElementById('participants');
+      container.innerHTML = '';
+      
+      participants.forEach(p => {
+        const span = document.createElement('span');
+        span.className = 'participant';
+        if (p.is_online) span.classList.add('online');
+        if (p.user_id === retroData.facilitator_id) span.classList.add('facilitator');
+        
+        span.innerHTML = `
+          ${p.user_id === retroData.facilitator_id ? '<i class="bi bi-star-fill"></i> ' : ''}
+          ${p.user_name}
+        `;
+        container.appendChild(span);
+      });
+    }
+    
+    function renderPhase(phase) {
+      const content = document.getElementById('mainContent');
+      
+      switch(phase) {
+        case 1:
+        case 2:
+        case 3:
+        case 4:
+          renderChatPhase(phase);
+          break;
+        case 5:
+          renderGroupingPhase();
+          break;
+        case 6:
+          renderVotingPhase();
+          break;
+        case 7:
+          renderDiscussionPhase();
+          break;
+        case 8:
+          renderSummaryPhase();
+          break;
+        default:
+          content.innerHTML = '<p class="text-center">Invalid phase</p>';
+      }
+    }
+    
+    function renderChatPhase(phase) {
+      const phaseNames = {
+        1: 'Liked',
+        2: 'Learned',
+        3: 'Lacked',
+        4: 'Longed For'
+      };
+      
+      const phaseDescriptions = {
+        1: 'What went well during this sprint? Share positive experiences and achievements.',
+        2: 'What new insights or knowledge did you gain? What did the team learn?',
+        3: 'What was missing or lacking? What could have been better?',
+        4: 'What do you wish for in the future? What changes would you like to see?'
+      };
+      
+      const phaseName = phaseNames[phase];
+      const content = document.getElementById('mainContent');
+      
+      content.innerHTML = `
+        <h3 class="mb-4"><i class="bi bi-chat-dots"></i> ${phaseName}</h3>
+        <p class="text-muted">${phaseDescriptions[phase]}</p>
+        
+        <div class="chat-container" id="chatContainer">
+          <!-- Messages will be loaded here -->
+        </div>
+        
+        <div class="input-group">
+          <input type="text" class="form-control form-control-lg" id="messageInput" 
+                 placeholder="Type your message and press Enter..." onkeypress="handleMessageKeyPress(event)">
+          <button class="btn btn-primary" onclick="sendMessage()">
+            <i class="bi bi-send"></i> Send
+          </button>
+        </div>
+      `;
+      
+      loadChatMessages(phase);
+    }
+    
+    async function loadChatMessages(phase) {
+      try {
+        const response = await fetch(`/api/v1/retrospectives/${retroData.id}/messages?phase=${phase}`, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
+        
+        if (response.ok) {
+          chatMessages = await response.json();
+          displayChatMessages();
+        }
+      } catch (error) {
+        console.error('Load messages error:', error);
+      }
+    }
+    
+    function displayChatMessages() {
+      const container = document.getElementById('chatContainer');
+      if (!container) return;
+      
+      container.innerHTML = '';
+      
+      chatMessages.forEach(msg => {
+        const div = document.createElement('div');
+        div.className = `message ${msg.is_ai ? 'ai' : (msg.user_id === currentUser?.id ? 'user' : 'system')}`;
+        
+        const content = msg.is_ai 
+          ? `<strong>🤖 YodaAI:</strong><br>${escapeHtml(msg.content)}`
+          : `<strong>${escapeHtml(msg.user_name)}:</strong><br>${escapeHtml(msg.content)}`;
+        
+        div.innerHTML = content;
+        container.appendChild(div);
+      });
+      
+      container.scrollTop = container.scrollHeight;
+    }
+    
+    function handleMessageKeyPress(event) {
+      if (event.key === 'Enter') {
+        sendMessage();
+      }
+    }
+    
+    async function sendMessage() {
+      const input = document.getElementById('messageInput');
+      const message = input.value.trim();
+      
+      if (!message) return;
+      
+      try {
+        const response = await fetch(`/api/v1/retrospectives/${retroData.id}/messages`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            content: message,
+            phase: currentPhase
+          })
+        });
+        
+        if (response.ok) {
+          input.value = '';
+          await loadChatMessages(currentPhase);
+        }
+      } catch (error) {
+        console.error('Send message error:', error);
+        showToast('Failed to send message', 'danger');
+      }
+    }
+    
+    function renderGroupingPhase() {
+      const content = document.getElementById('mainContent');
+      content.innerHTML = `
+        <h3 class="mb-4"><i class="bi bi-collection"></i> AI Grouping & Themes</h3>
+        <p class="text-muted">Organize responses into themes. Drag items to reorder, edit or add new themes.</p>
+        
+        <div id="groupingContainer">
+          <div class="fourls-category liked">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5><i class="bi bi-heart-fill"></i> Liked</h5>
+              <button class="btn btn-sm btn-success" onclick="addTheme('liked')">
+                <i class="bi bi-plus"></i> Add Theme
+              </button>
+            </div>
+            <div id="themes-liked" class="themes-list"></div>
+          </div>
+          
+          <div class="fourls-category learned">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5><i class="bi bi-lightbulb-fill"></i> Learned</h5>
+              <button class="btn btn-sm btn-success" onclick="addTheme('learned')">
+                <i class="bi bi-plus"></i> Add Theme
+              </button>
+            </div>
+            <div id="themes-learned" class="themes-list"></div>
+          </div>
+          
+          <div class="fourls-category lacked">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5><i class="bi bi-exclamation-triangle-fill"></i> Lacked</h5>
+              <button class="btn btn-sm btn-success" onclick="addTheme('lacked')">
+                <i class="bi bi-plus"></i> Add Theme
+              </button>
+            </div>
+            <div id="themes-lacked" class="themes-list"></div>
+          </div>
+          
+          <div class="fourls-category longed">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5><i class="bi bi-star-fill"></i> Longed For</h5>
+              <button class="btn btn-sm btn-success" onclick="addTheme('longed')">
+                <i class="bi bi-plus"></i> Add Theme
+              </button>
+            </div>
+            <div id="themes-longed" class="themes-list"></div>
+          </div>
+        </div>
+      `;
+      
+      loadThemes();
+    }
+    
+    async function loadThemes() {
+      try {
+        const response = await fetch(`/api/v1/retrospectives/${retroData.id}/themes`, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
+        
+        if (response.ok) {
+          themes = await response.json();
+          displayThemes();
+          initializeDragDrop();
+        }
+      } catch (error) {
+        console.error('Load themes error:', error);
+      }
+    }
+    
+    function displayThemes() {
+      ['liked', 'learned', 'lacked', 'longed'].forEach(category => {
+        const container = document.getElementById(`themes-${category}`);
+        if (!container) return;
+        
+        container.innerHTML = '';
+        const categoryThemes = themes[category] || [];
+        
+        categoryThemes.forEach((theme, index) => {
+          const div = document.createElement('div');
+          div.className = 'theme-item';
+          div.dataset.themeId = theme.id;
+          div.dataset.category = category;
+          
+          div.innerHTML = `
+            <div class="flex-grow-1">
+              <strong>${escapeHtml(theme.title)}</strong>
+              ${theme.description ? `<br><small class="text-muted">${escapeHtml(theme.description)}</small>` : ''}
+            </div>
+            <div>
+              <button class="btn btn-sm btn-outline-primary me-2" onclick="editTheme('${category}', ${theme.id})">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <i class="bi bi-grip-vertical text-muted"></i>
+            </div>
+          `;
+          
+          container.appendChild(div);
+        });
+      });
+    }
+    
+    function initializeDragDrop() {
+      ['liked', 'learned', 'lacked', 'longed'].forEach(category => {
+        const el = document.getElementById(`themes-${category}`);
+        if (el) {
+          new Sortable(el, {
+            animation: 150,
+            ghostClass: 'dragging',
+            onEnd: function(evt) {
+              saveThemeOrder(category);
+            }
+          });
+        }
+      });
+    }
+    
+    async function saveThemeOrder(category) {
+      const container = document.getElementById(`themes-${category}`);
+      const themeIds = Array.from(container.children).map(el => el.dataset.themeId);
+      
+      try {
+        await fetch(`/api/v1/retrospectives/${retroData.id}/themes/reorder`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            category: category,
+            theme_ids: themeIds
+          })
+        });
+      } catch (error) {
+        console.error('Save theme order error:', error);
+      }
+    }
+    
+    function addTheme(category) {
+      const title = prompt('Enter theme title:');
+      if (!title) return;
+      
+      const description = prompt('Enter theme description (optional):');
+      
+      createTheme(category, title, description);
+    }
+    
+    async function createTheme(category, title, description) {
+      try {
+        const response = await fetch(`/api/v1/retrospectives/${retroData.id}/themes`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            category: category,
+            title: title,
+            description: description
+          })
+        });
+        
+        if (response.ok) {
+          await loadThemes();
+          showToast('Theme added successfully', 'success');
+        }
+      } catch (error) {
+        console.error('Create theme error:', error);
+        showToast('Failed to add theme', 'danger');
+      }
+    }
+    
+    function editTheme(category, themeId) {
+      const theme = themes[category].find(t => t.id == themeId);
+      if (!theme) return;
+      
+      const newTitle = prompt('Edit theme title:', theme.title);
+      if (!newTitle) return;
+      
+      const newDescription = prompt('Edit theme description:', theme.description || '');
+      
+      updateTheme(themeId, newTitle, newDescription);
+    }
+    
+    async function updateTheme(themeId, title, description) {
+      try {
+        const response = await fetch(`/api/v1/retrospectives/${retroData.id}/themes/${themeId}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            title: title,
+            description: description
+          })
+        });
+        
+        if (response.ok) {
+          await loadThemes();
+          showToast('Theme updated successfully', 'success');
+        }
+      } catch (error) {
+        console.error('Update theme error:', error);
+        showToast('Failed to update theme', 'danger');
+      }
+    }
+    
+    function renderVotingPhase() {
+      const content = document.getElementById('mainContent');
+      content.innerHTML = `
+        <h3 class="mb-4"><i class="bi bi-hand-thumbs-up"></i> Voting</h3>
+        <p class="text-muted">Vote on which themes you think are most important to discuss. You have 10 votes.</p>
+        
+        <div class="alert alert-info">
+          <i class="bi bi-info-circle"></i> Votes remaining: <strong id="votesRemaining">10</strong>
+        </div>
+        
+        <div id="votingContainer"></div>
+      `;
+      
+      loadVotingThemes();
+    }
+    
+    async function loadVotingThemes() {
+      try {
+        const response = await fetch(`/api/v1/retrospectives/${retroData.id}/themes`, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
+        
+        if (response.ok) {
+          const allThemes = await response.json();
+          displayVotingThemes(allThemes);
+        }
+      } catch (error) {
+        console.error('Load voting themes error:', error);
+      }
+    }
+    
+    function displayVotingThemes(allThemes) {
+      const container = document.getElementById('votingContainer');
+      container.innerHTML = '';
+      
+      Object.keys(allThemes).forEach(category => {
+        allThemes[category].forEach(theme => {
+          const div = document.createElement('div');
+          div.className = 'theme-item';
+          div.style.cursor = 'pointer';
+          div.onclick = () => voteForTheme(theme.id);
+          
+          div.innerHTML = `
+            <div>
+              <strong>${escapeHtml(theme.title)}</strong>
+              <small class="text-muted ms-2">(${category})</small>
+            </div>
+            <div class="vote-count">${theme.votes || 0}</div>
+          `;
+          
+          container.appendChild(div);
+        });
+      });
+    }
+    
+    async function voteForTheme(themeId) {
+      try {
+        const response = await fetch(`/api/v1/retrospectives/${retroData.id}/themes/${themeId}/vote`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
+        
+        if (response.ok) {
+          await loadVotingThemes();
+          showToast('Vote recorded!', 'success');
+        } else {
+          const error = await response.json();
+          showToast(error.detail || 'Failed to vote', 'warning');
+        }
+      } catch (error) {
+        console.error('Vote error:', error);
+      }
+    }
+    
+    function renderDiscussionPhase() {
+      const content = document.getElementById('mainContent');
+      content.innerHTML = `
+        <h3 class="mb-4"><i class="bi bi-chat-dots"></i> Discussion</h3>
+        <p class="text-muted">Discuss the top voted themes with the team and get AI insights based on Disciplined Agile.</p>
+        
+        <div class="row">
+          <div class="col-md-6">
+            <h5>Top Themes</h5>
+            <div id="topThemes"></div>
+          </div>
+          <div class="col-md-6">
+            <h5>AI Discussion Support</h5>
+            <div class="chat-container" id="discussionChat" style="height: 400px;"></div>
+            <div class="input-group">
+              <input type="text" class="form-control" id="discussionInput" 
+                     placeholder="Ask AI about the themes..." onkeypress="handleDiscussionKeyPress(event)">
+              <button class="btn btn-primary" onclick="sendDiscussionMessage()">
+                <i class="bi bi-send"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <div class="da-recommendation">
+          <h5><i class="bi bi-book"></i> Disciplined Agile Recommendations</h5>
+          <div id="daRecommendations">Loading recommendations...</div>
+        </div>
+      `;
+      
+      loadTopThemes();
+      loadDARecommendations();
+    }
+    
+    async function loadTopThemes() {
+      try {
+        const response = await fetch(`/api/v1/retrospectives/${retroData.id}/themes/top`, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
+        
+        if (response.ok) {
+          const topThemes = await response.json();
+          displayTopThemes(topThemes);
+        }
+      } catch (error) {
+        console.error('Load top themes error:', error);
+      }
+    }
+    
+    function displayTopThemes(themes) {
+      const container = document.getElementById('topThemes');
+      container.innerHTML = '';
+      
+      themes.forEach((theme, index) => {
+        const div = document.createElement('div');
+        div.className = 'theme-item';
+        div.innerHTML = `
+          <div>
+            <strong>${index + 1}. ${escapeHtml(theme.title)}</strong>
+            <br><small class="text-muted">${escapeHtml(theme.description || '')}</small>
+          </div>
+          <div class="vote-count">${theme.votes} votes</div>
+        `;
+        container.appendChild(div);
+      });
+    }
+    
+    async function loadDARecommendations() {
+      try {
+        const response = await fetch(`/api/v1/retrospectives/${retroData.id}/da-recommendations`, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
+        
+        if (response.ok) {
+          const recommendations = await response.json();
+          document.getElementById('daRecommendations').innerHTML = recommendations.content || 'No specific recommendations at this time.';
+        }
+      } catch (error) {
+        console.error('Load DA recommendations error:', error);
+      }
+    }
+    
+    function handleDiscussionKeyPress(event) {
+      if (event.key === 'Enter') {
+        sendDiscussionMessage();
+      }
+    }
+    
+    async function sendDiscussionMessage() {
+      const input = document.getElementById('discussionInput');
+      const message = input.value.trim();
+      
+      if (!message) return;
+      
+      // Add user message to chat
+      const chatContainer = document.getElementById('discussionChat');
+      const userDiv = document.createElement('div');
+      userDiv.className = 'message user';
+      userDiv.innerHTML = `<strong>You:</strong><br>${escapeHtml(message)}`;
+      chatContainer.appendChild(userDiv);
+      
+      input.value = '';
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+      
+      // Get AI response
+      try {
+        const response = await fetch(`/api/v1/retrospectives/${retroData.id}/discussion-chat`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            message: message
+          })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          const aiDiv = document.createElement('div');
+          aiDiv.className = 'message ai';
+          aiDiv.innerHTML = `<strong>🤖 YodaAI:</strong><br>${escapeHtml(data.response)}`;
+          chatContainer.appendChild(aiDiv);
+          chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+      } catch (error) {
+        console.error('Discussion chat error:', error);
+      }
+    }
+    
+    function renderSummaryPhase() {
+      const content = document.getElementById('mainContent');
+      content.innerHTML = `
+        <h3 class="mb-4"><i class="bi bi-file-text"></i> Retrospective Summary</h3>
+        <p class="text-muted">Review the retrospective outcomes and download the summary.</p>
+        
+        <div class="text-center mb-4">
+          <button class="btn btn-success btn-lg" onclick="generateSummaryPDF()">
+            <i class="bi bi-file-pdf"></i> Download PDF Summary
+          </button>
+        </div>
+        
+        <div class="summary-section" id="summaryContent">
+          <div class="text-center py-4">
+            <div class="loading-spinner mb-3"></div>
+            <p class="text-muted">Generating summary...</p>
+          </div>
+        </div>
+      `;
+      
+      loadSummary();
+    }
+    
+    async function loadSummary() {
+      try {
+        const response = await fetch(`/api/v1/retrospectives/${retroData.id}/summary`, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
+        
+        if (response.ok) {
+          const summary = await response.json();
+          displaySummary(summary);
+        }
+      } catch (error) {
+        console.error('Load summary error:', error);
+      }
+    }
+    
+    function displaySummary(summary) {
+      const container = document.getElementById('summaryContent');
+      container.innerHTML = `
+        <div class="summary-card">
+          <h5>Key Takeaways</h5>
+          <p>${escapeHtml(summary.key_takeaways || 'No key takeaways yet.')}</p>
+        </div>
+        
+        <div class="summary-card">
+          <h5>Action Items</h5>
+          <ul id="actionItemsList"></ul>
+        </div>
+        
+        <div class="summary-card">
+          <h5>Team Sentiment</h5>
+          <p>${escapeHtml(summary.sentiment || 'Analyzing...')}</p>
+        </div>
+        
+        <div class="summary-card">
+          <h5>Previous Retrospectives</h5>
+          <div id="previousRetros"></div>
+        </div>
+      `;
+      
+      // Display action items
+      const actionList = document.getElementById('actionItemsList');
+      if (summary.action_items && summary.action_items.length > 0) {
+        summary.action_items.forEach(item => {
+          const li = document.createElement('li');
+          li.textContent = item.title;
+          actionList.appendChild(li);
+        });
+      } else {
+        actionList.innerHTML = '<li>No action items created yet.</li>';
+      }
+      
+      // Load previous retros
+      loadPreviousRetros();
+    }
+    
+    async function loadPreviousRetros() {
+      try {
+        const response = await fetch(`/api/v1/workspaces/${retroData.workspace_id}/retrospectives/history`, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
+        
+        if (response.ok) {
+          const history = await response.json();
+          displayPreviousRetros(history);
+        }
+      } catch (error) {
+        console.error('Load previous retros error:', error);
+      }
+    }
+    
+    function displayPreviousRetros(history) {
+      const container = document.getElementById('previousRetros');
+      if (!history || history.length === 0) {
+        container.innerHTML = '<p class="text-muted">No previous retrospectives.</p>';
+        return;
+      }
+      
+      container.innerHTML = '';
+      history.slice(0, 5).forEach(retro => {
+        const div = document.createElement('div');
+        div.className = 'mb-2';
+        div.innerHTML = `
+          <a href="/ui/retrospective.html/${retro.code}" target="_blank">
+            ${escapeHtml(retro.title)} - ${new Date(retro.created_at).toLocaleDateString()}
+          </a>
+        `;
+        container.appendChild(div);
+      });
+    }
+    
+    async function generateSummaryPDF() {
+      try {
+        showToast('Generating PDF...', 'info');
+        
+        const response = await fetch(`/api/v1/retrospectives/${retroData.id}/generate-pdf`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
+        
+        if (response.ok) {
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `retrospective-${retroCode}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+          
+          showToast('PDF downloaded successfully!', 'success');
+        } else {
+          throw new Error('Failed to generate PDF');
+        }
+      } catch (error) {
+        console.error('Generate PDF error:', error);
+        showToast('Failed to generate PDF', 'danger');
+      }
+    }
+    
+    async function nextPhase() {
+      if (!isFacilitator) {
+        showToast('Only the facilitator can advance phases', 'warning');
+        return;
+      }
+      
+      if (currentPhase >= 8) {
+        showToast('Retrospective is complete!', 'info');
+        return;
+      }
+      
+      try {
+        const response = await fetch(`/api/v1/retrospectives/${retroData.id}/next-phase`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          currentPhase = data.current_phase;
+          updatePhaseIndicator();
+          renderPhase(currentPhase);
+          showToast(`Moved to phase ${currentPhase}`, 'success');
+        }
+      } catch (error) {
+        console.error('Next phase error:', error);
+        showToast('Failed to advance phase', 'danger');
+      }
+    }
+    
+    async function pollForUpdates() {
+      if (!retroData) return;
+      
+      try {
+        const response = await fetch(`/api/v1/retrospectives/${retroData.id}/status`, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
+        
+        if (response.ok) {
+          const status = await response.json();
+          
+          // Check if phase changed
+          if (status.current_phase !== currentPhase) {
+            currentPhase = status.current_phase;
+            updatePhaseIndicator();
+            renderPhase(currentPhase);
+            showToast('Phase updated by facilitator', 'info');
+          }
+          
+          // Update participants
+          if (status.participants) {
+            displayParticipants(status.participants);
+          }
+        }
+      } catch (error) {
+        // Silently fail polling errors
+      }
+    }
+    
+    function showError(message) {
+      document.getElementById('mainContent').innerHTML = `
+        <div class="alert alert-danger text-center">
+          <i class="bi bi-exclamation-triangle display-1"></i>
+          <h4 class="mt-3">${message}</h4>
+          <a href="/" class="btn btn-primary mt-3">Return to Home</a>
+        </div>
+      `;
+    }
+    
+    function showToast(message, type = 'info') {
+      const toast = document.createElement('div');
+      toast.className = `alert alert-${type} position-fixed bottom-0 start-50 translate-middle-x mb-3`;
+      toast.style.zIndex = '9999';
+      toast.style.minWidth = '300px';
+      toast.innerHTML = `
+        <i class="bi bi-${type === 'success' ? 'check-circle' : type === 'danger' ? 'exclamation-circle' : 'info-circle'} me-2"></i>
+        ${message}
+      `;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+    
+    function escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>
+

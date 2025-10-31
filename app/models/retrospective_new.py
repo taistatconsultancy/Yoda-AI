@@ -15,6 +15,9 @@ class Retrospective(Base):
     id = Column(Integer, primary_key=True, index=True)
     workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=False)
     
+    # Unique access code (5 characters)
+    code = Column(String(5), unique=True, nullable=False, index=True)
+    
     # Basic info
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
@@ -69,6 +72,7 @@ class Retrospective(Base):
     voting_sessions = relationship("VotingSession", back_populates="retrospective", cascade="all, delete-orphan")
     discussion_topics = relationship("DiscussionTopic", back_populates="retrospective", cascade="all, delete-orphan")
     action_items = relationship("ActionItem", back_populates="retrospective")
+    da_recommendations = relationship("DARecommendation", back_populates="retrospective", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<Retrospective(id={self.id}, title='{self.title}', phase='{self.current_phase}')>"
@@ -338,4 +342,29 @@ class DiscussionMessage(Base):
     
     def __repr__(self):
         return f"<DiscussionMessage(id={self.id}, type='{self.message_type}')>"
+
+
+class DARecommendation(Base):
+    """Disciplined Agile Browser Recommendations"""
+    __tablename__ = "da_recommendations"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    retrospective_id = Column(Integer, ForeignKey("retrospectives.id"), nullable=False)
+    
+    # Recommendation content
+    content = Column(Text, nullable=False)
+    
+    # AI metadata
+    ai_model = Column(String(50), nullable=True)
+    tokens_used = Column(Integer, nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    retrospective = relationship("Retrospective", back_populates="da_recommendations")
+    
+    def __repr__(self):
+        return f"<DARecommendation(id={self.id}, retro_id={self.retrospective_id})>"
 

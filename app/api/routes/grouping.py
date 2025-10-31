@@ -446,3 +446,143 @@ async def move_response_to_theme(
         print(f"Move response error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to move response: {str(e)}")
 
+
+@router.post("/{retro_id}/themes")
+async def create_theme(
+    retro_id: int,
+    theme_data: dict,  # {category, title, description}
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Create a new theme manually (facilitator only)
+    """
+    try:
+        retro = db.query(Retrospective).filter(Retrospective.id == retro_id).first()
+        
+        if not retro:
+            raise HTTPException(status_code=404, detail="Retrospective not found")
+        
+        if retro.facilitator_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Only facilitator can create themes")
+        
+        # Get max display_order for this retrospective
+        max_order = db.query(ThemeGroup.display_order).filter(
+            ThemeGroup.retrospective_id == retro_id
+        ).order_by(ThemeGroup.display_order.desc()).first()
+        
+        new_order = (max_order[0] + 1) if max_order else 0
+        
+        new_theme = ThemeGroup(
+            retrospective_id=retro_id,
+            title=theme_data.get('title'),
+            description=theme_data.get('description', ''),
+            primary_category=theme_data.get('category', 'liked'),
+            display_order=new_order,
+            ai_generated=False
+        )
+        
+        db.add(new_theme)
+        db.commit()
+        db.refresh(new_theme)
+        
+        return ThemeGroupResponse(
+            id=new_theme.id,
+            title=new_theme.title,
+            description=new_theme.description,
+            primary_category=new_theme.primary_category,
+            response_count=0,
+            responses=[],
+            ai_generated=new_theme.ai_generated
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        print(f"Create theme error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create theme: {str(e)}")
+
+
+@router.put("/theme/{theme_id}")
+async def update_theme(
+    theme_id: int,
+    theme_data: dict,  # {title, description}
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Update a theme (facilitator only)
+    """
+    try:
+        theme = db.query(ThemeGroup).filter(ThemeGroup.id == theme_id).first()
+        
+        if not theme:
+            raise HTTPException(status_code=404, detail="Theme not found")
+        
+        retro = db.query(Retrospective).filter(Retrospective.id == theme.retrospective_id).first()
+        
+        if retro.facilitator_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Only facilitator can update themes")
+        
+        if 'title' in theme_data:
+            theme.title = theme_data['title']
+        if 'description' in theme_data:
+            theme.description = theme_data['description']
+        
+        db.commit()
+        db.refresh(theme)
+        
+        return {"message": "Theme updated successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        print(f"Update theme error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update theme: {str(e)}")
+
+
+@router.post("/{retro_id}/themes/reorder")
+async def reorder_themes(
+    retro_id: int,
+    order_data: dict,  # {category, theme_ids: [1,2,3]}
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Update theme display order (facilitator only)
+    """
+    try:
+        retro = db.query(Retrospective).filter(Retrospective.id == retro_id).first()
+        
+        if not retro:
+            raise HTTPException(status_code=404, detail="Retrospective not found")
+        
+        if retro.facilitator_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Only facilitator can reorder themes")
+        
+        theme_ids = order_data.get('theme_ids', [])
+        category = order_data.get('category', 'liked')
+        
+        # Update display orders
+        for index, theme_id in enumerate(theme_ids):
+            theme = db.query(ThemeGroup).filter(
+                ThemeGroup.id == theme_id,
+                ThemeGroup.retrospective_id == retro_id,
+                ThemeGroup.primary_category == category
+            ).first()
+            
+            if theme:
+                theme.display_order = index
+        
+        db.commit()
+        
+        return {"message": "Themes reordered successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        print(f"Reorder themes error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to reorder themes: {str(e)}")

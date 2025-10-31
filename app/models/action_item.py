@@ -13,8 +13,8 @@ class ActionItem(Base):
     __tablename__ = "action_items"
     
     id = Column(Integer, primary_key=True, index=True)
-    retrospective_id = Column(Integer, ForeignKey("retrospectives.id"), nullable=False, index=True)
-    workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=False, index=True)
+    retrospective_id = Column(Integer, ForeignKey("retrospectives.id"), nullable=True, index=True)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=True, index=True)
     discussion_topic_id = Column(Integer, ForeignKey("discussion_topics.id"), nullable=True)
     
     # Action item details

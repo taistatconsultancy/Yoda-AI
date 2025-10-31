@@ -25,7 +25,8 @@ class ActionItemService:
             due_date=action_item_data.due_date,
             assigned_to=action_item_data.assigned_to,
             created_by=user_id,
-            retrospective_id=action_item_data.retrospective_id
+            retrospective_id=action_item_data.retrospective_id,
+            workspace_id=action_item_data.workspace_id
         )
         self.db.add(action_item)
         self.db.commit()
