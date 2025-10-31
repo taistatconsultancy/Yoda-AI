@@ -18,11 +18,17 @@ from app.models.retrospective_new import (
 )
 from app.models.user import User
 from app.api.dependencies.auth import get_current_user
+from app.core.config import settings
 
 router = APIRouter(prefix="/api/v1/discussion", tags=["discussion-summary"])
 
-# Initialize OpenAI
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+def get_openai_client():
+    """Get OpenAI client with API key from settings"""
+    api_key = settings.OPENAI_API_KEY
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY is not set")
+    return OpenAI(api_key=api_key)
 
 
 # Pydantic Models
@@ -187,7 +193,8 @@ Be conversational, supportive, and concise (max 2-3 sentences)."""}
         
         # Get AI response
         try:
-            response = client.chat.completions.create(
+            openai_client = get_openai_client()
+            response = openai_client.chat.completions.create(
                 model="gpt-4",
                 messages=messages_for_ai,
                 temperature=0.7,
@@ -332,7 +339,8 @@ Be conversational, practical, and focused on action. Keep responses concise (2-3
         
         # Get AI response
         try:
-            response = client.chat.completions.create(
+            openai_client = get_openai_client()
+            response = openai_client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -446,7 +454,8 @@ Return JSON:
             print(f"Generating summary for retrospective {retro_id}")
             print(f"Data summary: {json.dumps(data_summary, indent=2)}")
             
-            response = client.chat.completions.create(
+            openai_client = get_openai_client()
+            response = openai_client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are an expert agile coach analyzing retrospectives."},
@@ -621,7 +630,8 @@ Keep each bullet point concise and actionable. Structure the output in an organi
             }
         
         try:
-            response = client.chat.completions.create(
+            openai_client = get_openai_client()
+            response = openai_client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are a Disciplined Agile expert providing actionable recommendations."},
