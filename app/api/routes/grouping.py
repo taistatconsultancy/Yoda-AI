@@ -18,11 +18,17 @@ from app.models.retrospective_new import (
 from app.models.user import User
 from app.models.workspace import WorkspaceMember
 from app.api.dependencies.auth import get_current_user
+from app.core.config import settings
 
 router = APIRouter(prefix="/api/v1/grouping", tags=["grouping"])
 
-# Initialize OpenAI client
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+def get_openai_client():
+    """Get OpenAI client with API key from settings"""
+    api_key = settings.OPENAI_API_KEY
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY is not set")
+    return OpenAI(api_key=api_key)
 
 
 def can_edit_grouping(db: Session, current_user: User, retro: Retrospective) -> bool:
@@ -198,7 +204,8 @@ Do not include any explanatory text before or after the JSON.
         
         try:
             # Call OpenAI (using gpt-4 without json_object mode since it's not supported)
-            response = client.chat.completions.create(
+            openai_client = get_openai_client()
+            response = openai_client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are an expert at analyzing team retrospectives and identifying patterns and themes. Always respond with valid JSON only."},
