@@ -11,12 +11,9 @@ from . import (
     voting,
     discussion_summary,
     action_items,
-    retrospectives,
-    teams,
-    ai_chat,
-    ai_chat_openai,
-    onboarding,
-    scheduling
+    scheduling,
+    google_auth,
+    workspace_invitations
 )
 
 __all__ = [
@@ -29,11 +26,8 @@ __all__ = [
     "voting",
     "discussion_summary",
     "action_items",
-    "retrospectives",
-    "teams",
-    "ai_chat",
-    "ai_chat_openai",
-    "onboarding",
-    "scheduling"
+    "scheduling",
+    "google_auth",
+    "workspace_invitations"
 ]
 

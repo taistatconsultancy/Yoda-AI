@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from datetime import datetime, timedelta, timezone
 import secrets
 import string
+from pydantic import Field
 
 from app.database.database import get_db
 from app.models.retrospective_new import (
@@ -42,13 +43,13 @@ class RetrospectiveResponse(BaseModel):
     workspace_id: int
     code: str
     title: str
-    description: str = None
-    sprint_name: str = None
+    description: Optional[str] = None
+    sprint_name: Optional[str] = None
     facilitator_id: int
-    scheduled_start_time: datetime = None
-    scheduled_end_time: datetime = None
-    actual_start_time: datetime = None
-    actual_end_time: datetime = None
+    scheduled_start_time: Optional[datetime] = None
+    scheduled_end_time: Optional[datetime] = None
+    actual_start_time: Optional[datetime] = None
+    actual_end_time: Optional[datetime] = None
     status: str
     current_phase: str
     created_at: datetime
@@ -62,7 +63,7 @@ class ParticipantResponse(BaseModel):
     user_id: int
     full_name: str
     email: str
-    joined_at: datetime = None
+    joined_at: Optional[datetime] = None
     completed_input: bool = False
     completed_voting: bool = False
     
@@ -528,6 +529,64 @@ async def get_participants(
         raise HTTPException(status_code=500, detail=f"Failed to fetch participants: {str(e)}")
 
 
+@router.get("/{retro_id}/status")
+async def get_retrospective_status(
+    retro_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get retrospective status with current phase and participants
+    """
+    try:
+        retro = db.query(Retrospective).filter(Retrospective.id == retro_id).first()
+        
+        if not retro:
+            raise HTTPException(status_code=404, detail="Retrospective not found")
+        
+        # Verify user is participant
+        participant = db.query(RetrospectiveParticipant).filter(
+            RetrospectiveParticipant.retrospective_id == retro_id,
+            RetrospectiveParticipant.user_id == current_user.id
+        ).first()
+        
+        if not participant:
+            raise HTTPException(status_code=403, detail="You are not a participant in this retrospective")
+        
+        # Get all participants
+        participants = db.query(RetrospectiveParticipant, User).join(
+            User, RetrospectiveParticipant.user_id == User.id
+        ).filter(
+            RetrospectiveParticipant.retrospective_id == retro_id
+        ).all()
+        
+        participants_list = []
+        for p, user in participants:
+            participants_list.append({
+                "id": p.id,
+                "user_id": p.user_id,
+                "user_name": user.full_name,
+                "full_name": user.full_name,
+                "email": user.email,
+                "joined_at": p.joined_at,
+                "completed_input": p.completed_input,
+                "completed_voting": p.completed_voting
+            })
+        
+        return {
+            "retrospective_id": retro.id,
+            "current_phase": retro.current_phase,
+            "status": retro.status,
+            "participants": participants_list
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Get retrospective status error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch retrospective status: {str(e)}")
+
+
 @router.post("/{retro_id}/start")
 async def start_retrospective(
     retro_id: int,
@@ -605,6 +664,7 @@ async def get_user_dashboard_retrospectives(
             retro_data = RetrospectiveResponse(
                 id=retro.id,
                 workspace_id=retro.workspace_id,
+                code=retro.code,
                 title=retro.title,
                 description=retro.description,
                 sprint_name=retro.sprint_name,
@@ -640,6 +700,51 @@ async def get_user_dashboard_retrospectives(
         raise HTTPException(status_code=500, detail=f"Failed to fetch dashboard data: {str(e)}")
 
 
+@router.post("/{retro_id}/complete-chat-sessions")
+async def complete_chat_sessions(
+    retro_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Complete all active chat sessions for a retrospective (facilitator only)
+    Called when moving from input phase to grouping
+    """
+    try:
+        retro = db.query(Retrospective).filter(Retrospective.id == retro_id).first()
+        
+        if not retro:
+            raise HTTPException(status_code=404, detail="Retrospective not found")
+        
+        if retro.facilitator_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Only the facilitator can complete chat sessions")
+        
+        # Find all active chat sessions for this retrospective
+        sessions = db.query(ChatSession).filter(
+            ChatSession.retrospective_id == retro_id,
+            ChatSession.is_completed == False
+        ).all()
+        
+        now_utc = datetime.now(timezone.utc)
+        
+        # Complete all sessions
+        for session in sessions:
+            session.is_completed = True
+            session.completed_at = now_utc
+            session.is_active = False
+        
+        db.commit()
+        
+        return {"message": f"Completed {len(sessions)} chat session(s)"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        print(f"Complete chat sessions error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to complete chat sessions: {str(e)}")
+
+
 @router.post("/{retro_id}/advance-phase")
 async def advance_phase(
     retro_id: int,
@@ -665,6 +770,32 @@ async def advance_phase(
             raise HTTPException(status_code=400, detail="Already at final phase")
         
         next_phase = phase_order[current_index + 1]
+        now_utc = datetime.now(timezone.utc)
+        
+        # If leaving voting phase, update vote allocation timestamps
+        if retro.current_phase == 'voting':
+            # Get active voting session
+            session = db.query(VotingSession).filter(
+                VotingSession.retrospective_id == retro_id,
+                VotingSession.is_active == True
+            ).first()
+            if session:
+                # Update all vote allocations for this session
+                allocations = db.query(VoteAllocation).filter(
+                    VoteAllocation.voting_session_id == session.id
+                ).all()
+                for allocation in allocations:
+                    allocation.updated_at = now_utc
+        
+        # If leaving discussion phase, mark all discussion topics as ended
+        if retro.current_phase == 'discussion':
+            topics = db.query(DiscussionTopic).filter(
+                DiscussionTopic.retrospective_id == retro_id,
+                DiscussionTopic.discussion_ended_at == None
+            ).all()
+            for topic in topics:
+                topic.discussion_ended_at = now_utc
+        
         retro.current_phase = next_phase
         
         if next_phase == 'completed':
@@ -673,7 +804,7 @@ async def advance_phase(
         
         db.commit()
         
-        return {"message": f"Advanced to {next_phase} phase", "phase": next_phase}
+        return {"message": f"Advanced to {next_phase} phase", "current_phase": next_phase, "phase": next_phase}
         
     except HTTPException:
         raise

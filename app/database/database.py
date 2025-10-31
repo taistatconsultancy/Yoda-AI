@@ -9,8 +9,12 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool
 from app.core.config import settings
 import logging
+import os
 
 logger = logging.getLogger(__name__)
+
+# Check if running in serverless environment (Vercel, etc.)
+IS_SERVERLESS = os.environ.get("VERCEL") == "1" or os.environ.get("AWS_LAMBDA_FUNCTION_NAME") is not None
 
 # Determine which database URL to use
 # Prefer NEON_DATABASE_URL if available, otherwise use SQLite
@@ -37,13 +41,19 @@ if is_postgres:
     if "sslmode" not in database_url:
         database_url += "?sslmode=require" if "?" not in database_url else "&sslmode=require"
     
-    # Use connection pooling for PostgreSQL
-    engine_kwargs.update({
-        "pool_size": 10,
-        "max_overflow": 20,
-        "pool_pre_ping": True,  # Verify connections before using
-        "pool_recycle": 3600,   # Recycle connections after 1 hour
-    })
+    # For serverless environments, use NullPool (no connection pooling)
+    # For regular deployments, use connection pooling
+    if IS_SERVERLESS:
+        logger.info("🔧 Serverless environment detected - using NullPool")
+        engine_kwargs["poolclass"] = NullPool
+    else:
+        # Use connection pooling for regular PostgreSQL deployments
+        engine_kwargs.update({
+            "pool_size": 10,
+            "max_overflow": 20,
+            "pool_pre_ping": True,  # Verify connections before using
+            "pool_recycle": 3600,   # Recycle connections after 1 hour
+        })
 else:
     # SQLite specific configuration
     logger.info("Configuring SQLite database connection")

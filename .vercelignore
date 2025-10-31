@@ -1,56 +1,79 @@
-# Vercel ignore file
+# Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
+*.so
 .Python
 env/
 venv/
-.venv/
-pip-log.txt
-pip-delete-this-directory.txt
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.log
-.git
-.mypy_cache
-.pytest_cache
-.hypothesis
-
-# OS
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
+ENV/
+ai/
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
 
-# Project specific
-alembic/versions/
+# Local files
 *.db
-*.sqlite
+*.log
 .env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
+*.sqlite
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
 
 # Documentation
-README.md
-PROJECT_SUMMARY.md
-Helper.txt
-prompt.md
+app/docs/
 
+# Alembic (not needed in production)
+alembic/
+alembic.ini
+
+# Utility scripts
+check_*.py
+fix_*.py
+quick_*.py
+sync_*.py
+start_server.py
+test_*.py
+get_verification_link.py
+
+# Backup files
+*.bak
+
+# Project documentation
+*_STATUS.md
+*_COMPLETE.md
+*_READY.md
+*_IMPLEMENTATION.md
+*_UPDATE*.md
+*_FIX*.md
+BATCH_*.md
+COMPLETE_*.md
+EMAIL_*.md
+FINAL_*.md
+FIREBASE_*.md
+GOOGLE_*.md
+IMPLEMENTATION_*.md
+INVITATION_*.md
+SESSION_*.md
+UI_*.md
+VOTING_*.md
+PROJECT_FILES_STRUCTURE.md
+VERCEL_DEPLOYMENT_GUIDE.md
+
+# Other
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json

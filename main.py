@@ -5,19 +5,18 @@ Main FastAPI application entry point
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 import uvicorn
+import os
 from contextlib import asynccontextmanager
 
 from app.core.config import settings
 from app.api.routes import (
-    retrospectives, teams, action_items, 
-    ai_chat, ai_chat_openai, onboarding, scheduling, user_auth, users,
-    workspaces, retrospectives_full, fourls_chat, grouping, voting, discussion_summary, google_auth,
+    action_items, scheduling, user_auth, users,
+    workspaces, retrospectives_full, fourls_chat, grouping, voting, discussion_summary, 
+    google_auth, workspace_invitations
 )
-from app.api.routes import workspace_invitations
-from app.api.routes import reminders
 from app.database.database import init_db
 
 
@@ -63,18 +62,23 @@ async def redirect_retrospective(retro_id: int):
     """Redirect old retrospective paths to new API format"""
     from fastapi.responses import RedirectResponse
     return RedirectResponse(url=f"/ui/yodaai-app.html?retro_id={retro_id}", status_code=301)
+
+# Handle retrospective.html with code path
+@app.get("/ui/retrospective.html/{code}")
+async def redirect_retrospective_by_code(code: str):
+    """Handle retrospective.html/{code} URLs"""
+    # Serve the retrospective.html file and let JavaScript handle the code
+    file_path = os.path.join("app/ui", "retrospective.html")
+    if os.path.exists(file_path):
+        return FileResponse(file_path)
+    raise HTTPException(status_code=404, detail="File not found")
+
 app.include_router(fourls_chat.router)  # Has its own prefix
 app.include_router(grouping.router)  # Has its own prefix
 app.include_router(voting.router)  # Has its own prefix
 app.include_router(discussion_summary.router)  # Has its own prefix
 app.include_router(action_items.router, prefix="/api/v1/action-items", tags=["action-items"])
-app.include_router(onboarding.router, prefix="/api/v1/onboarding", tags=["onboarding"])
 app.include_router(scheduling.router, prefix="/api/v1/scheduling", tags=["scheduling"])
-app.include_router(retrospectives.router, prefix="/api/v1/retrospectives-old", tags=["retrospectives-old"])
-app.include_router(teams.router, prefix="/api/v1/teams", tags=["teams"])
-app.include_router(ai_chat.router, prefix="/api/v1/ai-chat", tags=["ai-chat"])
-app.include_router(ai_chat_openai.router, prefix="/api/v1/ai-chat-openai", tags=["ai-chat-openai"])
-app.include_router(reminders.router)
 
 # Mount static UI under /ui
 app.mount("/ui", StaticFiles(directory="app/ui", html=True), name="ui")

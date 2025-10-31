@@ -67,15 +67,22 @@ def _ensure_initialized() -> None:
         # Fallback to default app if already initialized elsewhere
         if not firebase_admin._apps:
             print(f"⚠️ Warning: Firebase initialization failed: {e}")
-            print("⚠️ Firebase features will be unavailable")
-            raise
+            print("⚠️ Firebase features will be unavailable - Google Sign-In disabled")
+            _app_initialized = True  # Mark as initialized to prevent retries
+            return
         _app_initialized = True
 
 
 def verify_firebase_token(id_token: str) -> Dict[str, Any]:
     """Verify a Firebase ID token and return the decoded payload."""
     _ensure_initialized()
-    decoded = fb_auth.verify_id_token(id_token)
+    
+    # Check if Firebase is actually available
+    if not firebase_admin._apps:
+        raise Exception("Firebase is not configured. Please set up Firebase credentials or use email/password authentication.")
+    
+    # Add 60 seconds clock skew tolerance to handle time sync issues
+    decoded = fb_auth.verify_id_token(id_token, clock_skew_seconds=60)
     return decoded
 
 

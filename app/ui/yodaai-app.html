@@ -567,6 +567,16 @@
       100% { transform: rotate(360deg); }
     }
     
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-20px); }
+    }
+    
     /* 4Ls Category Styles */
     .fourls-category {
       background: white;
@@ -936,7 +946,7 @@
         </li>
         <!-- Onboarding and Workspace nav removed; onboarding will live inside a workspace -->
         <li class="nav-item">
-          <a class="nav-link" href="#" onclick="showSection('retrospectives')">
+          <a class="nav-link" href="/ui/retrospective.html">
             <i class="bi bi-chat-dots"></i><span>Retrospectives</span>
           </a>
         </li>
@@ -974,6 +984,15 @@
             <h5>Recent Activity</h5>
             <div id="recentActivity">
               <p class="text-muted">No recent activity yet. Start your first retrospective to see updates here!</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card mb-4">
+          <div class="card-body">
+            <h5>Upcoming Retrospectives</h5>
+            <div id="upcomingRetros">
+              <p class="text-muted">No upcoming retrospectives. Create one to get started!</p>
             </div>
           </div>
         </div>
@@ -1306,7 +1325,8 @@
                 <div class="row g-3 mb-3">
                   <div class="col-md-6">
                     <label class="form-label">Email Address *</label>
-                    <input type="email" class="form-control" id="inviteEmail" placeholder="team.member@example.com">
+                    <input type="email" class="form-control" id="inviteEmail" placeholder="team.member@example.com" oninput="validateInviteEmail(this.value)">
+                    <div id="inviteEmailFeedback" class="form-text mt-1" style="min-height: 20px;"></div>
                   </div>
                   <div class="col-md-4">
                     <label class="form-label">Role *</label>
@@ -1319,13 +1339,13 @@
                     </select>
                   </div>
                   <div class="col-md-2 d-flex align-items-end">
-                    <button class="btn btn-primary w-100" onclick="inviteTeamMember()">
+                    <button class="btn btn-primary w-100" id="inviteBtn" onclick="inviteTeamMember()" disabled>
                       <i class="bi bi-send"></i> Invite
                     </button>
                   </div>
                 </div>
                 <small class="text-muted">
-                  <i class="bi bi-info-circle"></i> Invitee will receive an email and an action item to join the workspace
+                  <i class="bi bi-info-circle"></i> Invitee will receive an email to join the workspace
                 </small>
               </div>
             </div>
@@ -1410,6 +1430,12 @@
           <li class="nav-item">
             <a class="nav-link" href="#" onclick="filterActionItems('completed'); return false;">Completed</a>
           </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#" onclick="filterActionItems('cancelled'); return false;">Cancelled</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#" onclick="filterActionItems('blocked'); return false;">Blocked</a>
+          </li>
         </ul>
 
         <!-- Action Items List -->
@@ -1432,6 +1458,9 @@
             <div class="modal-body">
               <form id="actionItemForm">
                 <input type="hidden" id="actionItemId">
+                <input type="hidden" id="actionItemRetrospectiveId">
+                <input type="hidden" id="actionItemWorkspaceId">
+                <input type="hidden" id="actionItemDiscussionTopicId">
                 
                 <div class="mb-3">
                   <label class="form-label">Title *</label>
@@ -1443,33 +1472,114 @@
                   <textarea class="form-control" id="actionItemDescription" rows="3"></textarea>
                 </div>
 
-                <div class="mb-3">
-                  <label class="form-label">Priority</label>
-                  <select class="form-select" id="actionItemPriority">
-                    <option value="low">Low</option>
-                    <option value="medium" selected>Medium</option>
-                    <option value="high">High</option>
-                  </select>
+                <div class="row">
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Priority</label>
+                    <select class="form-select" id="actionItemPriority">
+                      <option value="low">Low</option>
+                      <option value="medium" selected>Medium</option>
+                      <option value="high">High</option>
+                      <option value="critical">Critical</option>
+                    </select>
+                  </div>
+
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Status</label>
+                    <select class="form-select" id="actionItemStatus">
+                      <option value="pending">Pending</option>
+                      <option value="in_progress">In Progress</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                      <option value="blocked">Blocked</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="row">
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Due Date</label>
+                    <input type="date" class="form-control" id="actionItemDueDate">
+                  </div>
+
+                  <div class="col-md-6 mb-3">
+                    <label class="form-label">Assigned To</label>
+                    <select class="form-select" id="actionItemAssignedTo">
+                      <option value="">Unassigned</option>
+                      <option value="0">Assignee list loading...</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div class="mb-3">
-                  <label class="form-label">Due Date</label>
-                  <input type="date" class="form-control" id="actionItemDueDate">
-                </div>
-
-                <div class="mb-3">
-                  <label class="form-label">Status</label>
-                  <select class="form-select" id="actionItemStatus">
-                    <option value="pending">Pending</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="completed">Completed</option>
-                  </select>
+                  <label class="form-label">Progress</label>
+                  <div class="d-flex align-items-center">
+                    <input type="range" class="form-range me-3" id="actionItemProgress" min="0" max="100" value="0" oninput="updateProgressDisplay(this.value)">
+                    <span class="badge bg-primary" id="progressDisplay" style="min-width: 50px;">0%</span>
+                  </div>
+                  <small class="text-muted">Track completion progress from 0% to 100%</small>
                 </div>
               </form>
             </div>
             <div class="modal-footer">
               <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
               <button type="button" class="btn btn-primary" onclick="saveActionItem()">Save</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Invitation Acceptance Modal -->
+      <div class="modal fade" id="invitationModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+              <h5 class="modal-title">
+                <i class="bi bi-envelope-check"></i> Workspace Invitation
+              </h5>
+            </div>
+            <div class="modal-body text-center py-4">
+              <div class="mb-4">
+                <i class="bi bi-envelope-heart" style="font-size: 4rem; color: #667eea;"></i>
+              </div>
+              <h4 id="invitationModalMessage">You've been invited!</h4>
+              <p class="text-muted mt-3" id="invitationModalDetails">
+                Loading invitation details...
+              </p>
+            </div>
+            <div class="modal-footer justify-content-center">
+              <button type="button" class="btn btn-outline-secondary" onclick="declineInvitationFromModal()">
+                <i class="bi bi-x-circle"></i> Decline
+              </button>
+              <button type="button" class="btn btn-success btn-lg px-5" onclick="acceptInvitationFromModal()" id="acceptInviteBtn">
+                <i class="bi bi-check-circle"></i> Accept & Join
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Invitation Success Modal -->
+      <div class="modal fade" id="invitationSuccessModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+              <h5 class="modal-title">
+                <i class="bi bi-check-circle"></i> Welcome to the Team!
+              </h5>
+            </div>
+            <div class="modal-body text-center py-4">
+              <div class="mb-4">
+                <i class="bi bi-rocket-takeoff" style="font-size: 4rem; color: #28a745;"></i>
+              </div>
+              <h4 id="invitationSuccessMessage">Invitation Accepted!</h4>
+              <p class="text-muted mt-3" id="invitationSuccessDetails">
+                You're now a member of the workspace.
+              </p>
+            </div>
+            <div class="modal-footer justify-content-center">
+              <button type="button" class="btn btn-primary btn-lg px-5" onclick="goToDashboardFromInvitation()">
+                <i class="bi bi-speedometer2"></i> Go to Dashboard
+              </button>
             </div>
           </div>
         </div>
@@ -2076,35 +2186,202 @@
       }
     }
 
+    // Global variable to store pending invitation token
+    let pendingInvitationToken = null;
+    let pendingInvitationWorkspace = null;
+
     async function handleInviteFromUrl() {
       const params = new URLSearchParams(window.location.search);
       const token = params.get('invite');
       if (!token || !authToken) return;
+      
+      pendingInvitationToken = token;
+      
       try {
         const statusResp = await fetch(`/api/v1/invitations/${encodeURIComponent(token)}`);
         if (!statusResp.ok) return;
         const status = await statusResp.json();
+        
         if (status.status === 'expired') {
           showToast('Invitation has expired', 'danger');
+          // Clean up URL
+          window.history.replaceState({}, '', window.location.pathname);
           return;
         }
-        const accept = confirm(`You have been invited to join workspace ${status.workspace_id}. Accept invitation?`);
-        if (!accept) return;
+        
+        // Fetch workspace details
+        const workspaceResp = await fetch(`/api/v1/workspaces/${status.workspace_id}`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        
+        let workspaceName = `Workspace #${status.workspace_id}`;
+        if (workspaceResp.ok) {
+          const workspace = await workspaceResp.json();
+          workspaceName = workspace.name;
+          pendingInvitationWorkspace = workspace;
+        }
+        
+        // Show beautiful modal
+        const modalEl = document.getElementById('invitationModal');
+        const messageEl = document.getElementById('invitationModalMessage');
+        const detailsEl = document.getElementById('invitationModalDetails');
+        
+        if (modalEl && messageEl && detailsEl) {
+          messageEl.textContent = 'You\'ve been invited!';
+          detailsEl.innerHTML = `
+            <strong>${escapeHtml(workspaceName)}</strong> is inviting you to join their workspace.
+            <br><small class="text-muted">You'll be able to collaborate on retrospectives and team activities.</small>
+          `;
+          
+          if (typeof bootstrap !== 'undefined') {
+            const modal = new bootstrap.Modal(modalEl);
+            modal.show();
+          }
+        }
+      } catch (e) {
+        console.error('Invitation error:', e);
+        showToast('Unable to load invitation details', 'danger');
+      }
+    }
+    
+    async function acceptInvitationFromModal() {
+      if (!pendingInvitationToken || !authToken) return;
+      
+      const btn = document.getElementById('acceptInviteBtn');
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Accepting...';
+      }
+      
+      try {
         const resp = await fetch('/api/v1/invitations/accept', {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token })
+          body: JSON.stringify({ token: pendingInvitationToken })
         });
+        
         if (!resp.ok) {
           const err = await resp.json().catch(() => ({}));
           throw new Error(err.detail || 'Failed to accept invitation');
         }
-        showToast('Invitation accepted', 'success');
+        
+        // Close acceptance modal
+        const invitationModal = document.getElementById('invitationModal');
+        if (invitationModal && typeof bootstrap !== 'undefined') {
+          bootstrap.Modal.getInstance(invitationModal).hide();
+        }
+        
+        // Show success modal
+        const successModal = document.getElementById('invitationSuccessModal');
+        const successMessage = document.getElementById('invitationSuccessMessage');
+        const successDetails = document.getElementById('invitationSuccessDetails');
+        
+        if (successModal && successMessage && successDetails && pendingInvitationWorkspace) {
+          successDetails.innerHTML = `
+            You're now a member of <strong>${escapeHtml(pendingInvitationWorkspace.name)}</strong>.
+            <br><small class="text-muted">Check your dashboard to see recent activity and start collaborating!</small>
+          `;
+          
+          if (typeof bootstrap !== 'undefined') {
+            const modal = new bootstrap.Modal(successModal);
+            modal.show();
+          }
+        }
+        
+        // Reload workspaces and refresh dashboard
         await checkAndLoadWorkspaces();
-        showSection('teams');
+        
+        // Add activity to dashboard
+        addWorkspaceActivityToDashboard(pendingInvitationWorkspace);
+        
+        // Clean up URL
+        window.history.replaceState({}, '', window.location.pathname);
+        
       } catch (e) {
-        showToast(e.message || 'Unable to process invitation', 'danger');
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="bi bi-check-circle"></i> Accept & Join';
+        }
+        showToast(e.message || 'Failed to accept invitation', 'danger');
       }
+    }
+    
+    async function declineInvitationFromModal() {
+      if (!pendingInvitationToken) return;
+      
+      const invitationModal = document.getElementById('invitationModal');
+      if (invitationModal && typeof bootstrap !== 'undefined') {
+        bootstrap.Modal.getInstance(invitationModal).hide();
+      }
+      
+      try {
+        await fetch('/api/v1/invitations/decline', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: pendingInvitationToken })
+        });
+        showToast('Invitation declined', 'info');
+      } catch (e) {
+        console.error('Decline error:', e);
+      }
+      
+      // Clean up
+      window.history.replaceState({}, '', window.location.pathname);
+      pendingInvitationToken = null;
+      pendingInvitationWorkspace = null;
+    }
+    
+    function goToDashboardFromInvitation() {
+      const successModal = document.getElementById('invitationSuccessModal');
+      if (successModal && typeof bootstrap !== 'undefined') {
+        bootstrap.Modal.getInstance(successModal).hide();
+      }
+      showSection('dashboard');
+      loadDashboardData();
+      
+      // Clean up
+      pendingInvitationToken = null;
+      pendingInvitationWorkspace = null;
+    }
+    
+    function addWorkspaceActivityToDashboard(workspace) {
+      if (!workspace) return;
+      
+      const activityContainer = document.getElementById('recentActivity');
+      if (!activityContainer) return;
+      
+      const now = new Date();
+      const timeStr = now.toLocaleString();
+      
+      // Check if "No activity" message exists
+      if (activityContainer.querySelector('.text-muted')) {
+        activityContainer.innerHTML = '';
+      }
+      
+      // Prepend new activity
+      const activityHTML = `
+        <div class="d-flex align-items-start mb-3 p-3 bg-light rounded" style="animation: slideIn 0.3s ease-in;">
+          <div class="flex-shrink-0 me-3">
+            <div class="bg-success text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+              <i class="bi bi-building"></i>
+            </div>
+          </div>
+          <div class="flex-grow-1">
+            <div class="d-flex justify-content-between align-items-start mb-1">
+              <div>
+                <strong>Joined Workspace</strong>
+                <span class="badge bg-success ms-2">New</span>
+              </div>
+              <small class="text-muted">${timeStr}</small>
+            </div>
+            <p class="text-muted mb-0">
+              You joined <strong>${escapeHtml(workspace.name)}</strong>
+            </p>
+          </div>
+        </div>
+      `;
+      
+      activityContainer.insertAdjacentHTML('afterbegin', activityHTML);
     }
 
     async function loadMyInvitationsBanner() {
@@ -2140,18 +2417,55 @@
 
     async function acceptInviteToken(token) {
       if (!authToken) return;
-      const resp = await fetch('/api/v1/invitations/accept', {
-        method: 'POST', headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token })
-      });
-      if (resp.ok) {
-        showToast('Invitation accepted', 'success');
-        await checkAndLoadWorkspaces();
-        await loadMyInvitationsBanner();
-        showSection('teams');
-      } else {
-        const err = await resp.json().catch(() => ({}));
-        showToast(err.detail || 'Failed to accept invitation', 'danger');
+      
+      // Load invitation details and show modal
+      pendingInvitationToken = token;
+      
+      try {
+        const statusResp = await fetch(`/api/v1/invitations/${encodeURIComponent(token)}`);
+        if (!statusResp.ok) {
+          showToast('Invitation not found', 'danger');
+          return;
+        }
+        const status = await statusResp.json();
+        
+        if (status.status === 'expired') {
+          showToast('Invitation has expired', 'danger');
+          return;
+        }
+        
+        // Fetch workspace details
+        const workspaceResp = await fetch(`/api/v1/workspaces/${status.workspace_id}`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        
+        let workspaceName = `Workspace #${status.workspace_id}`;
+        if (workspaceResp.ok) {
+          const workspace = await workspaceResp.json();
+          workspaceName = workspace.name;
+          pendingInvitationWorkspace = workspace;
+        }
+        
+        // Show modal
+        const modalEl = document.getElementById('invitationModal');
+        const messageEl = document.getElementById('invitationModalMessage');
+        const detailsEl = document.getElementById('invitationModalDetails');
+        
+        if (modalEl && messageEl && detailsEl) {
+          messageEl.textContent = 'You\'ve been invited!';
+          detailsEl.innerHTML = `
+            <strong>${escapeHtml(workspaceName)}</strong> is inviting you to join their workspace.
+            <br><small class="text-muted">You'll be able to collaborate on retrospectives and team activities.</small>
+          `;
+          
+          if (typeof bootstrap !== 'undefined') {
+            const modal = new bootstrap.Modal(modalEl);
+            modal.show();
+          }
+        }
+      } catch (e) {
+        console.error('Invitation error:', e);
+        showToast('Unable to load invitation details', 'danger');
       }
     }
 
@@ -2724,6 +3038,13 @@
           }
         }
 
+        // Fetch dashboard retrospectives (upcoming, in_progress, completed)
+        const dashboardResp = await fetch('/api/v1/retrospectives/user/dashboard', {headers}).catch(() => null);
+        if (dashboardResp && dashboardResp.ok) {
+          const dashboard = await dashboardResp.json();
+          loadUpcomingRetros(dashboard.upcoming || []);
+        }
+
         // Fetch action items
         const actionsResponse = await fetch('/api/v1/action-items/', {headers}).catch(() => null);
         if (actionsResponse && actionsResponse.ok) {
@@ -2739,6 +3060,203 @@
       } catch (error) {
         console.log('Dashboard load:', error);
       }
+    }
+    
+    async function loadUpcomingRetros(retros) {
+      const container = document.getElementById('upcomingRetros');
+      if (!container) return;
+      
+      if (!retros || retros.length === 0) {
+        container.innerHTML = '<p class="text-muted">No upcoming retrospectives. Create one to get started!</p>';
+        return;
+      }
+      
+      container.innerHTML = retros.map(retro => {
+        const cardId = `retro-card-${retro.id}`;
+        return `
+          <div class="card mb-2 border-start border-4 border-info" id="${cardId}">
+            <div class="card-body py-3">
+              <div class="d-flex justify-content-between align-items-start">
+                <div class="flex-grow-1">
+                  <h6 class="mb-1">
+                    <i class="bi bi-calendar-event"></i> ${escapeHtml(retro.title)}
+                  </h6>
+                  ${retro.sprint_name ? `<small class="text-muted d-block mb-2">${escapeHtml(retro.sprint_name)}</small>` : ''}
+                  <div class="d-flex gap-3 flex-wrap">
+                    <div id="timer-${retro.id}">
+                      <small class="text-muted">
+                        <i class="bi bi-clock"></i> Loading...
+                      </small>
+                    </div>
+                  </div>
+                </div>
+                <div id="action-${retro.id}">
+                  <button class="btn btn-sm btn-secondary" disabled>
+                    <i class="bi bi-lock"></i> Waiting
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+      
+      // Start countdown timers for each retrospective
+      retros.forEach(retro => {
+        const startDate = retro.scheduled_start_time ? new Date(retro.scheduled_start_time) : null;
+        if (startDate) {
+          startCountdown(retro.id, startDate);
+        }
+      });
+    }
+    
+    function startCountdown(retroId, startDate) {
+      const timerEl = document.getElementById(`timer-${retroId}`);
+      const actionEl = document.getElementById(`action-${retroId}`);
+      
+      if (!timerEl || !actionEl) return;
+      
+      function updateCountdown() {
+        const now = new Date();
+        const diffMs = startDate - now;
+        
+        if (diffMs <= 0) {
+          // Time has elapsed - show join button
+          timerEl.innerHTML = `
+            <small class="text-success">
+              <i class="bi bi-check-circle"></i> Started
+            </small>
+          `;
+          actionEl.innerHTML = `
+            <button class="btn btn-sm btn-primary" onclick="openRetrospective(${retroId})">
+              <i class="bi bi-play-circle"></i> Join Now
+            </button>
+          `;
+          return;
+        }
+        
+        const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
+        
+        let timeStr = '';
+        if (days > 0) {
+          timeStr = `${days}d ${hours}h ${minutes}m`;
+        } else if (hours > 0) {
+          timeStr = `${hours}h ${minutes}m ${seconds}s`;
+        } else {
+          timeStr = `${minutes}m ${seconds}s`;
+        }
+        
+        timerEl.innerHTML = `
+          <small class="text-info">
+            <i class="bi bi-clock"></i> In ${timeStr}
+          </small>
+        `;
+        
+        // Schedule next update
+        setTimeout(updateCountdown, 1000);
+      }
+      
+      // Initial update
+      updateCountdown();
+    }
+    
+    function getTimeUntil(date, now) {
+      const diffMs = date - now;
+      const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+      
+      if (diffDays < 0) return 'Started';
+      if (diffDays === 0) return 'Today';
+      if (diffDays === 1) return 'Tomorrow';
+      if (diffDays < 7) return `In ${diffDays} days`;
+      if (diffDays < 30) {
+        const weeks = Math.floor(diffDays / 7);
+        return `In ${weeks} ${weeks === 1 ? 'week' : 'weeks'}`;
+      }
+      return date.toLocaleDateString();
+    }
+    
+    async function openRetrospective(retroId) {
+      try {
+        showToast('Loading retrospective...', 'info');
+        
+        // Get or create session link
+        const response = await fetch(`/api/v1/fourls-chat/link/by-retro/${retroId}`, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          
+          // Navigate to the chat session
+          window.location.href = data.url;
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          const errorMsg = errorData.detail || 'Failed to open retrospective';
+          showToast(errorMsg, 'danger');
+        }
+      } catch (error) {
+        console.error('Open retrospective error:', error);
+        showToast('Failed to open retrospective', 'danger');
+      }
+    }
+    
+    function startWorkspaceCountdown(retroId, retroCode, startDate) {
+      const timerEl = document.getElementById(`workspace-timer-${retroId}`);
+      const actionEl = document.getElementById(`workspace-action-${retroId}`);
+      
+      if (!timerEl || !actionEl) return;
+      
+      function updateCountdown() {
+        const now = new Date();
+        const diffMs = startDate - now;
+        
+        if (diffMs <= 0) {
+          // Time has elapsed - show join button
+          timerEl.innerHTML = `
+            <small class="text-success">
+              <i class="bi bi-check-circle"></i> Started
+            </small>
+          `;
+          actionEl.innerHTML = `
+            <button class="btn btn-sm btn-primary" onclick="window.location.href='/ui/retrospective.html/${retroCode}'">
+              <i class="bi bi-play-circle"></i> Join Now
+            </button>
+          `;
+          return;
+        }
+        
+        const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
+        
+        let timeStr = '';
+        if (days > 0) {
+          timeStr = `${days}d ${hours}h ${minutes}m`;
+        } else if (hours > 0) {
+          timeStr = `${hours}h ${minutes}m ${seconds}s`;
+        } else {
+          timeStr = `${minutes}m ${seconds}s`;
+        }
+        
+        timerEl.innerHTML = `
+          <small class="text-info">
+            <i class="bi bi-clock"></i> In ${timeStr}
+          </small>
+        `;
+        
+        // Schedule next update
+        setTimeout(updateCountdown, 1000);
+      }
+      
+      // Initial update
+      updateCountdown();
     }
 
     // ==================== UTILITIES ====================
@@ -2916,21 +3434,43 @@
           const retros = await response.json();
           const container = document.getElementById('workspaceRetrosList');
           if (container && retros.length > 0) {
-            container.innerHTML = retros.map(r => `
-              <div class="card mb-2">
-                <div class="card-body">
-                  <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                      <h6 class="mb-1">${escapeHtml(r.title)}</h6>
-                      <p class="text-muted small mb-0">${r.sprint_name || 'No sprint'} - ${new Date(r.scheduled_start_time).toLocaleDateString()}</p>
+            container.innerHTML = retros.map(r => {
+              const cardId = `workspace-retro-${r.id}`;
+              return `
+                <div class="card mb-2" id="${cardId}">
+                  <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                      <div class="flex-grow-1">
+                        <h6 class="mb-1">
+                          <i class="bi bi-calendar-event"></i> ${escapeHtml(r.title)}
+                        </h6>
+                        ${r.sprint_name ? `<small class="text-muted d-block mb-2">${escapeHtml(r.sprint_name)}</small>` : ''}
+                        <div class="d-flex gap-3 flex-wrap">
+                          <div id="workspace-timer-${r.id}">
+                            <small class="text-muted">
+                              <i class="bi bi-clock"></i> Loading...
+                            </small>
+                          </div>
+                        </div>
+                      </div>
+                      <div id="workspace-action-${r.id}">
+                        <button class="btn btn-sm btn-secondary" disabled>
+                          <i class="bi bi-lock"></i> Waiting
+                        </button>
+                      </div>
                     </div>
-                    <a href="/ui/retrospective.html/${r.code}" class="btn btn-sm btn-primary" target="_blank">
-                      <i class="bi bi-box-arrow-right"></i> Open
-                    </a>
                   </div>
                 </div>
-              </div>
-            `).join('');
+              `;
+            }).join('');
+            
+            // Start countdown timers for each retrospective
+            retros.forEach(r => {
+              const startDate = r.scheduled_start_time ? new Date(r.scheduled_start_time) : null;
+              if (startDate) {
+                startWorkspaceCountdown(r.id, r.code, startDate);
+              }
+            });
           } else if (container) {
             container.innerHTML = '<p class="text-muted">No retrospectives yet.</p>';
           }
@@ -2943,34 +3483,45 @@
     async function loadWorkspaceActionItems() {
       if (!currentWorkspace) return;
       try {
-        const response = await fetch('/api/v1/action-items/', {
+        const response = await fetch(`/api/v1/action-items/?workspace_id=${currentWorkspace.id}`, {
           headers: { 'Authorization': `Bearer ${authToken}` }
         });
         if (response.ok) {
           const allItems = await response.json();
-          // Filter by current workspace if retrospective_id is linked to workspace
           const container = document.getElementById('workspaceActionItemsList');
           if (container && allItems.length > 0) {
             container.innerHTML = allItems.map(item => {
               const priorityBadge = {
                 'low': 'success',
                 'medium': 'warning', 
-                'high': 'danger'
+                'high': 'danger',
+                'critical': 'dark'
               }[item.priority] || 'secondary';
 
               const statusBadge = {
                 'pending': 'secondary',
                 'in_progress': 'primary',
-                'completed': 'success'
+                'completed': 'success',
+                'cancelled': 'warning',
+                'blocked': 'danger'
               }[item.status] || 'secondary';
 
               const statusText = {
                 'pending': 'Pending',
                 'in_progress': 'In Progress',
-                'completed': 'Completed'
+                'completed': 'Completed',
+                'cancelled': 'Cancelled',
+                'blocked': 'Blocked'
               }[item.status] || item.status;
 
               const dueDate = item.due_date ? new Date(item.due_date).toLocaleDateString() : 'No due date';
+              const isOverdue = item.due_date && new Date(item.due_date) < new Date() && item.status !== 'completed';
+              
+              const progress = item.progress_percentage || 0;
+              let progressColor = 'danger';
+              if (progress >= 75) progressColor = 'success';
+              else if (progress >= 50) progressColor = 'info';
+              else if (progress >= 25) progressColor = 'warning';
 
               return `
                 <div class="card mb-2 ${item.status === 'completed' ? 'bg-light' : ''}">
@@ -2981,13 +3532,24 @@
                           ${escapeHtml(item.title)}
                         </h6>
                         ${item.description ? `<p class="mb-2 text-muted small">${escapeHtml(item.description)}</p>` : ''}
-                        <div class="d-flex gap-2 flex-wrap">
+                        <div class="d-flex gap-2 flex-wrap mb-2">
                           <span class="badge bg-${priorityBadge}">${item.priority.toUpperCase()}</span>
                           <span class="badge bg-${statusBadge}">${statusText}</span>
-                          <span class="badge bg-info">
+                          <span class="badge bg-info ${isOverdue ? 'bg-danger' : ''}">
                             <i class="bi bi-calendar me-1"></i>${dueDate}
                           </span>
                         </div>
+                        ${progress > 0 ? `
+                          <div class="mt-2">
+                            <small class="text-muted">Progress:</small>
+                            <div class="progress" style="height: 8px; margin-top: 4px;">
+                              <div class="progress-bar bg-${progressColor}" role="progressbar" style="width: ${progress}%" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">
+                                <span class="visually-hidden">${progress}%</span>
+                              </div>
+                            </div>
+                            <small class="text-muted">${progress}% complete</small>
+                          </div>
+                        ` : ''}
                       </div>
                       <div class="btn-group ms-3">
                         ${item.status !== 'completed' ? `
@@ -3091,6 +3653,87 @@
       }
     }
     
+    let emailValidationTimeout;
+    let lastValidatedEmail = '';
+    
+    async function validateInviteEmail(email) {
+      const feedbackEl = document.getElementById('inviteEmailFeedback');
+      const inviteBtn = document.getElementById('inviteBtn');
+      const emailInput = document.getElementById('inviteEmail');
+      
+      // Clear previous timeout
+      if (emailValidationTimeout) {
+        clearTimeout(emailValidationTimeout);
+      }
+      
+      // Don't validate if empty or hasn't changed
+      if (!email || email.trim() === '') {
+        feedbackEl.innerHTML = '';
+        feedbackEl.className = 'form-text mt-1';
+        emailInput.classList.remove('is-invalid', 'is-valid');
+        inviteBtn.disabled = true;
+        return;
+      }
+      
+      if (email === lastValidatedEmail) {
+        return; // Already validated this email
+      }
+      
+      // Show loading state
+      feedbackEl.innerHTML = '<i class="bi bi-hourglass-split"></i> Checking email...';
+      feedbackEl.className = 'form-text mt-1 text-info';
+      emailInput.classList.remove('is-invalid', 'is-valid');
+      inviteBtn.disabled = true;
+      
+      // Debounce: wait 500ms before making the API call
+      emailValidationTimeout = setTimeout(async () => {
+        if (!currentWorkspace) {
+          feedbackEl.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Please select a workspace first';
+          feedbackEl.className = 'form-text mt-1 text-warning';
+          inviteBtn.disabled = true;
+          return;
+        }
+        
+        try {
+          const response = await fetch(
+            `/api/v1/workspaces/${currentWorkspace.id}/invitations/validate-email?email=${encodeURIComponent(email)}`,
+            {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+              }
+            }
+          );
+          
+          const data = await response.json();
+          lastValidatedEmail = email;
+          
+          if (data.valid) {
+            // Valid email
+            feedbackEl.innerHTML = `<i class="bi bi-check-circle"></i> ${data.message}`;
+            feedbackEl.className = 'form-text mt-1 text-success';
+            emailInput.classList.remove('is-invalid');
+            emailInput.classList.add('is-valid');
+            inviteBtn.disabled = false;
+          } else {
+            // Invalid email
+            feedbackEl.innerHTML = `<i class="bi bi-exclamation-triangle"></i> ${data.message}`;
+            feedbackEl.className = 'form-text mt-1 text-danger';
+            emailInput.classList.remove('is-valid');
+            emailInput.classList.add('is-invalid');
+            inviteBtn.disabled = true;
+          }
+        } catch (error) {
+          console.error('Email validation error:', error);
+          feedbackEl.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Unable to validate email';
+          feedbackEl.className = 'form-text mt-1 text-warning';
+          emailInput.classList.remove('is-invalid', 'is-valid');
+          inviteBtn.disabled = true;
+        }
+      }, 500);
+    }
+    
     async function inviteTeamMember() {
       if (!currentWorkspace) {
         showToast('Please select a workspace first', 'warning');
@@ -3105,8 +3748,15 @@
         return;
       }
       
+      // Re-validate before submitting
+      const emailInput = document.getElementById('inviteEmail');
+      if (!emailInput.classList.contains('is-valid')) {
+        showToast('Please fix the email validation errors before sending', 'danger');
+        return;
+      }
+      
       try {
-        const response = await fetch(`/api/v1/workspaces/${currentWorkspace.id}/invite`, {
+        const response = await fetch(`/api/v1/workspaces/${currentWorkspace.id}/invitations`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${authToken}`,
@@ -3122,8 +3772,15 @@
         
         showToast('Invitation sent successfully!', 'success');
         document.getElementById('inviteEmail').value = '';
+        document.getElementById('inviteEmailFeedback').innerHTML = '';
+        document.getElementById('inviteEmailFeedback').className = 'form-text mt-1';
+        emailInput.classList.remove('is-invalid', 'is-valid');
+        document.getElementById('inviteBtn').disabled = true;
+        lastValidatedEmail = '';
       } catch (error) {
         showToast(error.message || 'Failed to send invitation', 'danger');
+        // Re-validate to show error state
+        validateInviteEmail(email);
       }
     }
     
@@ -4058,6 +4715,10 @@
     
     // ==================== VOTING SYSTEM ====================
     
+    // Global state for pending votes (not yet submitted to server)
+    let pendingVotes = {}; // {theme_id: vote_count}
+    let votesSubmitted = false;
+    
     async function proceedToVoting(retroId) {
       try {
         // Start voting session
@@ -4077,6 +4738,10 @@
     }
     
     async function showVotingInterface(retroId) {
+      // Initialize voting state
+      pendingVotes = {};
+      votesSubmitted = false;
+      
       // Replace chat area with voting interface
       const chatSection = document.getElementById('retroChatSection');
       const chatContainer = chatSection.querySelector('.card-body');
@@ -4085,11 +4750,12 @@
         <div class="d-flex justify-content-between mb-3">
           <h5><i class="bi bi-hand-thumbs-up"></i> Vote on Themes</h5>
         </div>
-        <p class="text-muted mb-4">You have 10 votes to allocate to the most important themes.</p>
+        <p class="text-muted mb-4">You have 10 votes to allocate to the most important themes. <strong>Your votes won't be saved until you click Submit.</strong></p>
         
         <div id="voteCounter" class="card mb-4">
           <div class="card-body text-center">
-            <h4 class="mb-0">Votes: <span id="votesUsed">0</span>/10 used | <span id="votesRemaining">10</span> remaining</h4>
+            <h4 class="mb-0">Votes: <span id="votesUsed">0</span>/10 allocated</h4>
+            <small class="text-muted" id="voteStatus">Draft mode - not submitted</small>
           </div>
         </div>
         
@@ -4097,13 +4763,15 @@
           <!-- Loading themes... -->
         </div>
         
+        <div class="mt-4 mb-3">
+          <button id="submitVotesBtn" onclick="submitAllVotes(${retroId})" class="btn btn-primary btn-lg w-100" disabled>
+            <i class="bi bi-send"></i> Submit All Votes (<span id="totalPendingVotes">0</span>/10)
+          </button>
+        </div>
+        
         <div id="votingResults" class="mt-4">
           <!-- Results will appear here -->
         </div>
-        
-        <button onclick="finalizeVoting(${retroId})" class="btn btn-success btn-lg mt-4 w-100">
-          <i class="bi bi-check-circle"></i> Finalize Voting & Proceed to Discussion
-        </button>
       `;
       
       loadVotingStatus(retroId);
@@ -4122,15 +4790,18 @@
         
         const data = await response.json();
         
-        // Update vote counter
-        document.getElementById('votesUsed').textContent = data.votes_used;
-        document.getElementById('votesRemaining').textContent = data.votes_remaining;
+        // If user already submitted votes, show server data
+        if (votesSubmitted) {
+          displaySubmittedVotingInterface(data, retroId);
+          return;
+        }
         
-        // Display themes
+        // Display themes with local vote tracking
         const themesDiv = document.getElementById('votingThemes');
         let html = '';
         
         data.theme_votes.forEach(theme => {
+          const pendingCount = pendingVotes[theme.theme_id] || 0;
           html += `
             <div class="card mb-3">
               <div class="card-body">
@@ -4140,15 +4811,20 @@
                     <p style="color:#666; margin:0;">${escapeHtml(theme.theme_description)}</p>
                   </div>
                   <div style="text-align:center; margin-left:20px;">
-                    <div style="font-size:24px; font-weight:bold; color:#667eea;">${theme.total_votes}</div>
+                    <div style="font-size:20px; font-weight:bold; color:#667eea;">${theme.total_votes}</div>
                     <div style="font-size:12px; color:#888;">total votes</div>
                   </div>
                 </div>
                 <div style="margin-top:15px; display:flex; align-items:center; gap:10px;">
-                  <button onclick="castVote(${retroId}, ${theme.theme_id}, 1)" class="btn btn-sm btn-primary">
-                    <i class="bi bi-plus"></i> Vote
+                  <button onclick="adjustLocalVote(${retroId}, ${theme.theme_id}, 1)" class="btn btn-sm btn-primary">
+                    <i class="bi bi-plus"></i> +1
                   </button>
-                  <span style="color:#666;">Your votes: <strong>${theme.my_votes}</strong></span>
+                  <button onclick="adjustLocalVote(${retroId}, ${theme.theme_id}, -1)" class="btn btn-sm btn-outline-secondary" ${pendingCount === 0 ? 'disabled' : ''}>
+                    <i class="bi bi-dash"></i> -1
+                  </button>
+                  <span style="color:#666; margin-left:10px;">
+                    <strong id="pending-${theme.theme_id}">${pendingCount}</strong> pending
+                  </span>
                 </div>
               </div>
             </div>
@@ -4157,11 +4833,192 @@
         
         themesDiv.innerHTML = html;
         
-        // Show results (ranked)
-        displayVotingResults(data.theme_votes);
+        // Update button state
+        updateSubmitButton();
         
       } catch (error) {
         console.error('Load voting status error:', error);
+      }
+    }
+    
+    function displaySubmittedVotingInterface(data, retroId) {
+      // User has submitted, show read-only view with server data
+      const chatSection = document.getElementById('retroChatSection');
+      const chatContainer = chatSection.querySelector('.card-body');
+      
+      // Show coffee cup wait page if not all participants have voted
+      if (!data.all_participants_voted) {
+        chatContainer.innerHTML = `
+          <div class="text-center py-5">
+            <div style="font-size: 8rem; animation: float 3s ease-in-out infinite;">
+              ☕
+            </div>
+            <h3 class="mt-4 mb-3" style="color: #667eea;">Grab a Coffee While the Votes Are Being Collected</h3>
+            <p class="text-muted mb-4">
+              You've submitted your votes! Waiting for other participants to complete their voting.
+            </p>
+            <div class="alert alert-info d-inline-block">
+              <i class="bi bi-people"></i> 
+              <strong>${data.participants_who_voted}/${data.total_participants}</strong> participants have voted
+            </div>
+            <div class="progress mt-3" style="height: 25px; max-width: 400px; margin: 20px auto;">
+              <div class="progress-bar progress-bar-striped progress-bar-animated bg-info" 
+                   role="progressbar" 
+                   style="width: ${(data.participants_who_voted / data.total_participants) * 100}%"
+                   aria-valuenow="${data.participants_who_voted}" 
+                   aria-valuemin="0" 
+                   aria-valuemax="${data.total_participants}">
+                ${Math.round((data.participants_who_voted / data.total_participants) * 100)}%
+              </div>
+            </div>
+            <p class="text-muted mt-4">
+              <small>This page will automatically refresh when everyone has voted</small>
+            </p>
+          </div>
+        `;
+        
+        // Auto-refresh every 5 seconds
+        setTimeout(() => {
+          loadVotingStatus(retroId);
+        }, 5000);
+        return;
+      }
+      
+      // All participants voted - show summary
+      let html = `
+        <div class="d-flex justify-content-between mb-3">
+          <h5><i class="bi bi-hand-thumbs-up"></i> Your Votes (Submitted)</h5>
+        </div>
+        <div class="alert alert-success">
+          <i class="bi bi-check-circle"></i> All participants have completed voting!
+        </div>
+      `;
+      
+      data.theme_votes.forEach(theme => {
+        if (theme.my_votes > 0) {
+          html += `
+            <div class="card mb-2">
+              <div class="card-body">
+                <h6 style="color:#667eea; margin:0;">${escapeHtml(theme.theme_title)}</h6>
+                <p class="mb-0"><strong>Your votes:</strong> ${theme.my_votes}</p>
+              </div>
+            </div>
+          `;
+        }
+      });
+      
+      chatContainer.innerHTML = html;
+    }
+    
+    function adjustLocalVote(retroId, themeId, delta) {
+      // Update local pending votes
+      pendingVotes[themeId] = (pendingVotes[themeId] || 0) + delta;
+      
+      if (pendingVotes[themeId] <= 0) {
+        delete pendingVotes[themeId];
+      }
+      
+      // Update UI
+      const pendingElement = document.getElementById(`pending-${themeId}`);
+      if (pendingElement) {
+        pendingElement.textContent = pendingVotes[themeId] || 0;
+      }
+      
+      // Update counter and button
+      updateVoteCounter();
+      updateSubmitButton();
+      
+      // Re-enable/decrease buttons
+      const card = document.querySelector(`[onclick*="${themeId}"].card`);
+      if (card) {
+        const decreaseBtn = card.querySelector('[onclick*="-1"]');
+        if (decreaseBtn) {
+          decreaseBtn.disabled = (pendingVotes[themeId] || 0) === 0;
+        }
+      }
+    }
+    
+    function updateVoteCounter() {
+      const total = Object.values(pendingVotes).reduce((sum, v) => sum + v, 0);
+      const votesUsedEl = document.getElementById('votesUsed');
+      if (votesUsedEl) {
+        votesUsedEl.textContent = total;
+      }
+      const totalPendingEl = document.getElementById('totalPendingVotes');
+      if (totalPendingEl) {
+        totalPendingEl.textContent = total;
+      }
+    }
+    
+    function updateSubmitButton() {
+      const total = Object.values(pendingVotes).reduce((sum, v) => sum + v, 0);
+      const submitBtn = document.getElementById('submitVotesBtn');
+      if (submitBtn) {
+        submitBtn.disabled = total === 0 || total > 10;
+      }
+      
+      const statusEl = document.getElementById('voteStatus');
+      if (statusEl) {
+        if (total === 0) {
+          statusEl.textContent = 'No votes allocated yet';
+          statusEl.className = 'text-muted';
+        } else if (total > 10) {
+          statusEl.textContent = `Too many votes! (${total}/10)`;
+          statusEl.className = 'text-danger';
+        } else {
+          statusEl.textContent = `Draft mode - ${total}/10 votes allocated`;
+          statusEl.className = 'text-warning';
+        }
+      }
+    }
+    
+    async function submitAllVotes(retroId) {
+      const total = Object.values(pendingVotes).reduce((sum, v) => sum + v, 0);
+      
+      if (total === 0) {
+        showToast('Please allocate at least one vote', 'warning');
+        return;
+      }
+      
+      if (total > 10) {
+        showToast('You cannot allocate more than 10 votes', 'danger');
+        return;
+      }
+      
+      // Prepare batch request
+      const allocations = Object.entries(pendingVotes).map(([theme_id, votes]) => ({
+        theme_group_id: parseInt(theme_id),
+        votes: votes
+      }));
+      
+      try {
+        const response = await fetch(`/api/v1/voting/${retroId}/submit-votes`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            allocations: allocations
+          })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          showToast(data.message, 'success');
+          
+          // Mark as submitted
+          votesSubmitted = true;
+          
+          // Reload voting status (will show submitted view)
+          loadVotingStatus(retroId);
+        } else {
+          const error = await response.json();
+          showToast(error.detail || 'Failed to submit votes', 'danger');
+        }
+      } catch (error) {
+        console.error('Submit votes error:', error);
+        showToast('Failed to submit votes', 'danger');
       }
     }
     
@@ -4553,23 +5410,34 @@
         const priorityBadge = {
           'low': 'success',
           'medium': 'warning', 
-          'high': 'danger'
+          'high': 'danger',
+          'critical': 'dark'
         }[item.priority] || 'secondary';
 
         const statusBadge = {
           'pending': 'secondary',
           'in_progress': 'primary',
-          'completed': 'success'
+          'completed': 'success',
+          'cancelled': 'warning',
+          'blocked': 'danger'
         }[item.status] || 'secondary';
 
         const statusText = {
           'pending': 'Pending',
           'in_progress': 'In Progress',
-          'completed': 'Completed'
+          'completed': 'Completed',
+          'cancelled': 'Cancelled',
+          'blocked': 'Blocked'
         }[item.status] || item.status;
 
         const dueDate = item.due_date ? new Date(item.due_date).toLocaleDateString() : 'No due date';
         const isOverdue = item.due_date && new Date(item.due_date) < new Date() && item.status !== 'completed';
+        
+        const progress = item.progress_percentage || 0;
+        let progressColor = 'danger';
+        if (progress >= 75) progressColor = 'success';
+        else if (progress >= 50) progressColor = 'info';
+        else if (progress >= 25) progressColor = 'warning';
 
         html += `
           <div class="list-group-item ${item.status === 'completed' ? 'bg-light' : ''}">
@@ -4579,13 +5447,24 @@
                   ${escapeHtml(item.title)}
                 </h6>
                 ${item.description ? `<p class="mb-2 text-muted small">${escapeHtml(item.description)}</p>` : ''}
-                <div class="d-flex gap-2 flex-wrap">
+                <div class="d-flex gap-2 flex-wrap mb-2">
                   <span class="badge bg-${priorityBadge}">${item.priority.toUpperCase()}</span>
                   <span class="badge bg-${statusBadge}">${statusText}</span>
                   <span class="badge bg-info ${isOverdue ? 'bg-danger' : ''}">
                     <i class="bi bi-calendar me-1"></i>${dueDate}
                   </span>
                 </div>
+                ${progress > 0 ? `
+                  <div class="mt-2">
+                    <small class="text-muted">Progress:</small>
+                    <div class="progress" style="height: 8px; margin-top: 4px;">
+                      <div class="progress-bar bg-${progressColor}" role="progressbar" style="width: ${progress}%" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100">
+                        <span class="visually-hidden">${progress}%</span>
+                      </div>
+                    </div>
+                    <small class="text-muted">${progress}% complete</small>
+                  </div>
+                ` : ''}
               </div>
               <div class="btn-group ms-3">
                 ${item.status !== 'completed' ? `
@@ -4629,19 +5508,77 @@
       displayActionItems(filtered);
     }
 
-    function showCreateActionItemModal() {
+    async function showCreateActionItemModal() {
       const titleEl = document.getElementById('actionItemModalTitle');
       const formEl = document.getElementById('actionItemForm');
       const idEl = document.getElementById('actionItemId');
+      const retroIdEl = document.getElementById('actionItemRetrospectiveId');
+      const workspaceIdEl = document.getElementById('actionItemWorkspaceId');
+      const progressInput = document.getElementById('actionItemProgress');
+      const progressDisplay = document.getElementById('progressDisplay');
       
       if (titleEl) titleEl.textContent = 'Create Action Item';
       if (formEl) formEl.reset();
       if (idEl) idEl.value = '';
+      if (retroIdEl) retroIdEl.value = '';
+      if (workspaceIdEl) workspaceIdEl.value = '';
+      
+      // Set workspace context if in workspace view
+      if (currentWorkspace && workspaceIdEl) {
+        workspaceIdEl.value = currentWorkspace.id;
+      }
+      
+      // Reset progress display
+      if (progressInput) progressInput.value = 0;
+      if (progressDisplay) updateProgressDisplay(0);
+      
+      // Load assignees for workspace members
+      await loadActionItemAssignees();
       
       const modalEl = document.getElementById('actionItemModal');
       if (modalEl && typeof bootstrap !== 'undefined') {
         const modal = new bootstrap.Modal(modalEl);
         modal.show();
+      }
+    }
+    
+    let workspaceMembers = [];
+    
+    async function loadActionItemAssignees() {
+      const assignedSelect = document.getElementById('actionItemAssignedTo');
+      if (!assignedSelect) return;
+      
+      // If in workspace view, load workspace members
+      if (currentWorkspace) {
+        try {
+          const response = await fetch(`/api/v1/workspaces/${currentWorkspace.id}/members`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+          });
+          if (response.ok) {
+            workspaceMembers = await response.json();
+          }
+        } catch (error) {
+          console.error('Failed to load workspace members:', error);
+        }
+      }
+      
+      if (currentWorkspace && workspaceMembers && workspaceMembers.length > 0) {
+        assignedSelect.innerHTML = '<option value="">Unassigned</option>';
+        workspaceMembers.forEach(member => {
+          const option = document.createElement('option');
+          option.value = member.user_id || member.id;
+          option.textContent = member.full_name || member.email || member.username;
+          assignedSelect.appendChild(option);
+        });
+      } else {
+        // Otherwise, just load current user
+        assignedSelect.innerHTML = '<option value="">Unassigned</option>';
+        if (currentUser) {
+          const option = document.createElement('option');
+          option.value = currentUser.id || currentUser.uid;
+          option.textContent = currentUser.displayName || currentUser.email;
+          assignedSelect.appendChild(option);
+        }
       }
     }
 
@@ -4656,17 +5593,28 @@
       const prioritySelect = document.getElementById('actionItemPriority');
       const statusSelect = document.getElementById('actionItemStatus');
       const dueDateInput = document.getElementById('actionItemDueDate');
+      const assignedSelect = document.getElementById('actionItemAssignedTo');
+      const progressInput = document.getElementById('actionItemProgress');
+      const progressDisplay = document.getElementById('progressDisplay');
       
       if (titleEl) titleEl.textContent = 'Edit Action Item';
       if (idEl) idEl.value = item.id;
       if (titleInput) titleInput.value = item.title;
       if (descInput) descInput.value = item.description || '';
-      if (prioritySelect) prioritySelect.value = item.priority;
-      if (statusSelect) statusSelect.value = item.status;
+      if (prioritySelect) prioritySelect.value = item.priority || 'medium';
+      if (statusSelect) statusSelect.value = item.status || 'pending';
+      if (progressInput) progressInput.value = item.progress_percentage || 0;
+      if (progressDisplay) updateProgressDisplay(item.progress_percentage || 0);
       
       if (dueDateInput && item.due_date) {
         const date = new Date(item.due_date);
         dueDateInput.value = date.toISOString().split('T')[0];
+      }
+      
+      // Load assignees first, then set the selected value
+      await loadActionItemAssignees();
+      if (assignedSelect) {
+        assignedSelect.value = item.assigned_to || '';
       }
 
       const modalEl = document.getElementById('actionItemModal');
@@ -4687,15 +5635,21 @@
         return;
       }
 
+      const assignedTo = document.getElementById('actionItemAssignedTo')?.value;
+      const workspaceId = document.getElementById('actionItemWorkspaceId')?.value;
+      const retroId = document.getElementById('actionItemRetrospectiveId')?.value;
+      const progress = document.getElementById('actionItemProgress')?.value;
+
       const data = {
         title: title,
         description: document.getElementById('actionItemDescription')?.value.trim() || null,
         priority: document.getElementById('actionItemPriority')?.value,
         status: document.getElementById('actionItemStatus')?.value,
         due_date: document.getElementById('actionItemDueDate')?.value || null,
-        assigned_to: null,
-        workspace_id: null,
-        retrospective_id: null
+        assigned_to: assignedTo && assignedTo !== '' ? parseInt(assignedTo) : null,
+        workspace_id: workspaceId && workspaceId !== '' ? parseInt(workspaceId) : null,
+        retrospective_id: retroId && retroId !== '' ? parseInt(retroId) : null,
+        progress_percentage: progress ? parseInt(progress) : 0
       };
 
       try {
@@ -4729,6 +5683,23 @@
       } catch (error) {
         console.error('Error saving action item:', error);
         showToast('Failed to save: ' + error.message, 'danger');
+      }
+    }
+    
+    function updateProgressDisplay(value) {
+      const display = document.getElementById('progressDisplay');
+      if (display) {
+        display.textContent = value + '%';
+        // Update badge color based on progress
+        if (value < 25) {
+          display.className = 'badge bg-danger';
+        } else if (value < 50) {
+          display.className = 'badge bg-warning';
+        } else if (value < 75) {
+          display.className = 'badge bg-info';
+        } else {
+          display.className = 'badge bg-success';
+        }
       }
     }
 

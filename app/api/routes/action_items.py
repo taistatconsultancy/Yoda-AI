@@ -31,7 +31,7 @@ async def get_action_items(
     skip: int = 0,
     limit: int = 100,
     retrospective_id: int = None,
-    team_id: int = None,
+    workspace_id: int = None,
     status: str = None,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
@@ -43,7 +43,7 @@ async def get_action_items(
         skip=skip, 
         limit=limit,
         retrospective_id=retrospective_id,
-        team_id=team_id,
+        workspace_id=workspace_id,
         status=status
     )
     return [ActionItemResponse.from_orm(item) for item in action_items]
