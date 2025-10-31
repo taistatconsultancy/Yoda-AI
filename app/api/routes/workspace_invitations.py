@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.database.database import get_db
 from app.api.dependencies.auth import get_current_user
-from app.models.workspace import Workspace
+from app.models.workspace import Workspace, WorkspaceMember
 from app.models.workspace import WorkspaceInvitation
 from app.core.config import settings
 from app.services.email_service import EmailService
@@ -43,8 +43,17 @@ async def create_workspace_invitation(
     if not workspace:
         raise HTTPException(status_code=404, detail="Workspace not found")
 
-    # TODO: Proper permission check using membership role
-    # For now, allow any authenticated user who can access workspace to invite
+    # Check if user is owner or facilitator
+    membership = db.query(WorkspaceMember).filter(
+        WorkspaceMember.workspace_id == workspace_id,
+        WorkspaceMember.user_id == current_user.id,
+        WorkspaceMember.is_active == True
+    ).first()
+    
+    # Allow Scrum Master and Project Manager (workspace creators) to invite
+    allowed_roles = ['owner', 'facilitator', 'Scrum Master', 'Project Manager']
+    if not membership or membership.role not in allowed_roles:
+        raise HTTPException(status_code=403, detail="Only owners and facilitators can invite members")
 
     # Create invitation with 12-hour expiry
     token = generate_invite_token()
@@ -77,15 +86,28 @@ async def create_workspace_invitation(
           <p><a href=\"{invite_link}\" style=\"background:#667eea;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none;\">Accept Invitation</a></p>
           <p>Or paste this link into your browser:<br>{invite_link}</p>
         """
+        
+        # Print invitation link to console for testing
+        if not settings.ENABLE_EMAIL_NOTIFICATIONS:
+            print("="*60)
+            print("WORKSPACE INVITATION LINK (check console):")
+            print("="*60)
+            print(f"Invited by: {getattr(current_user, 'full_name', current_user.email)}")
+            print(f"Workspace: {workspace.name}")
+            print(f"Invitee: {invitation.email}")
+            print(f"Role: {invitation.role or 'member'}")
+            print(f"\nInvitation link: {invite_link}")
+            print("="*60)
+        
         EmailService().send_email(
             to_email=invitation.email,
             subject=subject,
             html_content=html,
             text_content=f"You were invited to {workspace.name}. Accept: {invite_link}"
         )
-    except Exception:
+    except Exception as e:
         # Do not fail the API if email sending fails; invitations can also be accepted in-app
-        pass
+        print(f"Email sending error: {e}")
 
     return {
         "id": invitation.id,

@@ -30,6 +30,7 @@ class ProxyRequest(BaseModel):
     current_step: Optional[str] = None
     chat_history: Optional[list] = None
     project_context: Optional[str] = None
+    workspace_id: Optional[int] = None
 
 
 @router.post("/proxy")
@@ -45,11 +46,26 @@ async def proxy_chat(request: ProxyRequest):
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"AI service unavailable: {e}")
 
     try:
+        # Derive uploaded_documents from workspace settings if id provided
+        uploaded_documents = None
+        if request.workspace_id:
+            from sqlalchemy.orm import Session
+            from app.database.database import SessionLocal
+            from app.models.workspace import Workspace
+            db: Session = SessionLocal()
+            try:
+                ws = db.query(Workspace).filter(Workspace.id == request.workspace_id).first()
+                if ws and ws.settings and ws.settings.get('reference_pdf'):
+                    uploaded_documents = f"Reference PDF: {ws.settings.get('reference_pdf')}"
+            finally:
+                db.close()
+
         resp = await ai_service.generate_retrospective_response(
             user_message=request.message,
             current_step=request.current_step or "liked",
             chat_history=request.chat_history or [],
-            project_context=request.project_context
+            project_context=request.project_context,
+            uploaded_documents=uploaded_documents
         )
 
         return {

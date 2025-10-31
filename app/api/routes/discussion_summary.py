@@ -14,7 +14,7 @@ from openai import OpenAI
 from app.database.database import get_db
 from app.models.retrospective_new import (
     Retrospective, DiscussionTopic, DiscussionMessage, ThemeGroup,
-    RetrospectiveParticipant, RetrospectiveResponse
+    RetrospectiveParticipant, RetrospectiveResponse, DARecommendation
 )
 from app.models.user import User
 from app.api.dependencies.auth import get_current_user
@@ -347,6 +347,9 @@ Return JSON:
 """
         
         try:
+            print(f"Generating summary for retrospective {retro_id}")
+            print(f"Data summary: {json.dumps(data_summary, indent=2)}")
+            
             response = client.chat.completions.create(
                 model="gpt-4",
                 messages=[
@@ -358,10 +361,16 @@ Return JSON:
                 response_format={"type": "json_object"}
             )
             
-            summary_data = json.loads(response.choices[0].message.content)
+            print(f"OpenAI response received")
+            content = response.choices[0].message.content
+            print(f"Response content: {content[:200]}...")
+            
+            summary_data = json.loads(content)
             
         except Exception as ai_error:
+            import traceback
             print(f"OpenAI summary error: {ai_error}")
+            print(f"Traceback: {traceback.format_exc()}")
             summary_data = {
                 "summary": "Summary generation failed. Please review the retrospective data manually.",
                 "achievements": [],
@@ -434,3 +443,248 @@ async def get_summary(
         print(f"Get summary error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch summary: {str(e)}")
 
+
+# ============================================================================
+# DA BROWSER RECOMMENDATIONS
+# ============================================================================
+
+@router.get("/{retro_id}/da-recommendations")
+async def get_da_recommendations(
+    retro_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Generate DA Browser recommendations based on discussion topics
+    """
+    try:
+        retro = db.query(Retrospective).filter(Retrospective.id == retro_id).first()
+        
+        if not retro:
+            raise HTTPException(status_code=404, detail="Retrospective not found")
+        
+        # Verify participant
+        participant = db.query(RetrospectiveParticipant).filter(
+            RetrospectiveParticipant.retrospective_id == retro_id,
+            RetrospectiveParticipant.user_id == current_user.id
+        ).first()
+        
+        if not participant:
+            raise HTTPException(status_code=403, detail="Not a participant")
+        
+        # Get top themes for discussion
+        topics = db.query(DiscussionTopic, ThemeGroup).join(
+            ThemeGroup, DiscussionTopic.theme_group_id == ThemeGroup.id
+        ).filter(
+            DiscussionTopic.retrospective_id == retro_id
+        ).order_by(DiscussionTopic.total_votes.desc()).limit(5).all()
+        
+        # Read disciplined_agile_scrape.md
+        da_guide = ""
+        try:
+            da_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "disciplined_agile_scrape.md")
+            with open(da_path, 'r', encoding='utf-8') as f:
+                da_guide = f.read()[:5000]  # Limit to first 5000 chars
+        except Exception as e:
+            print(f"Could not read DA guide: {e}")
+        
+        # Build prompt for AI
+        themes_text = "\n".join([
+            f"- {theme.title}: {theme.description} (Votes: {topic.total_votes})"
+            for topic, theme in topics
+        ])
+        
+        prompt = f"""Based on the following themes from a team retrospective, provide specific Disciplined Agile recommendations.
+
+Key Themes Discussed:
+{themes_text}
+
+Disciplined Agile Framework Overview:
+{da_guide[:2000]}
+
+Generate a concise 1-page summary with:
+1. Specific DA practices that address these themes
+2. Recommended workflow improvements
+3. Tools and techniques to implement
+
+Format as clear, actionable recommendations suitable for a team to implement."""
+        
+        # Check if DA recommendations already exist in database
+        existing_da_rec = db.query(DARecommendation).filter(
+            DARecommendation.retrospective_id == retro_id
+        ).first()
+        
+        if existing_da_rec:
+            return {
+                "content": existing_da_rec.content
+            }
+        
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are a Disciplined Agile expert providing actionable recommendations."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.6,
+                max_tokens=1500
+            )
+            
+            recommendations = response.choices[0].message.content
+            
+            # Store DA recommendations in database
+            da_rec = DARecommendation(
+                retrospective_id=retro_id,
+                content=recommendations,
+                ai_model="gpt-4"
+            )
+            db.add(da_rec)
+            db.commit()
+            
+        except Exception as ai_error:
+            print(f"OpenAI DA recommendations error: {ai_error}")
+            recommendations = "No specific recommendations available at this time. Please review the Disciplined Agile framework for guidance."
+        
+        return {
+            "content": recommendations
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Get DA recommendations error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate recommendations: {str(e)}")
+
+
+# ============================================================================
+# PDF DOWNLOAD
+# ============================================================================
+
+@router.get("/{retro_id}/summary/pdf")
+async def download_summary_pdf(
+    retro_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Generate and download summary as PDF
+    """
+    from fastapi.responses import Response
+    
+    try:
+        retro = db.query(Retrospective).filter(Retrospective.id == retro_id).first()
+        
+        if not retro:
+            raise HTTPException(status_code=404, detail="Retrospective not found")
+        
+        # Verify participant
+        participant = db.query(RetrospectiveParticipant).filter(
+            RetrospectiveParticipant.retrospective_id == retro_id,
+            RetrospectiveParticipant.user_id == current_user.id
+        ).first()
+        
+        if not participant:
+            raise HTTPException(status_code=403, detail="Not a participant")
+        
+        if not retro.ai_summary:
+            raise HTTPException(status_code=404, detail="Summary not yet generated")
+        
+        insights = retro.ai_insights or {}
+        
+        # Generate PDF using reportlab or similar
+        try:
+            from reportlab.lib.pagesizes import letter
+            from reportlab.lib import colors
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
+            from reportlab.lib.units import inch
+            import io
+            
+            buffer = io.BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=letter,
+                                  rightMargin=72, leftMargin=72,
+                                  topMargin=72, bottomMargin=18)
+            
+            # Container for the 'Flowable' objects
+            elements = []
+            
+            # Define styles
+            styles = getSampleStyleSheet()
+            title_style = ParagraphStyle(
+                'CustomTitle',
+                parent=styles['Heading1'],
+                fontSize=24,
+                textColor=colors.HexColor('#667eea'),
+                spaceAfter=30,
+            )
+            heading_style = ParagraphStyle(
+                'CustomHeading',
+                parent=styles['Heading2'],
+                fontSize=16,
+                textColor=colors.HexColor('#667eea'),
+                spaceAfter=12,
+            )
+            
+            # Title
+            elements.append(Paragraph(f"Sprint Summary - {retro.sprint_name or 'Unnamed Sprint'}", title_style))
+            elements.append(Spacer(1, 0.2*inch))
+            
+            # Overall Assessment
+            elements.append(Paragraph("Overall Assessment", heading_style))
+            elements.append(Paragraph(retro.ai_summary, styles['Normal']))
+            elements.append(Spacer(1, 0.3*inch))
+            
+            # Achievements
+            achievements = insights.get('achievements', [])
+            if achievements:
+                elements.append(Paragraph("Top Achievements", heading_style))
+                for achievement in achievements:
+                    elements.append(Paragraph(f"• {achievement}", styles['Normal']))
+                elements.append(Spacer(1, 0.3*inch))
+            
+            # Challenges
+            challenges = insights.get('challenges', [])
+            if challenges:
+                elements.append(Paragraph("Main Challenges", heading_style))
+                for challenge in challenges:
+                    elements.append(Paragraph(f"• {challenge}", styles['Normal']))
+                elements.append(Spacer(1, 0.3*inch))
+            
+            # Recommendations
+            recommendations = insights.get('recommendations', [])
+            if recommendations:
+                elements.append(Paragraph("Recommendations", heading_style))
+                for recommendation in recommendations:
+                    elements.append(Paragraph(f"• {recommendation}", styles['Normal']))
+                elements.append(Spacer(1, 0.3*inch))
+            
+            # Build PDF
+            doc.build(elements)
+            
+            # Get the value of the BytesIO buffer
+            pdf = buffer.getvalue()
+            buffer.close()
+            
+            # Return PDF
+            return Response(
+                content=pdf,
+                media_type="application/pdf",
+                headers={
+                    "Content-Disposition": f"attachment; filename=sprint_summary_{retro.sprint_name or retro_id}.pdf"
+                }
+            )
+            
+        except ImportError:
+            raise HTTPException(
+                status_code=500, 
+                detail="PDF generation requires reportlab. Install with: pip install reportlab"
+            )
+        except Exception as pdf_error:
+            print(f"PDF generation error: {pdf_error}")
+            raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {str(pdf_error)}")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Download summary PDF error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to download PDF: {str(e)}")

@@ -7,6 +7,8 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime, timedelta, timezone
+import secrets
+import string
 
 from app.database.database import get_db
 from app.models.retrospective_new import (
@@ -38,6 +40,7 @@ class RetrospectiveCreate(BaseModel):
 class RetrospectiveResponse(BaseModel):
     id: int
     workspace_id: int
+    code: str
     title: str
     description: str = None
     sprint_name: str = None
@@ -91,13 +94,30 @@ async def create_retrospective(
         if not membership:
             raise HTTPException(status_code=403, detail="You are not a member of this workspace")
         
-        # Check if user is facilitator or owner
-        if membership.role not in ['owner', 'facilitator']:
+        # Check if user is facilitator or owner (Scrum Master and Project Manager are facilitators)
+        allowed_roles = ['owner', 'facilitator', 'Scrum Master', 'Project Manager']
+        if membership.role not in allowed_roles:
             raise HTTPException(status_code=403, detail="Only facilitators and owners can create retrospectives")
+        
+        # Generate unique 5-character code
+        def generate_code():
+            """Generate a random 5-character alphanumeric code"""
+            alphabet = string.ascii_uppercase + string.digits
+            # Exclude similar-looking characters
+            alphabet = ''.join(c for c in alphabet if c not in '0O1IL')
+            while True:
+                code = ''.join(secrets.choice(alphabet) for _ in range(5))
+                # Check if code already exists
+                existing = db.query(Retrospective).filter(Retrospective.code == code).first()
+                if not existing:
+                    return code
+        
+        retro_code = generate_code()
         
         # Create retrospective
         new_retro = Retrospective(
             workspace_id=retro_data.workspace_id,
+            code=retro_code,
             title=retro_data.title,
             description=retro_data.description,
             sprint_name=retro_data.sprint_name,
@@ -154,7 +174,7 @@ async def create_retrospective(
             
             # Send calendar invites to all participants
             email_service = EmailService()
-            retro_link = f"{settings.APP_URL}/retrospectives/{new_retro.id}"
+            retro_link = f"{settings.APP_URL}/ui/retrospective.html/{retro_code}"
             
             for member in members:
                 user = db.query(User).filter(User.id == member.user_id).first()
@@ -178,6 +198,7 @@ async def create_retrospective(
         return RetrospectiveResponse(
             id=new_retro.id,
             workspace_id=new_retro.workspace_id,
+            code=new_retro.code,
             title=new_retro.title,
             description=new_retro.description,
             sprint_name=new_retro.sprint_name,
@@ -239,6 +260,7 @@ async def get_retrospectives(
         return [RetrospectiveResponse(
             id=r.id,
             workspace_id=r.workspace_id,
+            code=r.code,
             title=r.title,
             description=r.description,
             sprint_name=r.sprint_name,
@@ -285,6 +307,7 @@ async def get_workspace_retrospectives(
         return [RetrospectiveResponse(
             id=r.id,
             workspace_id=r.workspace_id,
+            code=r.code,
             title=r.title,
             description=r.description,
             sprint_name=r.sprint_name,
@@ -303,6 +326,54 @@ async def get_workspace_retrospectives(
     except Exception as e:
         print(f"Get retrospectives error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch retrospectives: {str(e)}")
+
+
+@router.get("/code/{code}", response_model=RetrospectiveResponse)
+async def get_retrospective_by_code(
+    code: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get retrospective by access code
+    """
+    try:
+        retro = db.query(Retrospective).filter(Retrospective.code == code).first()
+        
+        if not retro:
+            raise HTTPException(status_code=404, detail="Retrospective not found")
+        
+        # Verify user is participant
+        participant = db.query(RetrospectiveParticipant).filter(
+            RetrospectiveParticipant.retrospective_id == retro.id,
+            RetrospectiveParticipant.user_id == current_user.id
+        ).first()
+        
+        if not participant:
+            raise HTTPException(status_code=403, detail="You are not a participant in this retrospective")
+        
+        return RetrospectiveResponse(
+            id=retro.id,
+            workspace_id=retro.workspace_id,
+            code=retro.code,
+            title=retro.title,
+            description=retro.description,
+            sprint_name=retro.sprint_name,
+            facilitator_id=retro.facilitator_id,
+            scheduled_start_time=retro.scheduled_start_time,
+            scheduled_end_time=retro.scheduled_end_time,
+            actual_start_time=retro.actual_start_time,
+            actual_end_time=retro.actual_end_time,
+            status=retro.status,
+            current_phase=retro.current_phase,
+            created_at=retro.created_at
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Get retrospective by code error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch retrospective: {str(e)}")
 
 
 @router.get("/{retro_id}", response_model=RetrospectiveResponse)
@@ -332,6 +403,7 @@ async def get_retrospective(
         return RetrospectiveResponse(
             id=retro.id,
             workspace_id=retro.workspace_id,
+            code=retro.code,
             title=retro.title,
             description=retro.description,
             sprint_name=retro.sprint_name,

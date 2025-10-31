@@ -19,6 +19,7 @@ class ActionItemCreate(ActionItemBase):
     """Schema for creating an action item"""
     assigned_to: Optional[int] = None
     retrospective_id: Optional[int] = None
+    workspace_id: Optional[int] = None
     team_id: Optional[int] = None
 
 
@@ -37,8 +38,9 @@ class ActionItemResponse(ActionItemBase):
     id: int
     status: str  # "pending", "in_progress", "completed", "cancelled"
     assigned_to: Optional[int]
-    assigned_by: int
+    created_by: int
     retrospective_id: Optional[int]
+    workspace_id: Optional[int]
     team_id: Optional[int]
     ai_generated: bool
     ai_confidence: Optional[int]

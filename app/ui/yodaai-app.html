@@ -297,23 +297,29 @@
 
     .login-modal-content {
       background: white;
-      border-radius: 20px;
-      padding: 40px;
-      max-width: 450px;
-      width: 90%;
+      border-radius: 16px;
+      padding: 20px; /* tighter padding to reduce visual height */
+      max-width: 380px; /* reduce modal width for better focus */
+      width: 92%;
+      max-height: 85vh; /* increased height cap per request */
+      overflow-y: auto;  /* allow scroll if content exceeds cap */
       position: relative;
     }
+    .login-modal-content h1 { margin-bottom: 10px; }
+    .login-modal-content .mb-4 { margin-bottom: 14px !important; }
 
     .close-modal {
       position: absolute;
-      top: 15px;
-      right: 20px;
+      top: 10px;
+      right: 12px;
       background: none;
       border: none;
-      font-size: 28px;
+      font-size: 26px;
+      line-height: 1;
       cursor: pointer;
-      color: #666;
+      color: #333;
     }
+    .close-modal:hover { color: #000; }
 
     /* ==================== APP (Hidden until login) ==================== */
     .app-container {
@@ -402,6 +408,15 @@
     }
 
     .content-section.active {
+      display: block;
+    }
+
+    /* Workspace Tabs */
+    .workspace-tab {
+      display: none;
+    }
+
+    .workspace-tab.active {
       display: block;
     }
 
@@ -550,6 +565,60 @@
     @keyframes spin {
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
+    }
+    
+    /* 4Ls Category Styles */
+    .fourls-category {
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-left: 4px solid;
+    }
+    
+    .fourls-category.liked { border-color: #10b981; }
+    .fourls-category.learned { border-color: #3b82f6; }
+    .fourls-category.lacked { border-color: #f59e0b; }
+    .fourls-category.longed { border-color: #8b5cf6; }
+    
+    .theme-item {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 12px 15px;
+      margin-bottom: 10px;
+      cursor: move;
+      transition: all 0.2s;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .theme-item:hover {
+      background: #f3f4f6;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .theme-item.dragging {
+      opacity: 0.5;
+    }
+    
+    .themes-list {
+      min-height: 50px;
+    }
+    
+    .da-recommendation {
+      background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+      border-radius: 10px;
+      padding: 20px;
+      margin-top: 20px;
+      border-left: 4px solid #f59e0b;
+    }
+    
+    .da-recommendation h5 {
+      color: #92400e;
+      font-weight: 600;
+      margin-bottom: 15px;
     }
   </style>
 </head>
@@ -865,28 +934,15 @@
             <i class="bi bi-grid"></i><span>Dashboard</span>
           </a>
         </li>
-        <li class="nav-item">
-          <a class="nav-link" href="#" onclick="showSection('onboarding')">
-            <i class="bi bi-person-check"></i><span>Onboarding</span>
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="#" onclick="showCreateWorkspaceModal()">
-            <i class="bi bi-building"></i><span>Workspace</span>
-          </a>
-        </li>
+        <!-- Onboarding and Workspace nav removed; onboarding will live inside a workspace -->
         <li class="nav-item">
           <a class="nav-link" href="#" onclick="showSection('retrospectives')">
             <i class="bi bi-chat-dots"></i><span>Retrospectives</span>
           </a>
         </li>
+        <!-- Teams nav removed per request -->
         <li class="nav-item">
-          <a class="nav-link" href="#" onclick="showSection('teams')">
-            <i class="bi bi-people"></i><span>Teams</span>
-          </a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="#" onclick="showSection('action-items')">
+          <a class="nav-link" href="#" onclick="showSection('actionitems')">
             <i class="bi bi-check2-square"></i><span>Action Items</span>
           </a>
         </li>
@@ -895,11 +951,7 @@
             <i class="bi bi-graph-up"></i><span>Analytics</span>
           </a>
         </li>
-        <li class="nav-item">
-          <a class="nav-link" href="#" onclick="showSection('documents')">
-            <i class="bi bi-file-earmark-pdf"></i><span>Documents</span>
-          </a>
-        </li>
+        <!-- Documents nav removed per request -->
       </ul>
     </aside>
 
@@ -914,43 +966,10 @@
           <div class="card-body">
             <h5>Welcome back, <span id="welcomeName">User</span>!</h5>
             <p class="text-muted">Ready to conduct another insightful retrospective? Let's help your team reflect, learn, and improve together.</p>
-            <div id="workspaceList" class="mt-3"></div>
-            <div id="invitesBanner" class="mt-3"></div>
           </div>
         </div>
 
-        <div class="row">
-          
-          <div class="col-lg-4 mb-4">
-            <div class="card h-100 text-center">
-              <div class="card-body">
-                <i class="bi bi-plus-circle display-1 text-primary"></i>
-                <h5 class="mt-3">Create Retrospective</h5>
-                <p class="text-muted">Create new 4Ls retro with AI</p>
-                <button class="btn btn-primary w-100" onclick="showCreateRetroModal()">
-                  <i class="bi bi-rocket"></i> Create Retro
-                </button>
-              </div>
-            </div>
-          </div>
-
-          
-
-          <div class="col-lg-4 mb-4">
-            <div class="card h-100 text-center">
-              <div class="card-body">
-                <i class="bi bi-people display-1 text-warning"></i>
-                <h5 class="mt-3">Teams</h5>
-                <p class="text-muted">Add members & roles</p>
-                <button class="btn btn-warning w-100" onclick="showSection('teams')">
-                  <i class="bi bi-gear"></i> Manage
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
+        <div class="card mb-4">
           <div class="card-body">
             <h5>Recent Activity</h5>
             <div id="recentActivity">
@@ -958,85 +977,17 @@
             </div>
           </div>
         </div>
-      </section>
-
-      <!-- Onboarding -->
-      <section id="onboardingSection" class="content-section">
-        <h1 class="mb-4">Welcome! Let's Get Started</h1>
 
         <div class="card">
           <div class="card-body">
-            <h5>Setup Progress</h5>
-            <div class="progress mb-4" style="height: 20px;">
-              <div class="progress-bar" id="progressBar" style="width: 0%">
-                <span id="onboardingProgress">0%</span>
-              </div>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5 class="mb-0">Workspaces</h5>
+              <button class="btn btn-info btn-sm" onclick="showCreateWorkspaceModal()">
+                <i class="bi bi-plus-circle"></i> Create Workspace
+              </button>
             </div>
-
-            <div class="row g-3">
-              <div class="col-md-6">
-                <div class="card border-start border-primary border-4">
-                  <div class="card-body">
-                    <h6><i class="bi bi-1-circle-fill text-primary"></i> Workspace Setup</h6>
-                    <p class="text-muted small">Create your workspace</p>
-                    <button class="btn btn-sm btn-primary" onclick="completeStep('workspace_setup')">Complete</button>
-                  </div>
-                </div>
-              </div>
-
-              <div class="col-md-6">
-                <div class="card border-start border-success border-4">
-                  <div class="card-body">
-                    <h6><i class="bi bi-2-circle-fill text-success"></i> Connect Calendar <span class="badge bg-secondary">Optional</span></h6>
-                    <p class="text-muted small">Connect work calendar</p>
-                    <button class="btn btn-sm btn-success" onclick="completeStep('calendar_connected')">Connect</button>
-                    <button class="btn btn-sm btn-outline-secondary" onclick="skipStep('calendar_connected')">Skip</button>
-                  </div>
-                </div>
-              </div>
-
-              <div class="col-md-6">
-                <div class="card border-start border-warning border-4">
-                  <div class="card-body">
-                    <h6><i class="bi bi-3-circle-fill text-warning"></i> Add Team <span class="badge bg-secondary">Optional</span></h6>
-                    <p class="text-muted small">Add team and assign roles</p>
-                    <button class="btn btn-sm btn-warning" onclick="showSection('teams')">Add Team</button>
-                    <button class="btn btn-sm btn-outline-secondary" onclick="skipStep('team_members_added')">Skip</button>
-                  </div>
-                </div>
-              </div>
-
-              <div class="col-md-6">
-                <div class="card border-start border-info border-4">
-                  <div class="card-body">
-                    <h6><i class="bi bi-4-circle-fill text-info"></i> Import Data <span class="badge bg-secondary">Optional</span></h6>
-                    <p class="text-muted small">Upload project documents</p>
-                    <button class="btn btn-sm btn-info" onclick="showSection('documents')">Upload</button>
-                    <button class="btn btn-sm btn-outline-secondary" onclick="skipStep('project_data_imported')">Skip</button>
-                  </div>
-                </div>
-              </div>
-
-              <div class="col-md-6">
-                <div class="card border-start border-danger border-4">
-                  <div class="card-body">
-                    <h6><i class="bi bi-5-circle-fill text-danger"></i> Schedule First Retro</h6>
-                    <p class="text-muted small">Schedule first retrospective</p>
-                    <button class="btn btn-sm btn-danger" onclick="showSection('schedule')">Schedule</button>
-                  </div>
-                </div>
-              </div>
-
-              <div class="col-md-6">
-                <div class="card border-start border-dark border-4">
-                  <div class="card-body">
-                    <h6><i class="bi bi-6-circle-fill text-dark"></i> Setup Check-ins <span class="badge bg-secondary">Optional</span></h6>
-                    <p class="text-muted small">Configure automated tracking</p>
-                    <button class="btn btn-sm btn-dark" onclick="completeStep('check_ins_configured')">Configure</button>
-                    <button class="btn btn-sm btn-outline-secondary" onclick="skipStep('check_ins_configured')">Skip</button>
-                  </div>
-                </div>
-              </div>
+            <div id="workspacesList">
+              <p class="text-muted">No workspaces yet. Create your first workspace to get started!</p>
             </div>
           </div>
         </div>
@@ -1063,49 +1014,8 @@
         <!-- 4Ls Chat Interface (hidden until retro starts) -->
         <div id="retroChatSection" style="display:none;">
           <div class="row">
-            <!-- LEFT: Progress Overview Sidebar -->
-            <div class="col-lg-3">
-              <div class="card sticky-top" style="top: 20px;">
-                <div class="card-body">
-                  <h5 class="mb-3" style="color:#667eea;">
-                    <i class="bi bi-list-check"></i> Progress Overview
-                  </h5>
-                  
-                  <div id="retro-progress-liked" class="progress-item mb-2 p-3 rounded border" style="cursor:pointer; background:#fff;" onclick="focusRetroCategory('liked')">
-                    <span id="retro-check-liked" style="font-size:20px; margin-right:10px;">☐</span>
-                    <strong>Liked</strong>
-                  </div>
-                  
-                  <div id="retro-progress-learned" class="progress-item mb-2 p-3 rounded border" style="cursor:pointer; background:#fff;" onclick="focusRetroCategory('learned')">
-                    <span id="retro-check-learned" style="font-size:20px; margin-right:10px;">☐</span>
-                    <strong>Learned</strong>
-                  </div>
-                  
-                  <div id="retro-progress-lacked" class="progress-item mb-2 p-3 rounded border" style="cursor:pointer; background:#fff;" onclick="focusRetroCategory('lacked')">
-                    <span id="retro-check-lacked" style="font-size:20px; margin-right:10px;">☐</span>
-                    <strong>Lacked</strong>
-                  </div>
-                  
-                  <div id="retro-progress-longed_for" class="progress-item mb-2 p-3 rounded border" style="cursor:pointer; background:#fff;" onclick="focusRetroCategory('longed_for')">
-                    <span id="retro-check-longed_for" style="font-size:20px; margin-right:10px;">☐</span>
-                    <strong>Longed For</strong>
-                  </div>
-                  
-                  <hr class="my-3">
-                  
-                  <div class="text-center mb-2">
-                    <small class="text-muted">Ready to move forward?</small>
-                  </div>
-                  
-                  <button id="retroFinishButton" onclick="finishRetroAndProceed()" class="btn btn-success w-100">
-                    <i class="bi bi-check-circle"></i> Finish & Proceed to Grouping
-                  </button>
-                </div>
-              </div>
-            </div>
-            
-            <!-- RIGHT: Chat Area -->
-            <div class="col-lg-9">
+            <!-- Chat Area (Full Width) -->
+            <div class="col-12">
               <div class="card">
                 <div class="card-body">
                   <div class="d-flex justify-content-between mb-3">
@@ -1126,6 +1036,13 @@
                     <input type="text" id="retroChatInput" class="form-control" placeholder="Type your response..." onkeypress="if(event.key==='Enter') sendRetroMessage()">
                     <button id="sendRetroBtn" class="btn btn-primary" onclick="sendRetroMessage()" style="min-width: 100px;">
                       <i class="bi bi-send-fill"></i> Send
+                    </button>
+                  </div>
+                  
+                  <!-- Finish Button -->
+                  <div class="mt-3">
+                    <button id="retroFinishButton" onclick="finishRetroAndProceed()" class="btn btn-success w-100">
+                      <i class="bi bi-check-circle"></i> Finish & Proceed to Grouping
                     </button>
                   </div>
                 </div>
@@ -1204,6 +1121,247 @@
         </div>
       </section>
 
+      <!-- Workspace Detail View -->
+      <section id="workspaceDetailSection" class="content-section">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <div>
+            <button class="btn btn-outline-secondary btn-sm mb-2" onclick="exitWorkspace()">
+              <i class="bi bi-arrow-left"></i> Back to Dashboard
+            </button>
+            <h1 class="mb-0" id="workspaceDetailName">Workspace</h1>
+            <p class="text-muted" id="workspaceDetailDesc"></p>
+          </div>
+          <div>
+            <button class="btn btn-primary" onclick="showCreateRetroModal()">
+              <i class="bi bi-plus-circle"></i> Create Retrospective
+            </button>
+          </div>
+        </div>
+
+        <!-- Workspace Tabs -->
+        <ul class="nav nav-tabs mb-4" id="workspaceTabs">
+          <li class="nav-item">
+            <a class="nav-link active" href="#" onclick="showWorkspaceTab('onboarding'); return false;">
+              <i class="bi bi-rocket-takeoff"></i> Getting Started
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#" onclick="showWorkspaceTab('retrospectives'); return false;">
+              <i class="bi bi-chat-dots"></i> Retrospectives
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#" onclick="showWorkspaceTab('action-items'); return false;">
+              <i class="bi bi-check2-square"></i> Action Items
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#" onclick="showWorkspaceTab('team'); return false;">
+              <i class="bi bi-people"></i> Team Members
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#" onclick="showWorkspaceTab('settings'); return false;">
+              <i class="bi bi-gear"></i> Settings
+            </a>
+          </li>
+        </ul>
+
+        <!-- Workspace Tab Content -->
+        <div id="workspaceTabContent">
+          
+          <!-- Onboarding Tab -->
+          <div id="workspace-onboarding-tab" class="workspace-tab active">
+            <h3 class="mb-4">Welcome! Let's Get Started</h3>
+
+            <div class="card">
+              <div class="card-body">
+                <h5>Setup Progress</h5>
+                <div class="progress mb-4" style="height: 20px;">
+                  <div class="progress-bar" id="workspaceProgressBar" style="width: 0%">
+                    <span id="workspaceOnboardingProgress">0%</span>
+                  </div>
+                </div>
+
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <div class="card border-start border-primary border-4">
+                      <div class="card-body">
+                        <h6><i class="bi bi-1-circle-fill text-primary"></i> Workspace Setup</h6>
+                        <p class="text-muted small">Workspace created successfully!</p>
+                        <button class="btn btn-sm btn-success" disabled>
+                          <i class="bi bi-check-lg"></i> Completed
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="col-md-6">
+                    <div class="card border-start border-success border-4">
+                      <div class="card-body">
+                        <h6><i class="bi bi-2-circle-fill text-success"></i> Upload Documents</h6>
+                        <p class="text-muted small">Upload project PDFs for AI context</p>
+                        <div id="workspaceDocumentStatus">
+                          <div class="mb-2">
+                            <input type="file" class="form-control form-control-sm" id="additionalWorkspaceDoc" accept=".pdf">
+                          </div>
+                          <button class="btn btn-sm btn-success" onclick="uploadAdditionalDocument()">
+                            <i class="bi bi-upload"></i> Upload
+                          </button>
+                          <button class="btn btn-sm btn-info ms-2" onclick="generateDocumentSummary()">
+                            <i class="bi bi-cpu"></i> AI Summary
+                          </button>
+                        </div>
+                        <div id="uploadedDocsList" class="mt-3"></div>
+                        <div id="docSummary" class="mt-3" style="display:none;">
+                          <div class="alert alert-info">
+                            <strong>AI Summary:</strong>
+                            <p class="mb-0 mt-2" id="docSummaryText"></p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="col-md-6">
+                    <div class="card border-start border-warning border-4">
+                      <div class="card-body">
+                        <h6><i class="bi bi-3-circle-fill text-warning"></i> Add Team Members</h6>
+                        <p class="text-muted small">Invite team to workspace</p>
+                        <button class="btn btn-sm btn-warning" onclick="showWorkspaceTab('team')">
+                          <i class="bi bi-person-plus"></i> Add Members
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="col-md-6">
+                    <div class="card border-start border-info border-4">
+                      <div class="card-body">
+                        <h6><i class="bi bi-4-circle-fill text-info"></i> Review DA Guide</h6>
+                        <p class="text-muted small">Learn about Disciplined Agile</p>
+                        <button class="btn btn-sm btn-info" onclick="completeWorkspaceStep('da_guide_reviewed')">Review</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="col-md-6">
+                    <div class="card border-start border-danger border-4">
+                      <div class="card-body">
+                        <h6><i class="bi bi-5-circle-fill text-danger"></i> Create First Retrospective</h6>
+                        <p class="text-muted small">Start your first retro session</p>
+                        <button class="btn btn-sm btn-danger" onclick="showCreateRetroModal()">
+                          <i class="bi bi-plus-circle"></i> Create Retro
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="col-md-6">
+                    <div class="card border-start border-dark border-4">
+                      <div class="card-body">
+                        <h6><i class="bi bi-6-circle-fill text-dark"></i> Setup Notifications <span class="badge bg-secondary">Optional</span></h6>
+                        <p class="text-muted small">Configure email notifications</p>
+                        <button class="btn btn-sm btn-dark" onclick="completeWorkspaceStep('notifications_configured')">Configure</button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="skipWorkspaceStep('notifications_configured')">Skip</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Retrospectives Tab -->
+          <div id="workspace-retrospectives-tab" class="workspace-tab">
+            <h3 class="mb-4">Retrospectives</h3>
+            <div class="card">
+              <div class="card-body text-center py-5">
+                <i class="bi bi-rocket-takeoff display-1 text-primary mb-3"></i>
+                <h4>Ready to Start a Retrospective?</h4>
+                <p class="text-muted">Create a new retrospective to begin the 4Ls process</p>
+                <button class="btn btn-primary btn-lg" onclick="showCreateRetroModal()">
+                  <i class="bi bi-plus-circle"></i> Create Retrospective
+                </button>
+              </div>
+            </div>
+            <div id="workspaceRetrosList" class="mt-4"></div>
+          </div>
+
+          <!-- Action Items Tab -->
+          <div id="workspace-action-items-tab" class="workspace-tab">
+            <h3 class="mb-4">Action Items</h3>
+            <button class="btn btn-primary mb-3" onclick="showCreateActionItemModal()">
+              <i class="bi bi-plus-lg"></i> New Action Item
+            </button>
+            <div id="workspaceActionItemsList"></div>
+          </div>
+
+          <!-- Team Members Tab -->
+          <div id="workspace-team-tab" class="workspace-tab">
+            <h3 class="mb-4">Team Members</h3>
+            <div class="card mb-4">
+              <div class="card-body">
+                <h5>Invite Team Members</h5>
+                <div class="row g-3 mb-3">
+                  <div class="col-md-6">
+                    <label class="form-label">Email Address *</label>
+                    <input type="email" class="form-control" id="inviteEmail" placeholder="team.member@example.com">
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label">Role *</label>
+                    <select class="form-select" id="inviteRole">
+                      <option value="Scrum Master">Scrum Master</option>
+                      <option value="Project Manager">Project Manager</option>
+                      <option value="Product Owner">Product Owner</option>
+                      <option value="Developer" selected>Developer</option>
+                      <option value="QA">QA</option>
+                    </select>
+                  </div>
+                  <div class="col-md-2 d-flex align-items-end">
+                    <button class="btn btn-primary w-100" onclick="inviteTeamMember()">
+                      <i class="bi bi-send"></i> Invite
+                    </button>
+                  </div>
+                </div>
+                <small class="text-muted">
+                  <i class="bi bi-info-circle"></i> Invitee will receive an email and an action item to join the workspace
+                </small>
+              </div>
+            </div>
+            
+            <div class="card">
+              <div class="card-body">
+                <h5>Current Members</h5>
+                <div id="workspaceTeamList"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Settings Tab -->
+          <div id="workspace-settings-tab" class="workspace-tab">
+            <h3 class="mb-4">Workspace Settings</h3>
+            <div class="card">
+              <div class="card-body">
+                <h5>Workspace Details</h5>
+                <div class="mb-3">
+                  <label class="form-label">Workspace Name</label>
+                  <input type="text" class="form-control" id="settingsWorkspaceName">
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Description</label>
+                  <textarea class="form-control" id="settingsWorkspaceDesc" rows="3"></textarea>
+                </div>
+                <button class="btn btn-primary" onclick="updateWorkspaceSettings()">
+                  <i class="bi bi-save"></i> Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
       <!-- Teams -->
       <section id="teamsSection" class="content-section">
         <h1 class="mb-4">Team Management</h1>
@@ -1229,24 +1387,93 @@
       </section>
 
       <!-- Action Items -->
-      <section id="actionItemsSection" class="content-section">
-        <h1 class="mb-4">Action Items - Thematic Analysis</h1>
+      <section id="actionitemsSection" class="content-section">
+        <h1 class="mb-4">Action Items</h1>
 
-        <div class="card">
-          <div class="card-body">
-            <h5>Upload Document for Analysis</h5>
-            <div class="mb-3">
-              <input type="file" class="form-control" id="actionFileInput" accept=".txt,.md,.json">
-            </div>
-            <button class="btn btn-primary" onclick="analyzeFile()">
-              <i class="bi bi-cpu"></i> Analyze
-            </button>
-            <button class="btn btn-secondary ms-2" onclick="clearAnalysis()">Clear</button>
-            <div id="analysisStatus" class="mt-3"></div>
-            <div id="groupedThemesContainer" class="mt-3"></div>
+        <div class="d-flex justify-content-between mb-3">
+          <button class="btn btn-primary" onclick="showCreateActionItemModal()">
+            <i class="bi bi-plus-lg"></i> New Action Item
+          </button>
+        </div>
+
+        <!-- Filter Tabs -->
+        <ul class="nav nav-tabs mb-3" id="actionItemTabs">
+          <li class="nav-item">
+            <a class="nav-link active" href="#" onclick="filterActionItems('all'); return false;">All</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#" onclick="filterActionItems('pending'); return false;">Pending</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#" onclick="filterActionItems('in_progress'); return false;">In Progress</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#" onclick="filterActionItems('completed'); return false;">Completed</a>
+          </li>
+        </ul>
+
+        <!-- Action Items List -->
+        <div id="actionItemsList" class="mb-4">
+          <div class="text-center py-5">
+            <i class="bi bi-hourglass-split text-muted" style="font-size: 3rem;"></i>
+            <p class="text-muted mt-3">Loading action items...</p>
           </div>
         </div>
       </section>
+
+      <!-- Create/Edit Action Item Modal -->
+      <div class="modal fade" id="actionItemModal" tabindex="-1">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="actionItemModalTitle">Create Action Item</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <form id="actionItemForm">
+                <input type="hidden" id="actionItemId">
+                
+                <div class="mb-3">
+                  <label class="form-label">Title *</label>
+                  <input type="text" class="form-control" id="actionItemTitle" required>
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label">Description</label>
+                  <textarea class="form-control" id="actionItemDescription" rows="3"></textarea>
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label">Priority</label>
+                  <select class="form-select" id="actionItemPriority">
+                    <option value="low">Low</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="high">High</option>
+                  </select>
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label">Due Date</label>
+                  <input type="date" class="form-control" id="actionItemDueDate">
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label">Status</label>
+                  <select class="form-select" id="actionItemStatus">
+                    <option value="pending">Pending</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                  </select>
+                </div>
+              </form>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+              <button type="button" class="btn btn-primary" onclick="saveActionItem()">Save</button>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <!-- Analytics -->
       <section id="analyticsSection" class="content-section">
@@ -1334,6 +1561,7 @@
   <!-- Vendor JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 
   <script>
     // Initialize AOS animations
@@ -1838,10 +2066,13 @@
       });
 
       if (sectionName === 'analytics') {
-        renderAnalyticsForWorkspace();
+        loadAnalytics();
       }
       if (sectionName === 'teams') {
         loadWorkspaceMembers();
+      }
+      if (sectionName === 'actionitems') {
+        loadActionItems();
       }
     }
 
@@ -2021,7 +2252,8 @@
           body: JSON.stringify({
             message: message,
             current_step: currentStep,
-            chat_history: chatHistory
+            chat_history: chatHistory,
+            workspace_id: currentWorkspace?.id || null
           })
         });
 
@@ -2571,57 +2803,381 @@
     }
 
     function renderWorkspaceList() {
-      const container = document.getElementById('workspaceList');
+      const container = document.getElementById('workspacesList');
       if (!container) return;
+      
       if (!userWorkspaces || userWorkspaces.length === 0) {
-        container.innerHTML = '<div class="alert alert-info mb-0"><i class="bi bi-info-circle"></i> No workspaces yet. Use Workspace in the left nav to create one.</div>';
+        container.innerHTML = '<p class="text-muted">No workspaces yet. Create your first workspace to get started!</p>';
         return;
       }
-
-      const items = userWorkspaces.map(ws => `
-        <div class="d-flex align-items-center justify-content-between py-1">
-          <div class="text-truncate" title="${ws.description || ''}"><i class="bi bi-building text-secondary"></i> <strong>${ws.name}</strong></div>
-          <button class="btn btn-sm btn-outline-primary" onclick="goToAnalyticsForWorkspace('${ws.id}')">
-            <i class="bi bi-graph-up"></i> Analytics
-          </button>
-        </div>
-      `).join('');
-
-      container.innerHTML = `
-        <h6 class="mb-2">Your Workspaces</h6>
-        <div class="list-group-flush">
-          ${items}
-        </div>
-      `;
+      
+      let html = '<div class="row g-3">';
+      userWorkspaces.forEach(workspace => {
+        const isActive = currentWorkspace && currentWorkspace.id === workspace.id;
+        html += `
+          <div class="col-md-6 col-lg-4">
+            <div class="card h-100 ${isActive ? 'border-primary' : ''}" 
+                 onclick="openWorkspace(${workspace.id})" 
+                 style="cursor:pointer; transition: all 0.3s; position:relative;"
+                 onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)';"
+                 onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='';">
+              <div class="card-body">
+                ${isActive ? '<span class="badge bg-primary position-absolute top-0 end-0 m-2">Active</span>' : ''}
+                <div class="d-flex align-items-start mb-2">
+                  <div class="flex-shrink-0 me-3">
+                    <i class="bi bi-building text-primary" style="font-size: 2rem;"></i>
+                  </div>
+                  <div class="flex-grow-1">
+                    <h5 class="card-title mb-1">${escapeHtml(workspace.name)}</h5>
+                    <p class="card-text text-muted small mb-2">${escapeHtml(workspace.description || 'No description')}</p>
+                  </div>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-3">
+                  <small class="text-muted">
+                    <i class="bi bi-people me-1"></i>${workspace.member_count || 1} member${(workspace.member_count || 1) > 1 ? 's' : ''}
+                  </small>
+                  <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); openWorkspace(${workspace.id});">
+                    Open <i class="bi bi-arrow-right"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      html += '</div>';
+      container.innerHTML = html;
     }
 
-    function goToAnalyticsForWorkspace(workspaceId) {
+    function openWorkspace(workspaceId) {
       if (!userWorkspaces || userWorkspaces.length === 0) return;
       const selected = userWorkspaces.find(w => String(w.id) === String(workspaceId));
       if (selected) {
         currentWorkspace = selected;
         localStorage.setItem('current_workspace', JSON.stringify(currentWorkspace));
+        
+        // Navigate to workspace detail view
+        document.getElementById('workspaceDetailName').textContent = selected.name;
+        document.getElementById('workspaceDetailDesc').textContent = selected.description || 'No description';
+        
+        // Load workspace settings
+        document.getElementById('settingsWorkspaceName').value = selected.name;
+        document.getElementById('settingsWorkspaceDesc').value = selected.description || '';
+        
+        // Show workspace detail section
+        document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+        document.getElementById('workspaceDetailSection').classList.add('active');
+        
+        // Default to onboarding tab
+        showWorkspaceTab('onboarding');
       }
+    }
+    
+    function exitWorkspace() {
+      // Go back to dashboard
+      showSection('dashboard');
+      currentWorkspace = null;
+    }
+    
+    function showWorkspaceTab(tabName) {
+      // Hide all tabs
+      document.querySelectorAll('.workspace-tab').forEach(tab => tab.classList.remove('active'));
+      
+      // Show selected tab
+      const targetTab = document.getElementById(`workspace-${tabName}-tab`);
+      if (targetTab) {
+        targetTab.classList.add('active');
+      }
+      
+      // Update tab navigation
+      const clickedLink = event && event.target ? event.target : document.querySelector(`#workspaceTabs a[onclick*="${tabName}"]`);
+      document.querySelectorAll('#workspaceTabs .nav-link').forEach(link => {
+        link.classList.remove('active');
+      });
+      if (clickedLink) clickedLink.classList.add('active');
+      
+      // Load data for the tab
+      if (tabName === 'retrospectives') {
+        loadWorkspaceRetros();
+      } else if (tabName === 'action-items') {
+        loadWorkspaceActionItems();
+      } else if (tabName === 'team') {
+        loadWorkspaceTeamMembers();
+      }
+    }
+    
+    async function loadWorkspaceRetros() {
+      if (!currentWorkspace) return;
+      try {
+        const response = await fetch(`/api/v1/retrospectives/workspace/${currentWorkspace.id}`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (response.ok) {
+          const retros = await response.json();
+          const container = document.getElementById('workspaceRetrosList');
+          if (container && retros.length > 0) {
+            container.innerHTML = retros.map(r => `
+              <div class="card mb-2">
+                <div class="card-body">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                      <h6 class="mb-1">${escapeHtml(r.title)}</h6>
+                      <p class="text-muted small mb-0">${r.sprint_name || 'No sprint'} - ${new Date(r.scheduled_start_time).toLocaleDateString()}</p>
+                    </div>
+                    <a href="/ui/retrospective.html/${r.code}" class="btn btn-sm btn-primary" target="_blank">
+                      <i class="bi bi-box-arrow-right"></i> Open
+                    </a>
+                  </div>
+                </div>
+              </div>
+            `).join('');
+          } else if (container) {
+            container.innerHTML = '<p class="text-muted">No retrospectives yet.</p>';
+          }
+        }
+      } catch (error) {
+        console.error('Load workspace retros error:', error);
+      }
+    }
+    
+    async function loadWorkspaceActionItems() {
+      if (!currentWorkspace) return;
+      try {
+        const response = await fetch('/api/v1/action-items/', {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (response.ok) {
+          const allItems = await response.json();
+          // Filter by current workspace if retrospective_id is linked to workspace
+          const container = document.getElementById('workspaceActionItemsList');
+          if (container && allItems.length > 0) {
+            container.innerHTML = allItems.map(item => {
+              const priorityBadge = {
+                'low': 'success',
+                'medium': 'warning', 
+                'high': 'danger'
+              }[item.priority] || 'secondary';
+
+              const statusBadge = {
+                'pending': 'secondary',
+                'in_progress': 'primary',
+                'completed': 'success'
+              }[item.status] || 'secondary';
+
+              const statusText = {
+                'pending': 'Pending',
+                'in_progress': 'In Progress',
+                'completed': 'Completed'
+              }[item.status] || item.status;
+
+              const dueDate = item.due_date ? new Date(item.due_date).toLocaleDateString() : 'No due date';
+
+              return `
+                <div class="card mb-2 ${item.status === 'completed' ? 'bg-light' : ''}">
+                  <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                      <div class="flex-grow-1">
+                        <h6 class="mb-1 ${item.status === 'completed' ? 'text-decoration-line-through text-muted' : ''}">
+                          ${escapeHtml(item.title)}
+                        </h6>
+                        ${item.description ? `<p class="mb-2 text-muted small">${escapeHtml(item.description)}</p>` : ''}
+                        <div class="d-flex gap-2 flex-wrap">
+                          <span class="badge bg-${priorityBadge}">${item.priority.toUpperCase()}</span>
+                          <span class="badge bg-${statusBadge}">${statusText}</span>
+                          <span class="badge bg-info">
+                            <i class="bi bi-calendar me-1"></i>${dueDate}
+                          </span>
+                        </div>
+                      </div>
+                      <div class="btn-group ms-3">
+                        ${item.status !== 'completed' ? `
+                          <button class="btn btn-sm btn-success" onclick="markActionItemComplete(${item.id})" title="Complete">
+                            <i class="bi bi-check-lg"></i>
+                          </button>
+                        ` : ''}
+                        <button class="btn btn-sm btn-primary" onclick="editActionItem(${item.id})" title="Edit">
+                          <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteActionItem(${item.id})" title="Delete">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              `;
+            }).join('');
+          } else if (container) {
+            container.innerHTML = '<p class="text-muted">No action items yet.</p>';
+          }
+        }
+      } catch (error) {
+        console.error('Load workspace action items error:', error);
+      }
+    }
+    
+    async function loadWorkspaceTeamMembers() {
+      if (!currentWorkspace) return;
+      try {
+        const response = await fetch(`/api/v1/workspaces/${currentWorkspace.id}/members`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (response.ok) {
+          const members = await response.json();
+          const container = document.getElementById('workspaceTeamList');
+          if (container && members.length > 0) {
+            container.innerHTML = members.map(m => `
+              <div class="d-flex align-items-center justify-content-between py-2 border-bottom">
+                <div>
+                  <strong>${escapeHtml(m.full_name || m.email)}</strong>
+                  <small class="text-muted ms-2">${escapeHtml(m.role)}</small>
+                </div>
+              </div>
+            `).join('');
+          } else if (container) {
+            container.innerHTML = '<p class="text-muted">No team members yet.</p>';
+          }
+        }
+      } catch (error) {
+        console.error('Load team members error:', error);
+      }
+    }
+    
+    function completeWorkspaceStep(step) {
+      // TODO: Implement workspace step completion
+      showToast('Step completed!', 'success');
+    }
+    
+    function skipWorkspaceStep(step) {
+      // TODO: Implement workspace step skipping
+      showToast('Step skipped', 'info');
+    }
+    
+    async function uploadAdditionalDocument() {
+      const fileInput = document.getElementById('additionalWorkspaceDoc');
+      if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+        showToast('Please select a file', 'warning');
+        return;
+      }
+      // TODO: Implement document upload
+      showToast('Document uploaded successfully!', 'success');
+    }
+    
+    async function generateDocumentSummary() {
+      // TODO: Implement document summary generation
+      showToast('Summary generated!', 'success');
+    }
+    
+    async function updateWorkspaceSettings() {
+      if (!currentWorkspace) return;
+      const name = document.getElementById('settingsWorkspaceName').value;
+      const desc = document.getElementById('settingsWorkspaceDesc').value;
+      
+      try {
+        const response = await fetch(`/api/v1/workspaces/${currentWorkspace.id}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ name, description: desc })
+        });
+        if (response.ok) {
+          showToast('Settings updated successfully!', 'success');
+          await checkAndLoadWorkspaces();
+        }
+      } catch (error) {
+        showToast('Failed to update settings', 'danger');
+      }
+    }
+    
+    async function inviteTeamMember() {
+      if (!currentWorkspace) {
+        showToast('Please select a workspace first', 'warning');
+        return;
+      }
+      
+      const email = document.getElementById('inviteEmail').value.trim();
+      const role = document.getElementById('inviteRole').value;
+      
+      if (!email) {
+        showToast('Please enter an email address', 'warning');
+        return;
+      }
+      
+      try {
+        const response = await fetch(`/api/v1/workspaces/${currentWorkspace.id}/invite`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ email, role })
+        });
+        
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.detail || 'Failed to invite member');
+        }
+        
+        showToast('Invitation sent successfully!', 'success');
+        document.getElementById('inviteEmail').value = '';
+      } catch (error) {
+        showToast(error.message || 'Failed to send invitation', 'danger');
+      }
+    }
+    
+    function goToAnalyticsForWorkspace(workspaceId) {
+      // Analytics is always overall, not workspace-specific
       showSection('analytics');
-      renderAnalyticsForWorkspace();
+      loadAnalytics();
     }
 
-    function renderAnalyticsForWorkspace() {
+    async function loadAnalytics() {
       const titleEl = document.getElementById('analyticsTitle');
       const insightsEl = document.getElementById('aiInsights');
-      if (currentWorkspace && titleEl) {
-        titleEl.textContent = `Analytics & Insights — ${currentWorkspace.name}`;
+      
+      // Always show overall analytics title
+      if (titleEl) {
+        titleEl.textContent = 'Analytics & Insights';
       }
-      if (insightsEl) {
-        if (!currentWorkspace) {
-          insightsEl.innerHTML = '<p class="text-muted">Select a workspace to view insights.</p>';
-          return;
+      
+      // Load overall statistics across all workspaces
+      try {
+        const headers = { 'Authorization': `Bearer ${authToken}` };
+        
+        // Fetch retrospectives for ALL workspaces the user is in
+        const retrosResponse = await fetch('/api/v1/retrospectives/', { headers }).catch(() => null);
+        if (retrosResponse && retrosResponse.ok) {
+          const retros = await retrosResponse.json();
+          const total = retros.length;
+          const active = retros.filter(r => r.status === 'in_progress').length;
+          document.getElementById('totalRetros').textContent = total;
+          document.getElementById('activeRetros').textContent = active;
         }
+
+        // Fetch action items for ALL workspaces
+        const actionsResponse = await fetch('/api/v1/action-items/', { headers }).catch(() => null);
+        if (actionsResponse && actionsResponse.ok) {
+          const actions = await actionsResponse.json();
+          const completed = actions.filter(a => a.status === 'completed').length;
+          document.getElementById('completedActions').textContent = completed;
+          
+          if (actions.length > 0) {
+            const engagement = Math.round((completed / actions.length) * 100);
+            document.getElementById('engagement').textContent = engagement + '%';
+          }
+        }
+      } catch (error) {
+        console.log('Analytics load:', error);
+      }
+      
+      if (insightsEl) {
         insightsEl.innerHTML = `
           <div class="mb-3">
             <h6 class="mb-1"><i class="bi bi-lightbulb"></i> AI Highlights</h6>
             <ul class="mb-0">
-              <li>Top themes across recent retrospectives in ${currentWorkspace.name}</li>
+              <li>Top themes across recent retrospectives</li>
               <li>Action item completion trend and blockers</li>
               <li>Participation and engagement signals</li>
             </ul>
@@ -2648,8 +3204,9 @@
       modal.id = 'workspaceModal';
       modal.style.cssText = 'display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;';
       modal.innerHTML = `
-        <div style="background:white; padding:40px; border-radius:15px; max-width:500px; width:90%;">
-          <h3 style="color:#667eea; margin-bottom:20px;">Create Your Workspace</h3>
+        <div style="background:white; padding:28px; border-radius:15px; max-width:520px; width:92%; position:relative;">
+          <button aria-label="Close" onclick="document.getElementById('workspaceModal').style.display='none'" style="position:absolute; top:10px; right:12px; font-size:22px; background:none; border:none; cursor:pointer; color:#333">&times;</button>
+          <h3 style="color:#667eea; margin-bottom:16px;">Create Your Workspace</h3>
           <p style="color:#666; margin-bottom:20px;">A workspace is required to use YodaAI. Create one now!</p>
           
           <div style="margin-bottom:15px;">
@@ -2664,13 +3221,19 @@
                       style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px; min-height:80px;"></textarea>
           </div>
           
-          <div style="margin-bottom:20px;">
+          <div style="margin-bottom:15px;">
             <label style="display:block; margin-bottom:5px; font-weight:600;">Your Role *</label>
             <select id="workspaceRole" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px;">
-              <option value="facilitator">Facilitator</option>
-              <option value="owner">Owner</option>
-              <option value="member">Member</option>
+              <option value="Scrum Master">Scrum Master</option>
+              <option value="Project Manager">Project Manager</option>
             </select>
+            <div style="font-size:12px; color:#777; margin-top:6px;">Only Scrum Master and Project Manager can create a workspace.</div>
+          </div>
+
+          <div style="margin-bottom:20px;">
+            <label style="display:block; margin-bottom:5px; font-weight:600;">Upload Reference PDF (optional)</label>
+            <input type="file" id="workspacePdf" accept="application/pdf" style="width:100%;">
+            <div style="font-size:12px; color:#777; margin-top:6px;">This document will be referenced during chats.</div>
           </div>
           
           <div style="display:flex; gap:10px;">
@@ -2690,9 +3253,18 @@
       const name = document.getElementById('workspaceName').value.trim();
       const description = document.getElementById('workspaceDesc').value.trim();
       const role = document.getElementById('workspaceRole').value;
+      const pdfInput = document.getElementById('workspacePdf');
       
       if (!name) {
         document.getElementById('workspaceError').textContent = 'Please enter a workspace name';
+        document.getElementById('workspaceError').style.display = 'block';
+        return;
+      }
+      
+      // Validate role
+      const allowedRoles = ["Scrum Master", "Project Manager"];
+      if (!allowedRoles.includes(role)) {
+        document.getElementById('workspaceError').textContent = 'Only Scrum Master or Project Manager can create a workspace';
         document.getElementById('workspaceError').style.display = 'block';
         return;
       }
@@ -2728,7 +3300,32 @@
         localStorage.setItem('current_workspace', JSON.stringify(workspace));
         renderWorkspaceList();
         
+        // If PDF selected, upload it now
+        if (pdfInput && pdfInput.files && pdfInput.files[0]) {
+          try {
+            const fd = new FormData();
+            fd.append('file', pdfInput.files[0]);
+            const up = await fetch(`/api/v1/workspaces/${workspace.id}/upload-pdf`, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${authToken}` },
+              body: fd
+            });
+            if (!up.ok) {
+              const er = await up.json().catch(() => ({}));
+              console.warn('PDF upload failed:', er.detail || up.statusText);
+            }
+          } catch (e) {
+            console.warn('PDF upload error:', e);
+          }
+        }
+
         document.getElementById('workspaceModal').style.display = 'none';
+        
+        // Clear form contents
+        document.getElementById('workspaceName').value = '';
+        document.getElementById('workspaceDesc').value = '';
+        document.getElementById('workspacePdf').value = '';
+        
         showToast(`Workspace "${workspace.name}" created successfully!`, 'success');
         
         // Show retrospective creation next
@@ -3051,33 +3648,8 @@
     function updateRetroProgressSidebar(progress, currentCategory = null) {
       progressData = progress;
       
-      // Update checkboxes - PERMANENT once checked
-      ['liked', 'learned', 'lacked', 'longed_for'].forEach(cat => {
-        const checkbox = document.getElementById(`retro-check-${cat}`);
-        const item = document.getElementById(`retro-progress-${cat}`);
-        
-        if (progress[cat]) {
-          // Mark as complete - PERMANENT
-          checkbox.innerHTML = '✅';
-          item.style.background = '#d4edda';
-          item.style.borderColor = '#28a745';
-          item.style.fontWeight = 'bold';
-        } else if (currentCategory === cat) {
-          // Currently active category
-          checkbox.innerHTML = '▶';
-          item.style.background = '#e7f1ff';
-          item.style.borderColor = '#4154f1';
-          item.style.fontWeight = 'bold';
-        } else {
-          // Not yet complete
-          checkbox.innerHTML = '☐';
-          item.style.background = '#fff';
-          item.style.borderColor = '#dee2e6';
-          item.style.fontWeight = 'normal';
-        }
-      });
-      
-      // Button is now always visible - users can proceed whenever they're ready
+      // Progress sidebar was removed - this function kept for compatibility
+      // No longer updates any UI elements since sidebar is gone
     }
     
     function addRetroMessage(message, type) {
@@ -3182,50 +3754,34 @@
     }
     
     function focusRetroCategory(category) {
-      // Visual feedback only
-      ['liked', 'learned', 'lacked', 'longed_for'].forEach(cat => {
-        const item = document.getElementById(`retro-progress-${cat}`);
-        if (cat === category) {
-          item.style.background = '#e7f1ff';
-        } else if (!progressData[cat]) {
-          item.style.background = 'white';
-        }
-      });
+      // Progress sidebar was removed - this function kept for compatibility
+      // No longer updates any UI elements since sidebar is gone
     }
     
-    // NEW: Show grouping in a modal/overlay instead of replacing whole page
+    // NEW: Show grouping inline in chat area instead of overlay
     async function showGroupingInMain(retroId) {
-      // Create grouping overlay
-      const overlay = document.createElement('div');
-      overlay.id = 'groupingOverlay';
-      overlay.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); z-index:9998; overflow-y:auto; padding:40px;';
-      overlay.innerHTML = `
-        <div style="max-width:1200px; margin:0 auto; background:white; padding:40px; border-radius:15px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:30px;">
-            <h2 style="color:#667eea; margin:0;">
-              <i class="bi bi-diagram-3"></i> AI Theme Grouping
-            </h2>
-            <button onclick="closeGroupingOverlay()" class="btn btn-outline-secondary">
-              <i class="bi bi-x-lg"></i> Close
-            </button>
-          </div>
-          <p style="color:#666; margin-bottom:30px;">AI will analyze all team responses and group them into meaningful themes.</p>
-          
-          <button id="generateGroupingBtn" onclick="generateGrouping(${retroId})" class="btn btn-primary btn-lg mb-4">
-            <i class="bi bi-magic"></i> Generate AI Grouping
-          </button>
-          
-          <div id="groupingResults" style="margin-top:30px;">
-            <!-- Themes will appear here -->
-          </div>
+      // Replace chat area with grouping interface
+      const chatSection = document.getElementById('retroChatSection');
+      const chatContainer = chatSection.querySelector('.card-body');
+      
+      chatContainer.innerHTML = `
+        <div class="d-flex justify-content-between mb-3">
+          <h5><i class="bi bi-diagram-3"></i> AI Theme Grouping</h5>
+        </div>
+        <p class="text-muted mb-4">AI will analyze all team responses and group them into meaningful themes.</p>
+        
+        <button id="generateGroupingBtn" onclick="generateGrouping(${retroId})" class="btn btn-primary btn-lg mb-4">
+          <i class="bi bi-magic"></i> Generate AI Grouping
+        </button>
+        
+        <div id="groupingResults">
+          <!-- Themes will appear here -->
         </div>
       `;
-      document.body.appendChild(overlay);
     }
     
     function closeGroupingOverlay() {
-      const overlay = document.getElementById('groupingOverlay');
-      if (overlay) overlay.remove();
+      // No longer needed - keeping for compatibility
     }
     
     // ==================== AI GROUPING INTERFACE ====================
@@ -3308,56 +3864,65 @@
     function displayGroupingResults(data, retroId) {
       const container = document.getElementById('groupingResults');
       
-      let html = '';
+      // Group themes by primary_category
+      const themesByCategory = {
+        'liked': [],
+        'learned': [],
+        'lacked': [],
+        'longed_for': []
+      };
       
-      // Theme Groups
-      data.theme_groups.forEach((theme, idx) => {
+      data.theme_groups.forEach(theme => {
+        const category = theme.primary_category || 'liked';
+        if (themesByCategory[category]) {
+          themesByCategory[category].push(theme);
+        }
+      });
+      
+      let html = '<div id="groupingContainer">';
+      
+      // Display themes grouped by 4Ls categories
+      const categoryConfig = {
+        'liked': { name: 'Liked', icon: 'heart-fill' },
+        'learned': { name: 'Learned', icon: 'lightbulb-fill' },
+        'lacked': { name: 'Lacked', icon: 'exclamation-triangle-fill' },
+        'longed_for': { name: 'Longed For', icon: 'star-fill' }
+      };
+      
+      Object.keys(categoryConfig).forEach(category => {
+        const config = categoryConfig[category];
+        const categoryThemes = themesByCategory[category];
+        
         html += `
-          <div class="card mb-3" style="border-left:4px solid #667eea;">
-            <div class="card-body">
-              <div style="display:flex; justify-content:space-between; align-items:start;">
-                <h5 style="color:#667eea; margin:0;">${escapeHtml(theme.title)}</h5>
-                <button onclick="deleteTheme(${theme.id}, ${retroId})" class="btn btn-sm btn-outline-danger">
-                  <i class="bi bi-trash"></i> Delete
-                </button>
-              </div>
-              <p style="color:#666; margin:10px 0;">${escapeHtml(theme.description)}</p>
-              <div style="background:#f8f9fa; padding:15px; border-radius:8px; margin-top:15px;">
-                <strong style="color:#444;">Responses (${theme.response_count}):</strong>
-                <ul style="margin:10px 0 0 0; padding-left:20px;">
-                  ${theme.responses.map(r => `
-                    <li style="margin:8px 0; color:#555;">
-                      "${escapeHtml(r.content)}" 
-                      <span style="color:#888; font-size:13px;">- ${escapeHtml(r.author_name)}</span>
-                    </li>
-                  `).join('')}
-                </ul>
-              </div>
+          <div class="fourls-category ${category === 'longed_for' ? 'longed' : category}">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5><i class="bi bi-${config.icon}"></i> ${config.name}</h5>
+              <button class="btn btn-sm btn-success" onclick="addTheme('${category}', ${retroId})">
+                <i class="bi bi-plus"></i> Add Theme
+              </button>
+            </div>
+            <div id="themes-${category}" class="themes-list">
+              ${categoryThemes.map((theme, idx) => `
+                <div class="theme-item" data-theme-id="${theme.id}" data-category="${category}">
+                  <div class="flex-grow-1">
+                    <strong>${escapeHtml(theme.title)}</strong>
+                    ${theme.description ? `<br><small class="text-muted">${escapeHtml(theme.description)}</small>` : ''}
+                  </div>
+                  <div>
+                    <button class="btn btn-sm btn-outline-primary me-2" onclick="editTheme('${category}', ${theme.id}, ${retroId})" title="Edit">
+                      <i class="bi bi-pencil"></i>
+                    </button>
+                    <i class="bi bi-grip-vertical text-muted"></i>
+                  </div>
+                </div>
+              `).join('')}
+              ${categoryThemes.length === 0 ? '<p class="text-muted text-center py-3">No themes yet</p>' : ''}
             </div>
           </div>
         `;
       });
       
-      // Ungrouped Items
-      if (data.ungrouped_responses.length > 0) {
-        html += `
-          <div class="card mb-3" style="border-left:4px solid #ffc107;">
-            <div class="card-body">
-              <h5 style="color:#ffc107; margin:0;">
-                <i class="bi bi-exclamation-triangle"></i> Ungrouped Items (${data.ungrouped_responses.length})
-              </h5>
-              <ul style="margin:15px 0 0 0; padding-left:20px;">
-                ${data.ungrouped_responses.map(r => `
-                  <li style="margin:8px 0; color:#555;">
-                    "${escapeHtml(r.content)}" 
-                    <span style="color:#888; font-size:13px;">- ${escapeHtml(r.author_name)}</span>
-                  </li>
-                `).join('')}
-              </ul>
-            </div>
-          </div>
-        `;
-      }
+      html += '</div>';
       
       html += `
         <button onclick="proceedToVoting(${retroId})" class="btn btn-primary btn-lg mt-4">
@@ -3366,6 +3931,108 @@
       `;
       
       container.innerHTML = html;
+      
+      // Initialize drag and drop AFTER rendering
+      setTimeout(() => {
+        ['liked', 'learned', 'lacked', 'longed_for'].forEach(category => {
+          const el = document.getElementById(`themes-${category}`);
+          if (el) {
+            new Sortable(el, {
+              animation: 150,
+              ghostClass: 'dragging',
+              onEnd: function(evt) {
+                saveThemeOrder(category, retroId);
+              }
+            });
+          }
+        });
+      }, 100);
+    }
+    
+    function addTheme(category, retroId) {
+      const title = prompt('Enter theme title:');
+      if (!title) return;
+      const description = prompt('Enter theme description (optional):');
+      createTheme(category, title, description || '', retroId);
+    }
+    
+    async function createTheme(category, title, description, retroId) {
+      try {
+        const response = await fetch(`/api/v1/grouping/${retroId}/themes`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ category, title, description })
+        });
+        if (response.ok) {
+          await loadGroupingResults(retroId);
+          showToast('Theme added successfully', 'success');
+        }
+      } catch (error) {
+        console.error('Create theme error:', error);
+        showToast('Failed to add theme', 'danger');
+      }
+    }
+    
+    function editTheme(category, themeId, retroId) {
+      // Get current theme data
+      const themeContainer = document.querySelector(`[data-theme-id="${themeId}"]`);
+      if (!themeContainer) return;
+      
+      const titleEl = themeContainer.querySelector('strong');
+      const descEl = themeContainer.querySelector('small');
+      
+      const currentTitle = titleEl ? titleEl.textContent : '';
+      const currentDesc = descEl ? descEl.textContent : '';
+      
+      const newTitle = prompt('Edit theme title:', currentTitle);
+      if (!newTitle) return;
+      const newDescription = prompt('Edit theme description:', currentDesc);
+      updateTheme(themeId, newTitle, newDescription || '', retroId);
+    }
+    
+    async function updateTheme(themeId, title, description, retroId) {
+      try {
+        const response = await fetch(`/api/v1/grouping/theme/${themeId}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ title, description })
+        });
+        if (response.ok) {
+          await loadGroupingResults(retroId);
+          showToast('Theme updated successfully', 'success');
+        }
+      } catch (error) {
+        console.error('Update theme error:', error);
+        showToast('Failed to update theme', 'danger');
+      }
+    }
+    
+    async function saveThemeOrder(category, retroId) {
+      const container = document.getElementById(`themes-${category}`);
+      if (!container) return;
+      
+      const themeIds = Array.from(container.children)
+        .map(el => el.dataset.themeId)
+        .filter(id => id);
+      
+      try {
+        await fetch(`/api/v1/grouping/${retroId}/themes/reorder`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ category, theme_ids: themeIds })
+        });
+      } catch (error) {
+        console.error('Save theme order error:', error);
+      }
     }
     
     async function deleteTheme(themeId, retroId) {
@@ -3410,30 +4077,33 @@
     }
     
     async function showVotingInterface(retroId) {
-      const container = document.getElementById('appContainer');
-      container.innerHTML = `
-        <div style="padding:40px; max-width:1000px; margin:0 auto;">
-          <h2 style="color:#667eea; margin-bottom:10px;">
-            <i class="bi bi-hand-thumbs-up"></i> Vote on Themes
-          </h2>
-          <p style="color:#666; margin-bottom:30px;">You have 10 votes to allocate to the most important themes.</p>
-          
-          <div id="voteCounter" style="padding:20px; background:#f8f9fa; border-radius:10px; margin-bottom:30px; text-align:center;">
-            <h4 style="margin:0;">Votes: <span id="votesUsed">0</span>/10 used | <span id="votesRemaining">10</span> remaining</h4>
-          </div>
-          
-          <div id="votingThemes">
-            <!-- Loading themes... -->
-          </div>
-          
-          <div id="votingResults" style="margin-top:40px;">
-            <!-- Results will appear here -->
-          </div>
-          
-          <button onclick="finalizeVoting(${retroId})" class="btn btn-success btn-lg mt-4">
-            <i class="bi bi-check-circle"></i> Finalize Voting & Proceed to Discussion
-          </button>
+      // Replace chat area with voting interface
+      const chatSection = document.getElementById('retroChatSection');
+      const chatContainer = chatSection.querySelector('.card-body');
+      
+      chatContainer.innerHTML = `
+        <div class="d-flex justify-content-between mb-3">
+          <h5><i class="bi bi-hand-thumbs-up"></i> Vote on Themes</h5>
         </div>
+        <p class="text-muted mb-4">You have 10 votes to allocate to the most important themes.</p>
+        
+        <div id="voteCounter" class="card mb-4">
+          <div class="card-body text-center">
+            <h4 class="mb-0">Votes: <span id="votesUsed">0</span>/10 used | <span id="votesRemaining">10</span> remaining</h4>
+          </div>
+        </div>
+        
+        <div id="votingThemes">
+          <!-- Loading themes... -->
+        </div>
+        
+        <div id="votingResults" class="mt-4">
+          <!-- Results will appear here -->
+        </div>
+        
+        <button onclick="finalizeVoting(${retroId})" class="btn btn-success btn-lg mt-4 w-100">
+          <i class="bi bi-check-circle"></i> Finalize Voting & Proceed to Discussion
+        </button>
       `;
       
       loadVotingStatus(retroId);
@@ -3582,25 +4252,32 @@
     // ==================== DISCUSSION INTERFACE ====================
     
     async function showDiscussionInterface(retroId) {
-      const container = document.getElementById('appContainer');
-      container.innerHTML = `
-        <div style="padding:40px; max-width:1000px; margin:0 auto;">
-          <h2 style="color:#667eea; margin-bottom:10px;">
-            <i class="bi bi-chat-quote"></i> Team Discussion
-          </h2>
-          <p style="color:#666; margin-bottom:30px;">Discuss the top-voted themes with your team and YodaAI.</p>
-          
-          <div id="discussionTopics">
-            <!-- Loading topics... -->
-          </div>
-          
-          <button onclick="proceedToSummary(${retroId})" class="btn btn-primary btn-lg mt-4">
-            <i class="bi bi-arrow-right"></i> Proceed to Summary
-          </button>
+      // Replace chat area with discussion interface
+      const chatSection = document.getElementById('retroChatSection');
+      const chatContainer = chatSection.querySelector('.card-body');
+      
+      chatContainer.innerHTML = `
+        <div class="d-flex justify-content-between mb-3">
+          <h5><i class="bi bi-chat-quote"></i> Team Discussion</h5>
         </div>
+        <p class="text-muted mb-4">Discuss the top-voted themes with your team and YodaAI.</p>
+        
+        <div id="discussionTopics">
+          <!-- Loading topics... -->
+        </div>
+        
+        <div class="da-recommendation mt-4">
+          <h5 class="mb-3"><i class="bi bi-book"></i> DA Browser Recommendations</h5>
+          <div id="daRecommendations" class="text-muted">Loading recommendations...</div>
+        </div>
+        
+        <button onclick="proceedToSummary(${retroId})" class="btn btn-primary btn-lg mt-4 w-100">
+          <i class="bi bi-arrow-right"></i> Proceed to Summary
+        </button>
       `;
       
       loadDiscussionTopics(retroId);
+      loadDARecommendations(retroId);
     }
     
     async function loadDiscussionTopics(retroId) {
@@ -3654,6 +4331,39 @@
       showToast('Discussion started! In full version, this opens a team chat.', 'info');
     }
     
+    async function loadDARecommendations(retroId) {
+      try {
+        const response = await fetch(`/api/v1/discussion/${retroId}/da-recommendations`, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (!response.ok) {
+          document.getElementById('daRecommendations').innerHTML = 
+            '<p class="text-muted">Unable to load recommendations at this time.</p>';
+          return;
+        }
+        
+        const data = await response.json();
+        const recommendations = data.content || 'No specific recommendations available at this time.';
+        
+        // Display recommendations with formatting
+        document.getElementById('daRecommendations').innerHTML = 
+          `<div class="card border-start border-warning border-4">
+            <div class="card-body">
+              <div style="white-space: pre-wrap;">${escapeHtml(recommendations)}</div>
+            </div>
+          </div>`;
+        
+      } catch (error) {
+        console.error('Load DA recommendations error:', error);
+        document.getElementById('daRecommendations').innerHTML = 
+          '<p class="text-muted">Unable to load recommendations at this time.</p>';
+      }
+    }
+    
     // ==================== SUMMARY GENERATION ====================
     
     async function proceedToSummary(retroId) {
@@ -3678,63 +4388,96 @@
     }
     
     function showSummaryInterface(summary, retroId) {
-      const container = document.getElementById('appContainer');
-      container.innerHTML = `
-        <div style="padding:40px; max-width:1000px; margin:0 auto;">
-          <h2 style="color:#667eea; margin-bottom:10px;">
-            <i class="bi bi-file-text"></i> Sprint Summary
-          </h2>
-          <p style="color:#666; margin-bottom:30px;">AI-generated insights from your retrospective</p>
-          
-          <div class="card mb-4" style="border-left:4px solid #667eea;">
-            <div class="card-body">
-              <h5 style="color:#667eea;">
-                <i class="bi bi-graph-up"></i> Overall Assessment - ${escapeHtml(summary.sprint_name || 'Current Sprint')}
-              </h5>
-              <p style="color:#555; line-height:1.6; margin-top:15px;">${escapeHtml(summary.summary)}</p>
-            </div>
-          </div>
-          
-          <div class="card mb-4" style="border-left:4px solid #28a745;">
-            <div class="card-body">
-              <h5 style="color:#28a745;">
-                <i class="bi bi-trophy"></i> Top Achievements
-              </h5>
-              <ul style="margin-top:15px;">
-                ${(summary.achievements || []).map(a => `<li style="margin:8px 0; color:#555;">${escapeHtml(a)}</li>`).join('')}
-              </ul>
-            </div>
-          </div>
-          
-          <div class="card mb-4" style="border-left:4px solid #ffc107;">
-            <div class="card-body">
-              <h5 style="color:#ffc107;">
-                <i class="bi bi-exclamation-triangle"></i> Main Challenges
-              </h5>
-              <ul style="margin-top:15px;">
-                ${(summary.challenges || []).map(c => `<li style="margin:8px 0; color:#555;">${escapeHtml(c)}</li>`).join('')}
-              </ul>
-            </div>
-          </div>
-          
-          <div class="card mb-4" style="border-left:4px solid #17a2b8;">
-            <div class="card-body">
-              <h5 style="color:#17a2b8;">
-                <i class="bi bi-lightbulb"></i> Recommendations
-              </h5>
-              <ul style="margin-top:15px;">
-                ${(summary.recommendations || []).map(r => `<li style="margin:8px 0; color:#555;">${escapeHtml(r)}</li>`).join('')}
-              </ul>
-            </div>
-          </div>
-          
-          <div style="text-align:center; margin-top:40px;">
-            <button onclick="completeRetrospective()" class="btn btn-success btn-lg">
-              <i class="bi bi-check-circle"></i> Complete Retrospective
-            </button>
+      // Replace chat area with summary interface
+      const chatSection = document.getElementById('retroChatSection');
+      const chatContainer = chatSection.querySelector('.card-body');
+      
+      chatContainer.innerHTML = `
+        <div class="d-flex justify-content-between mb-3">
+          <h5><i class="bi bi-file-text"></i> Sprint Summary</h5>
+        </div>
+        <p class="text-muted mb-4">AI-generated insights from your retrospective</p>
+        
+        <div class="card mb-4" style="border-left:4px solid #667eea;">
+          <div class="card-body">
+            <h5 style="color:#667eea;">
+              <i class="bi bi-graph-up"></i> Overall Assessment - ${escapeHtml(summary.sprint_name || 'Current Sprint')}
+            </h5>
+            <p style="color:#555; line-height:1.6; margin-top:15px;">${escapeHtml(summary.summary)}</p>
           </div>
         </div>
+        
+        <div class="card mb-4" style="border-left:4px solid #28a745;">
+          <div class="card-body">
+            <h5 style="color:#28a745;">
+              <i class="bi bi-trophy"></i> Top Achievements
+            </h5>
+            <ul style="margin-top:15px;">
+              ${(summary.achievements || []).map(a => `<li style="margin:8px 0; color:#555;">${escapeHtml(a)}</li>`).join('')}
+            </ul>
+          </div>
+        </div>
+        
+        <div class="card mb-4" style="border-left:4px solid #ffc107;">
+          <div class="card-body">
+            <h5 style="color:#ffc107;">
+              <i class="bi bi-exclamation-triangle"></i> Main Challenges
+            </h5>
+            <ul style="margin-top:15px;">
+              ${(summary.challenges || []).map(c => `<li style="margin:8px 0; color:#555;">${escapeHtml(c)}</li>`).join('')}
+            </ul>
+          </div>
+        </div>
+        
+        <div class="card mb-4" style="border-left:4px solid #17a2b8;">
+          <div class="card-body">
+            <h5 style="color:#17a2b8;">
+              <i class="bi bi-lightbulb"></i> Recommendations
+            </h5>
+            <ul style="margin-top:15px;">
+              ${(summary.recommendations || []).map(r => `<li style="margin:8px 0; color:#555;">${escapeHtml(r)}</li>`).join('')}
+            </ul>
+          </div>
+        </div>
+        
+        <div class="d-flex gap-2">
+          <button onclick="downloadSummaryPDF(${retroId})" class="btn btn-primary btn-lg flex-fill">
+            <i class="bi bi-download"></i> Download PDF Summary
+          </button>
+          <button onclick="completeRetrospective()" class="btn btn-success btn-lg flex-fill">
+            <i class="bi bi-check-circle"></i> Complete Retrospective
+          </button>
+        </div>
       `;
+    }
+    
+    async function downloadSummaryPDF(retroId) {
+      try {
+        const response = await fetch(`/api/v1/discussion/${retroId}/summary/pdf`, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to download PDF');
+        }
+        
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `sprint_summary_${retroId}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        showToast('PDF downloaded successfully!', 'success');
+      } catch (error) {
+        console.error('Download PDF error:', error);
+        showToast('Failed to download PDF', 'danger');
+      }
     }
     
     function completeRetrospective() {
@@ -3742,6 +4485,303 @@
       setTimeout(() => {
         window.location.reload();
       }, 2000);
+    }
+
+    // ==================== ACTION ITEMS ====================
+    
+    let allActionItems = [];
+    let currentActionFilter = 'all';
+
+    async function loadActionItems() {
+      if (!authToken) {
+        const container = document.getElementById('actionItemsList');
+        if (container) {
+          container.innerHTML = `
+            <div class="text-center py-5">
+              <i class="bi bi-lock text-muted" style="font-size: 3rem;"></i>
+              <p class="text-muted mt-3">Please login to view action items</p>
+            </div>
+          `;
+        }
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/v1/action-items/', {
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
+
+        if (response.ok) {
+          allActionItems = await response.json();
+          displayActionItems(allActionItems);
+        } else {
+          throw new Error('Failed to load action items');
+        }
+      } catch (error) {
+        console.error('Error loading action items:', error);
+        const container = document.getElementById('actionItemsList');
+        if (container) {
+          container.innerHTML = `
+            <div class="alert alert-warning">
+              <i class="bi bi-exclamation-triangle me-2"></i>
+              Failed to load action items. ${error.message}
+            </div>
+          `;
+        }
+      }
+    }
+
+    function displayActionItems(items) {
+      const container = document.getElementById('actionItemsList');
+      if (!container) return;
+      
+      if (!items || items.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-5">
+            <i class="bi bi-check2-square text-muted" style="font-size: 3rem;"></i>
+            <p class="text-muted mt-3">No action items yet. Create your first one!</p>
+          </div>
+        `;
+        return;
+      }
+
+      let html = '<div class="list-group">';
+      
+      items.forEach(item => {
+        const priorityBadge = {
+          'low': 'success',
+          'medium': 'warning', 
+          'high': 'danger'
+        }[item.priority] || 'secondary';
+
+        const statusBadge = {
+          'pending': 'secondary',
+          'in_progress': 'primary',
+          'completed': 'success'
+        }[item.status] || 'secondary';
+
+        const statusText = {
+          'pending': 'Pending',
+          'in_progress': 'In Progress',
+          'completed': 'Completed'
+        }[item.status] || item.status;
+
+        const dueDate = item.due_date ? new Date(item.due_date).toLocaleDateString() : 'No due date';
+        const isOverdue = item.due_date && new Date(item.due_date) < new Date() && item.status !== 'completed';
+
+        html += `
+          <div class="list-group-item ${item.status === 'completed' ? 'bg-light' : ''}">
+            <div class="d-flex justify-content-between align-items-start">
+              <div class="flex-grow-1">
+                <h6 class="mb-1 ${item.status === 'completed' ? 'text-decoration-line-through text-muted' : ''}">
+                  ${escapeHtml(item.title)}
+                </h6>
+                ${item.description ? `<p class="mb-2 text-muted small">${escapeHtml(item.description)}</p>` : ''}
+                <div class="d-flex gap-2 flex-wrap">
+                  <span class="badge bg-${priorityBadge}">${item.priority.toUpperCase()}</span>
+                  <span class="badge bg-${statusBadge}">${statusText}</span>
+                  <span class="badge bg-info ${isOverdue ? 'bg-danger' : ''}">
+                    <i class="bi bi-calendar me-1"></i>${dueDate}
+                  </span>
+                </div>
+              </div>
+              <div class="btn-group ms-3">
+                ${item.status !== 'completed' ? `
+                  <button class="btn btn-sm btn-success" onclick="markActionItemComplete(${item.id})" title="Mark as complete">
+                    <i class="bi bi-check-lg"></i>
+                  </button>
+                ` : ''}
+                <button class="btn btn-sm btn-primary" onclick="editActionItem(${item.id})" title="Edit">
+                  <i class="bi bi-pencil"></i>
+                </button>
+                <button class="btn btn-sm btn-danger" onclick="deleteActionItem(${item.id})" title="Delete">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+
+      html += '</div>';
+      container.innerHTML = html;
+    }
+
+    function filterActionItems(status) {
+      currentActionFilter = status;
+      
+      // Update active tab
+      document.querySelectorAll('#actionItemTabs .nav-link').forEach(link => {
+        link.classList.remove('active');
+      });
+      const event = window.event || arguments[0];
+      if (event && event.target) {
+        event.target.classList.add('active');
+      }
+
+      let filtered = allActionItems;
+      if (status !== 'all') {
+        filtered = allActionItems.filter(item => item.status === status);
+      }
+      
+      displayActionItems(filtered);
+    }
+
+    function showCreateActionItemModal() {
+      const titleEl = document.getElementById('actionItemModalTitle');
+      const formEl = document.getElementById('actionItemForm');
+      const idEl = document.getElementById('actionItemId');
+      
+      if (titleEl) titleEl.textContent = 'Create Action Item';
+      if (formEl) formEl.reset();
+      if (idEl) idEl.value = '';
+      
+      const modalEl = document.getElementById('actionItemModal');
+      if (modalEl && typeof bootstrap !== 'undefined') {
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+      }
+    }
+
+    async function editActionItem(id) {
+      const item = allActionItems.find(i => i.id === id);
+      if (!item) return;
+
+      const titleEl = document.getElementById('actionItemModalTitle');
+      const idEl = document.getElementById('actionItemId');
+      const titleInput = document.getElementById('actionItemTitle');
+      const descInput = document.getElementById('actionItemDescription');
+      const prioritySelect = document.getElementById('actionItemPriority');
+      const statusSelect = document.getElementById('actionItemStatus');
+      const dueDateInput = document.getElementById('actionItemDueDate');
+      
+      if (titleEl) titleEl.textContent = 'Edit Action Item';
+      if (idEl) idEl.value = item.id;
+      if (titleInput) titleInput.value = item.title;
+      if (descInput) descInput.value = item.description || '';
+      if (prioritySelect) prioritySelect.value = item.priority;
+      if (statusSelect) statusSelect.value = item.status;
+      
+      if (dueDateInput && item.due_date) {
+        const date = new Date(item.due_date);
+        dueDateInput.value = date.toISOString().split('T')[0];
+      }
+
+      const modalEl = document.getElementById('actionItemModal');
+      if (modalEl && typeof bootstrap !== 'undefined') {
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+      }
+    }
+
+    async function saveActionItem() {
+      const idEl = document.getElementById('actionItemId');
+      const id = idEl ? idEl.value : '';
+      const titleInput = document.getElementById('actionItemTitle');
+      const title = titleInput ? titleInput.value.trim() : '';
+      
+      if (!title) {
+        showToast('Please enter a title', 'danger');
+        return;
+      }
+
+      const data = {
+        title: title,
+        description: document.getElementById('actionItemDescription')?.value.trim() || null,
+        priority: document.getElementById('actionItemPriority')?.value,
+        status: document.getElementById('actionItemStatus')?.value,
+        due_date: document.getElementById('actionItemDueDate')?.value || null,
+        assigned_to: null,
+        workspace_id: null,
+        retrospective_id: null
+      };
+
+      try {
+        const url = id ? `/api/v1/action-items/${id}` : '/api/v1/action-items/';
+        const method = id ? 'PUT' : 'POST';
+
+        const response = await fetch(url, {
+          method: method,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+          },
+          body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+          showToast(id ? 'Action item updated!' : 'Action item created!', 'success');
+          const modalEl = document.getElementById('actionItemModal');
+          if (modalEl && typeof bootstrap !== 'undefined') {
+            bootstrap.Modal.getInstance(modalEl).hide();
+          }
+          await loadActionItems();
+          // Also refresh workspace action items if in workspace view
+          if (currentWorkspace) {
+            await loadWorkspaceActionItems();
+          }
+        } else {
+          const error = await response.json();
+          throw new Error(error.detail || 'Failed to save action item');
+        }
+      } catch (error) {
+        console.error('Error saving action item:', error);
+        showToast('Failed to save: ' + error.message, 'danger');
+      }
+    }
+
+    async function markActionItemComplete(id) {
+      if (!confirm('Mark this action item as complete?')) return;
+
+      try {
+        const response = await fetch(`/api/v1/action-items/${id}/complete`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
+
+        if (response.ok) {
+          showToast('Action item completed!', 'success');
+          await loadActionItems();
+          if (currentWorkspace) {
+            await loadWorkspaceActionItems();
+          }
+        } else {
+          throw new Error('Failed to complete action item');
+        }
+      } catch (error) {
+        console.error('Error completing action item:', error);
+        showToast('Failed to complete: ' + error.message, 'danger');
+      }
+    }
+
+    async function deleteActionItem(id) {
+      if (!confirm('Are you sure you want to delete this action item?')) return;
+
+      try {
+        const response = await fetch(`/api/v1/action-items/${id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
+
+        if (response.ok) {
+          showToast('Action item deleted!', 'success');
+          await loadActionItems();
+          if (currentWorkspace) {
+            await loadWorkspaceActionItems();
+          }
+        } else {
+          throw new Error('Failed to delete action item');
+        }
+      } catch (error) {
+        console.error('Error deleting action item:', error);
+        showToast('Failed to delete: ' + error.message, 'danger');
+      }
     }
 
     console.log('YodaAI Application Ready!');

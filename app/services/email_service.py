@@ -48,8 +48,9 @@ class EmailService:
         try:
             if not settings.ENABLE_EMAIL_NOTIFICATIONS:
                 logger.info(f"📧 Email notifications disabled. Would send to {to_email}: {subject}")
-                # Print verification link to console for testing
-                if "verify" in subject.lower() or "Verify" in subject:
+                # Print verification or invitation link to console for testing
+                subject_lower = subject.lower()
+                if "verify" in subject_lower:
                     logger.info("="*60)
                     logger.info("EMAIL VERIFICATION LINK (check console):")
                     logger.info("="*60)
@@ -58,6 +59,20 @@ class EmailService:
                     links = re.findall(r'href="([^"]+verify[^"]+)"', html_content)
                     if links:
                         logger.info(f"Click here to verify: {links[0]}")
+                    logger.info("="*60)
+                elif "invit" in subject_lower:
+                    logger.info("="*60)
+                    logger.info("WORKSPACE INVITATION LINK (check console):")
+                    logger.info("="*60)
+                    # Extract link from HTML or text
+                    import re
+                    links = re.findall(r'href="([^"]+invite[^"]+)"', html_content)
+                    if not links:
+                        # Try text content
+                        links = re.findall(r'(http[^\s]+invite[^\s]+)', text_content or "")
+                    if links:
+                        logger.info(f"Invitation link: {links[0]}")
+                    logger.info(f"To: {to_email}")
                     logger.info("="*60)
                 return True
             
