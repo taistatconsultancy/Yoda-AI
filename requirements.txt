@@ -56,7 +56,7 @@ icalendar==5.0.7
 orjson==3.11.3
 
 # Firebase (OPTIONAL - uncomment if using Google OAuth)
-# firebase-admin==7.1.0
+firebase-admin==7.1.0
 
 # Chroma (OPTIONAL - uncomment if using vector database)
 # chromadb==1.1.1
