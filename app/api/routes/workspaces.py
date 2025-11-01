@@ -34,6 +34,7 @@ class WorkspaceResponse(BaseModel):
     is_active: bool
     member_count: int
     created_at: datetime
+    my_role: str = None  # Current user's role in this workspace
     
     class Config:
         from_attributes = True
@@ -113,7 +114,8 @@ async def create_workspace(
             created_by=new_workspace.created_by,
             is_active=new_workspace.is_active,
             member_count=member_count,
-            created_at=new_workspace.created_at
+            created_at=new_workspace.created_at,
+            my_role=workspace_data.your_role
         )
         
     except Exception as e:
@@ -206,6 +208,10 @@ async def get_my_workspaces(
                 WorkspaceMember.is_active == True
             ).count()
             
+            # Find current user's role in this workspace
+            user_membership = next((m for m in memberships if m.workspace_id == workspace.id), None)
+            user_role = user_membership.role if user_membership else None
+            
             result.append(WorkspaceResponse(
                 id=workspace.id,
                 name=workspace.name,
@@ -213,7 +219,8 @@ async def get_my_workspaces(
                 created_by=workspace.created_by,
                 is_active=workspace.is_active,
                 member_count=member_count,
-                created_at=workspace.created_at
+                created_at=workspace.created_at,
+                my_role=user_role
             ))
         
         return result
@@ -260,7 +267,8 @@ async def get_workspace(
             created_by=workspace.created_by,
             is_active=workspace.is_active,
             member_count=member_count,
-            created_at=workspace.created_at
+            created_at=workspace.created_at,
+            my_role=membership.role
         )
         
     except HTTPException:

@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from datetime import datetime
 import os
 import json
+import logging
 from openai import OpenAI
 
 from app.database.database import get_db
@@ -19,6 +20,8 @@ from app.models.user import User
 from app.models.workspace import WorkspaceMember
 from app.api.dependencies.auth import get_current_user
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/grouping", tags=["grouping"])
 
@@ -278,6 +281,8 @@ Do not include any explanatory text before or after the JSON.
         
         db.commit()
         
+        logger.info(f"✅ Successfully created {len(created_groups)} theme groups for retro {retro_id}")
+        
         return {
             "message": f"Created {len(created_groups)} theme groups",
             "groups_created": len(created_groups),
@@ -288,7 +293,7 @@ Do not include any explanatory text before or after the JSON.
         raise
     except Exception as e:
         db.rollback()
-        print(f"Generate grouping error: {e}")
+        logger.error(f"❌ Generate grouping error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to generate grouping: {str(e)}")
 
 
@@ -302,13 +307,19 @@ async def get_grouping_results(
     Get grouping results with theme groups and ungrouped responses
     """
     try:
+        logger.info(f"📥 Getting grouping results for retro {retro_id}, user {current_user.id}")
+        
+        # Verify retrospective exists
+        retro = db.query(Retrospective).filter(Retrospective.id == retro_id).first()
+        
+        if not retro:
+            raise HTTPException(status_code=404, detail="Retrospective not found")
+        
         # Verify access
         participant = db.query(RetrospectiveParticipant).filter(
             RetrospectiveParticipant.retrospective_id == retro_id,
             RetrospectiveParticipant.user_id == current_user.id
         ).first()
-        
-        retro = db.query(Retrospective).filter(Retrospective.id == retro_id).first()
         
         if not participant and retro.facilitator_id != current_user.id:
             raise HTTPException(status_code=403, detail="Access denied")
@@ -317,6 +328,8 @@ async def get_grouping_results(
         theme_groups = db.query(ThemeGroup).filter(
             ThemeGroup.retrospective_id == retro_id
         ).order_by(ThemeGroup.display_order).all()
+        
+        logger.info(f"Found {len(theme_groups)} theme groups for retro {retro_id}")
         
         theme_group_responses = []
         for group in theme_groups:

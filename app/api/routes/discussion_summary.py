@@ -4,6 +4,7 @@ AI-facilitated discussion on top-voted themes + Sprint summaries
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import List
 from pydantic import BaseModel
 from datetime import datetime
@@ -14,11 +15,15 @@ from openai import OpenAI
 from app.database.database import get_db
 from app.models.retrospective_new import (
     Retrospective, DiscussionTopic, DiscussionMessage, ThemeGroup,
-    RetrospectiveParticipant, RetrospectiveResponse, DARecommendation
+    RetrospectiveParticipant, RetrospectiveResponse, DARecommendation,
+    VotingSession, VoteAllocation
 )
 from app.models.user import User
 from app.api.dependencies.auth import get_current_user
 from app.core.config import settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/discussion", tags=["discussion-summary"])
 
@@ -533,13 +538,41 @@ async def get_summary(
         
         insights = retro.ai_insights or {}
         
+        # Get voting tallies for all themes
+        voting_results = []
+        voting_session = db.query(VotingSession).filter(
+            VotingSession.retrospective_id == retro_id
+        ).order_by(VotingSession.created_at.desc()).first()
+        
+        if voting_session:
+            themes = db.query(ThemeGroup).filter(
+                ThemeGroup.retrospective_id == retro_id
+            ).all()
+            
+            for theme in themes:
+                total_votes = db.query(func.sum(VoteAllocation.votes_allocated)).filter(
+                    VoteAllocation.voting_session_id == voting_session.id,
+                    VoteAllocation.theme_group_id == theme.id
+                ).scalar() or 0
+                
+                voting_results.append({
+                    "theme_title": theme.title,
+                    "theme_description": theme.description,
+                    "total_votes": total_votes,
+                    "category": theme.primary_category
+                })
+            
+            # Sort by votes
+            voting_results.sort(key=lambda x: x['total_votes'], reverse=True)
+        
         return {
             "summary": retro.ai_summary,
             "achievements": insights.get('achievements', []),
             "challenges": insights.get('challenges', []),
             "recommendations": insights.get('recommendations', []),
             "sprint_name": retro.sprint_name,
-            "generated_at": retro.updated_at
+            "generated_at": retro.updated_at,
+            "voting_results": voting_results
         }
         
     except HTTPException:

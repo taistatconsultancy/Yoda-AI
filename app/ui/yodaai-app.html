@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -7,6 +8,10 @@
   <title>YodaAI - AI-Powered Retrospective Assistant</title>
   <meta content="Transform your agile retrospectives with AI-powered facilitation. YodaAI guides teams through structured 4Ls retrospectives." name="description">
   <meta content="retrospective, agile, scrum, AI, 4Ls, team management" name="keywords">
+  
+  <!-- Favicon -->
+  <link rel="icon" href="/ui/favicon.ico" type="image/x-icon">
+  <link rel="icon" href="/ui/favicon.png" type="image/png">
 
   <!-- Google Fonts -->
   <link href="https://fonts.googleapis.com/css?family=Open+Sans:300,300i,400,400i,600,600i,700,700i|Nunito:300,300i,400,400i,600,600i,700,700i|Poppins:300,300i,400,400i,500,500i,600,600i,700,700i" rel="stylesheet">
@@ -3382,6 +3387,12 @@
         document.getElementById('settingsWorkspaceName').value = selected.name;
         document.getElementById('settingsWorkspaceDesc').value = selected.description || '';
         
+        // Update tab locks based on user role
+        updateWorkspaceTabLocks(selected.my_role);
+        
+        // Update button locks based on user role
+        updateWorkspaceButtonLocks(selected.my_role);
+        
         // Show workspace detail section
         document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
         document.getElementById('workspaceDetailSection').classList.add('active');
@@ -3391,13 +3402,74 @@
       }
     }
     
+    function updateWorkspaceButtonLocks(userRole) {
+      // Define which roles have access
+      const privilegedRoles = ['Scrum Master', 'Project Manager'];
+      const isPrivileged = privilegedRoles.includes(userRole);
+      
+      // Lock Create Retrospective button if not privileged
+      const createRetroBtn = document.querySelector('#workspaceDetailSection button[onclick="showCreateRetroModal()"]');
+      if (createRetroBtn) {
+        if (!isPrivileged) {
+          createRetroBtn.disabled = true;
+          createRetroBtn.classList.add('opacity-50');
+          createRetroBtn.title = 'Requires Scrum Master or Project Manager privileges';
+        } else {
+          createRetroBtn.disabled = false;
+          createRetroBtn.classList.remove('opacity-50');
+          createRetroBtn.title = '';
+        }
+      }
+    }
+    
     function exitWorkspace() {
       // Go back to dashboard
       showSection('dashboard');
       currentWorkspace = null;
     }
     
+    function updateWorkspaceTabLocks(userRole) {
+      // Define which roles have access to each feature
+      const privilegedRoles = ['Scrum Master', 'Project Manager'];
+      const isPrivileged = privilegedRoles.includes(userRole);
+      
+      // Tabs that require privileged access
+      const lockedTabs = ['retrospectives', 'team', 'settings'];
+      
+      // Tab info for restoring
+      const tabInfo = {
+        'retrospectives': { icon: 'bi-chat-dots', text: 'Retrospectives' },
+        'team': { icon: 'bi-people', text: 'Team Members' },
+        'settings': { icon: 'bi-gear', text: 'Settings' }
+      };
+      
+      // Update tab locks
+      lockedTabs.forEach(tabName => {
+        const tabLink = document.querySelector(`#workspaceTabs a[onclick*="${tabName}"]`);
+        if (tabLink) {
+          if (!isPrivileged) {
+            // Lock the tab
+            tabLink.style.pointerEvents = 'none';
+            tabLink.style.opacity = '0.5';
+            tabLink.innerHTML = `<i class="bi bi-lock"></i> ${tabInfo[tabName].text}`;
+            tabLink.title = 'Requires Scrum Master or Project Manager privileges';
+          } else {
+            // Unlock the tab
+            tabLink.style.pointerEvents = 'auto';
+            tabLink.style.opacity = '1';
+            tabLink.innerHTML = `<i class="bi ${tabInfo[tabName].icon}"></i> ${tabInfo[tabName].text}`;
+            tabLink.title = '';
+          }
+        }
+      });
+    }
+    
     function showWorkspaceTab(tabName) {
+      // Check if tab is locked
+      const privilegedRoles = ['Scrum Master', 'Project Manager'];
+      const lockedTabs = ['retrospectives', 'team', 'settings'];
+      const isLocked = lockedTabs.includes(tabName) && currentWorkspace && !privilegedRoles.includes(currentWorkspace.my_role);
+      
       // Hide all tabs
       document.querySelectorAll('.workspace-tab').forEach(tab => tab.classList.remove('active'));
       
@@ -3405,6 +3477,20 @@
       const targetTab = document.getElementById(`workspace-${tabName}-tab`);
       if (targetTab) {
         targetTab.classList.add('active');
+        
+        // Show lock message if locked
+        if (isLocked) {
+          const lockMessage = `
+            <div class="text-center py-5">
+              <i class="bi bi-lock display-1 text-muted"></i>
+              <h3 class="mt-3 text-muted">Premium Feature</h3>
+              <p class="text-muted">This feature requires Scrum Master or Project Manager privileges.</p>
+              <p class="text-muted small">Contact your workspace admin to upgrade your access.</p>
+            </div>
+          `;
+          targetTab.innerHTML = lockMessage;
+          return; // Don't load data
+        }
       }
       
       // Update tab navigation
@@ -4435,6 +4521,9 @@
           <!-- Themes will appear here -->
         </div>
       `;
+      
+      // Load any existing themes
+      await loadGroupingResults(retroId);
     }
     
     function closeGroupingOverlay() {
@@ -4461,6 +4550,9 @@
           </div>
         </div>
       `;
+      
+      // Load any existing themes
+      await loadGroupingResults(retroId);
     }
     
     async function generateGrouping(retroId) {
@@ -4486,8 +4578,10 @@
         const data = await response.json();
         showToast(`Created ${data.groups_created} theme groups!`, 'success');
         
+        // Add small delay to ensure database commit is complete
+        await new Promise(resolve => setTimeout(resolve, 500));
         // Load and display grouping results
-        loadGroupingResults(retroId);
+        await loadGroupingResults(retroId);
         
       } catch (error) {
         console.error('Generate grouping error:', error);
@@ -4508,13 +4602,25 @@
           }
         });
         
-        if (!response.ok) return;
+        if (!response.ok) {
+          const error = await response.json();
+          console.error('Load grouping error:', error);
+          const container = document.getElementById('groupingResults');
+          if (container) {
+            container.innerHTML = `<div class="alert alert-warning">Failed to load themes. Please try again.</div>`;
+          }
+          return;
+        }
         
         const data = await response.json();
         displayGroupingResults(data, retroId);
         
       } catch (error) {
         console.error('Load grouping error:', error);
+        const container = document.getElementById('groupingResults');
+        if (container) {
+          container.innerHTML = `<div class="alert alert-warning">Failed to load themes. Please try again.</div>`;
+        }
       }
     }
     
