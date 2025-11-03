@@ -15,10 +15,24 @@ logger = logging.getLogger(__name__)
 
 # Check if running in serverless environment (Vercel, etc.)
 IS_SERVERLESS = os.environ.get("VERCEL") == "1" or os.environ.get("AWS_LAMBDA_FUNCTION_NAME") is not None
+if IS_SERVERLESS:
+    logger.info("🔍 Serverless environment detected (Vercel/AWS Lambda)")
 
 # Determine which database URL to use
-# Prefer NEON_DATABASE_URL if available, otherwise use SQLite
-if settings.NEON_DATABASE_URL and not getattr(settings, 'USE_LOCAL_DB', False):
+# In serverless, REQUIRE Neon PostgreSQL - SQLite doesn't work in read-only file systems
+if IS_SERVERLESS:
+    # In serverless, check for NEON_DATABASE_URL in both settings and environment
+    neon_url = settings.NEON_DATABASE_URL or os.environ.get("NEON_DATABASE_URL")
+    if not neon_url:
+        logger.error("❌ NEON_DATABASE_URL not found in serverless environment!")
+        raise ValueError(
+            "ERROR: NEON_DATABASE_URL environment variable must be set for serverless deployment. "
+            "SQLite is not supported in serverless environments like Vercel. "
+            "Please set NEON_DATABASE_URL in Vercel Dashboard → Settings → Environment Variables."
+        )
+    database_url = neon_url
+    logger.info("✅ Using NEON Cloud PostgreSQL database (serverless)")
+elif settings.NEON_DATABASE_URL and not getattr(settings, 'USE_LOCAL_DB', False):
     database_url = settings.NEON_DATABASE_URL
     logger.info("✅ Using NEON Cloud PostgreSQL database")
 else:

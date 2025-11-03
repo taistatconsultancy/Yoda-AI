@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>YodaAI - Retrospective Session</title>
   
+  <!-- Favicon -->
+  <link rel="icon" href="/ui/favicon.ico" type="image/x-icon">
+  <link rel="icon" href="/ui/favicon.png" type="image/png">
+  
   <!-- Bootstrap CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <!-- Bootstrap Icons -->
@@ -982,6 +986,8 @@
         if (response.ok) {
           const data = await response.json();
           showToast(`Created ${data.groups_created || 0} theme groups!`, 'success');
+          // Add small delay to ensure database commit is complete
+          await new Promise(resolve => setTimeout(resolve, 500));
           await loadGroupingResults();
         } else {
           const error = await response.json();
@@ -1009,9 +1015,21 @@
         if (response.ok) {
           const data = await response.json();
           displayGroupingResults(data);
+        } else {
+          const error = await response.json();
+          console.error('Load grouping error:', error);
+          // Show error message in UI
+          const container = document.getElementById('groupingResults');
+          if (container) {
+            container.innerHTML = `<div class="alert alert-warning">Failed to load themes. Please try again.</div>`;
+          }
         }
       } catch (error) {
         console.error('Load grouping error:', error);
+        const container = document.getElementById('groupingResults');
+        if (container) {
+          container.innerHTML = `<div class="alert alert-warning">Failed to load themes. Please try again.</div>`;
+        }
       }
     }
     
@@ -1729,37 +1747,68 @@
       const container = document.getElementById('summaryContent');
       container.innerHTML = `
         <div class="summary-card">
-          <h5>Key Takeaways</h5>
-          <p>${escapeHtml(summary.key_takeaways || 'No key takeaways yet.')}</p>
+          <h5><i class="bi bi-file-text"></i> Sprint Summary</h5>
+          <p style="white-space: pre-wrap;">${escapeHtml(summary.summary || 'No summary generated yet.')}</p>
         </div>
         
+        ${summary.achievements && summary.achievements.length > 0 ? `
         <div class="summary-card">
-          <h5>Action Items</h5>
-          <ul id="actionItemsList"></ul>
+          <h5><i class="bi bi-trophy"></i> Achievements</h5>
+          <ul>
+            ${summary.achievements.map(a => `<li>${escapeHtml(a)}</li>`).join('')}
+          </ul>
         </div>
+        ` : ''}
         
+        ${summary.challenges && summary.challenges.length > 0 ? `
         <div class="summary-card">
-          <h5>Team Sentiment</h5>
-          <p>${escapeHtml(summary.sentiment || 'Analyzing...')}</p>
+          <h5><i class="bi bi-exclamation-triangle"></i> Challenges</h5>
+          <ul>
+            ${summary.challenges.map(c => `<li>${escapeHtml(c)}</li>`).join('')}
+          </ul>
         </div>
+        ` : ''}
         
+        ${summary.recommendations && summary.recommendations.length > 0 ? `
         <div class="summary-card">
-          <h5>Previous Retrospectives</h5>
-          <div id="previousRetros"></div>
+          <h5><i class="bi bi-lightbulb"></i> Recommendations</h5>
+          <ul>
+            ${summary.recommendations.map(r => `<li>${escapeHtml(r)}</li>`).join('')}
+          </ul>
         </div>
+        ` : ''}
+        
+        ${summary.voting_results && summary.voting_results.length > 0 ? `
+        <div class="summary-card">
+          <h5><i class="bi bi-bar-chart"></i> Voting Results</h5>
+          <div class="table-responsive">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Theme</th>
+                  <th class="text-center">Votes</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${summary.voting_results.map((result, idx) => `
+                  <tr>
+                    <td class="text-muted">${idx + 1}</td>
+                    <td>
+                      <strong>${escapeHtml(result.theme_title)}</strong><br>
+                      <small class="text-muted">${escapeHtml(result.theme_description || '')}</small>
+                    </td>
+                    <td class="text-center">
+                      <span class="badge bg-primary">${result.total_votes}</span>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        ` : ''}
       `;
-      
-      // Display action items
-      const actionList = document.getElementById('actionItemsList');
-      if (summary.action_items && summary.action_items.length > 0) {
-        summary.action_items.forEach(item => {
-          const li = document.createElement('li');
-          li.textContent = item.title;
-          actionList.appendChild(li);
-        });
-      } else {
-        actionList.innerHTML = '<li>No action items created yet.</li>';
-      }
       
       // Load previous retros
       loadPreviousRetros();

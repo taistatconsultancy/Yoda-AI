@@ -4,6 +4,7 @@ AI-facilitated discussion on top-voted themes + Sprint summaries
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import List
 from pydantic import BaseModel
 from datetime import datetime
@@ -14,15 +15,25 @@ from openai import OpenAI
 from app.database.database import get_db
 from app.models.retrospective_new import (
     Retrospective, DiscussionTopic, DiscussionMessage, ThemeGroup,
-    RetrospectiveParticipant, RetrospectiveResponse, DARecommendation
+    RetrospectiveParticipant, RetrospectiveResponse, DARecommendation,
+    VotingSession, VoteAllocation
 )
 from app.models.user import User
 from app.api.dependencies.auth import get_current_user
+from app.core.config import settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/discussion", tags=["discussion-summary"])
 
-# Initialize OpenAI
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+def get_openai_client():
+    """Get OpenAI client with API key from settings"""
+    api_key = settings.OPENAI_API_KEY
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY is not set")
+    return OpenAI(api_key=api_key)
 
 
 # Pydantic Models
@@ -187,7 +198,8 @@ Be conversational, supportive, and concise (max 2-3 sentences)."""}
         
         # Get AI response
         try:
-            response = client.chat.completions.create(
+            openai_client = get_openai_client()
+            response = openai_client.chat.completions.create(
                 model="gpt-4",
                 messages=messages_for_ai,
                 temperature=0.7,
@@ -332,7 +344,8 @@ Be conversational, practical, and focused on action. Keep responses concise (2-3
         
         # Get AI response
         try:
-            response = client.chat.completions.create(
+            openai_client = get_openai_client()
+            response = openai_client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -446,7 +459,8 @@ Return JSON:
             print(f"Generating summary for retrospective {retro_id}")
             print(f"Data summary: {json.dumps(data_summary, indent=2)}")
             
-            response = client.chat.completions.create(
+            openai_client = get_openai_client()
+            response = openai_client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are an expert agile coach analyzing retrospectives."},
@@ -524,13 +538,41 @@ async def get_summary(
         
         insights = retro.ai_insights or {}
         
+        # Get voting tallies for all themes
+        voting_results = []
+        voting_session = db.query(VotingSession).filter(
+            VotingSession.retrospective_id == retro_id
+        ).order_by(VotingSession.created_at.desc()).first()
+        
+        if voting_session:
+            themes = db.query(ThemeGroup).filter(
+                ThemeGroup.retrospective_id == retro_id
+            ).all()
+            
+            for theme in themes:
+                total_votes = db.query(func.sum(VoteAllocation.votes_allocated)).filter(
+                    VoteAllocation.voting_session_id == voting_session.id,
+                    VoteAllocation.theme_group_id == theme.id
+                ).scalar() or 0
+                
+                voting_results.append({
+                    "theme_title": theme.title,
+                    "theme_description": theme.description,
+                    "total_votes": total_votes,
+                    "category": theme.primary_category
+                })
+            
+            # Sort by votes
+            voting_results.sort(key=lambda x: x['total_votes'], reverse=True)
+        
         return {
             "summary": retro.ai_summary,
             "achievements": insights.get('achievements', []),
             "challenges": insights.get('challenges', []),
             "recommendations": insights.get('recommendations', []),
             "sprint_name": retro.sprint_name,
-            "generated_at": retro.updated_at
+            "generated_at": retro.updated_at,
+            "voting_results": voting_results
         }
         
     except HTTPException:
@@ -621,7 +663,8 @@ Keep each bullet point concise and actionable. Structure the output in an organi
             }
         
         try:
-            response = client.chat.completions.create(
+            openai_client = get_openai_client()
+            response = openai_client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are a Disciplined Agile expert providing actionable recommendations."},

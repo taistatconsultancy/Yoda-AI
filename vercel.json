@@ -4,37 +4,12 @@
     {
       "src": "main.py",
       "use": "@vercel/python"
-    },
-    {
-      "src": "app/ui/**",
-      "use": "@vercel/static"
     }
   ],
   "routes": [
     {
-      "src": "/api/(.*)",
-      "dest": "/main.py"
-    },
-    {
-      "src": "/ui/(.*)",
-      "dest": "/app/ui/$1"
-    },
-    {
-      "src": "/",
-      "dest": "/app/ui/yodaai-app.html"
-    },
-    {
       "src": "/(.*)",
-      "dest": "/main.py"
+      "dest": "main.py"
     }
-  ],
-  "env": {
-    "PYTHON_VERSION": "3.11"
-  },
-  "functions": {
-    "main.py": {
-      "maxDuration": 60
-    }
-  }
+  ]
 }
-

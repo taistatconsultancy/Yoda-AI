@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 import os
+import logging
 from contextlib import asynccontextmanager
 
 from app.core.config import settings
@@ -17,17 +18,34 @@ from app.api.routes import (
     workspaces, retrospectives_full, fourls_chat, grouping, voting, discussion_summary, 
     google_auth, workspace_invitations
 )
-from app.database.database import init_db
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager"""
     # Startup
-    await init_db()
+    try:
+        logger.info("Starting YodaAI application...")
+        logger.info(f"Environment: {settings.ENVIRONMENT}")
+        logger.info(f"Debug mode: {settings.DEBUG}")
+        
+        # Import here to avoid errors if database fails
+        from app.database.database import init_db
+        await init_db()
+        logger.info("✅ Database initialized successfully")
+    except Exception as e:
+        logger.error(f"❌ Startup error: {e}", exc_info=True)
+        # Don't fail completely - let app start and handle DB errors at runtime
+        logger.warning("⚠️ Continuing without full database initialization")
+    
     yield
+    
     # Shutdown
-    pass
+    logger.info("Shutting down YodaAI application")
 
 
 # Create FastAPI application

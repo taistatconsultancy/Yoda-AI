@@ -1,12 +1,17 @@
+
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
   <meta charset="utf-8">
   <meta content="width=device-width, initial-scale=1.0" name="viewport">
-  <title>YodaAI - AI-Powered Retrospective Assistant</title>
+  <title>YodaAI - Assistant</title>
   <meta content="Transform your agile retrospectives with AI-powered facilitation. YodaAI guides teams through structured 4Ls retrospectives." name="description">
   <meta content="retrospective, agile, scrum, AI, 4Ls, team management" name="keywords">
+  
+  <!-- Favicon -->
+  <link rel="icon" href="/ui/favicon.ico" type="image/x-icon">
+  <link rel="icon" href="/ui/favicon.png" type="image/png">
 
   <!-- Google Fonts -->
   <link href="https://fonts.googleapis.com/css?family=Open+Sans:300,300i,400,400i,600,600i,700,700i|Nunito:300,300i,400,400i,600,600i,700,700i|Poppins:300,300i,400,400i,500,500i,600,600i,700,700i" rel="stylesheet">
@@ -99,11 +104,92 @@
       background: var(--secondary-color);
     }
 
+    /* Mobile landing page header */
+    @media (max-width: 768px) {
+      .header {
+        padding: 12px 0;
+      }
+
+      .header .logo {
+        font-size: 24px;
+      }
+
+      .navbar ul {
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .navbar .getstarted {
+        margin-left: 15px;
+        padding: 8px 16px;
+        font-size: 14px;
+      }
+
+      .navbar li a {
+        font-size: 14px;
+        margin-left: 15px !important;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .header .logo {
+        font-size: 20px;
+      }
+
+      .navbar .getstarted {
+        margin-left: 10px;
+        padding: 6px 12px;
+        font-size: 13px;
+      }
+
+      .navbar li a {
+        font-size: 13px;
+        margin-left: 10px !important;
+      }
+    }
+
     .hero {
       width: 100%;
       height: 100vh;
+      min-height: 600px;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       position: relative;
+    }
+
+    /* Mobile hero section */
+    @media (max-width: 768px) {
+      .hero {
+        height: auto;
+        min-height: auto;
+        padding: 80px 0 60px;
+      }
+
+      .hero h1 {
+        font-size: 2rem !important;
+      }
+
+      .hero h2 {
+        font-size: 1.1rem !important;
+      }
+
+      .btn-get-started {
+        padding: 10px 20px;
+        font-size: 14px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .hero {
+        padding: 60px 0 40px;
+      }
+
+      .hero h1 {
+        font-size: 1.75rem !important;
+      }
+
+      .hero h2 {
+        font-size: 1rem !important;
+      }
     }
 
     .hero::before {
@@ -289,37 +375,242 @@
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(0, 0, 0, 0.8);
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
       z-index: 9999;
       align-items: center;
       justify-content: center;
+      padding: 16px;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .login-modal.active {
+      display: flex;
     }
 
     .login-modal-content {
       background: white;
-      border-radius: 16px;
-      padding: 20px; /* tighter padding to reduce visual height */
-      max-width: 380px; /* reduce modal width for better focus */
-      width: 92%;
-      max-height: 85vh; /* increased height cap per request */
-      overflow-y: auto;  /* allow scroll if content exceeds cap */
+      border-radius: 20px;
+      padding: 32px 24px;
+      max-width: 420px;
+      width: 100%;
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
       position: relative;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      animation: modalSlideIn 0.3s ease-out;
+      -webkit-overflow-scrolling: touch;
     }
-    .login-modal-content h1 { margin-bottom: 10px; }
-    .login-modal-content .mb-4 { margin-bottom: 14px !important; }
+
+    @keyframes modalSlideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-20px) scale(0.95);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    .login-modal-content h1 { 
+      margin-bottom: 10px; 
+      font-size: 1.75rem;
+    }
+    
+    .login-modal-content h2 {
+      font-size: 1.5rem;
+      margin-bottom: 8px;
+    }
+
+    .login-modal-content .mb-4 { 
+      margin-bottom: 20px !important; 
+    }
 
     .close-modal {
       position: absolute;
-      top: 10px;
-      right: 12px;
-      background: none;
+      top: 16px;
+      right: 16px;
+      background: rgba(0, 0, 0, 0.05);
       border: none;
-      font-size: 26px;
+      border-radius: 50%;
+      width: 36px;
+      height: 36px;
+      font-size: 24px;
       line-height: 1;
       cursor: pointer;
-      color: #333;
+      color: #666;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      z-index: 10;
     }
-    .close-modal:hover { color: #000; }
+    
+    .close-modal:hover { 
+      background: rgba(0, 0, 0, 0.1);
+      color: #000; 
+      transform: rotate(90deg);
+    }
+
+    /* Mobile Responsive Styles */
+    @media (max-width: 768px) {
+      .login-modal {
+        padding: 0;
+        align-items: flex-end;
+      }
+
+      .login-modal-content {
+        border-radius: 20px 20px 0 0;
+        max-width: 100%;
+        max-height: 90vh;
+        padding: 24px 20px;
+        margin: 0;
+        animation: modalSlideUp 0.3s ease-out;
+      }
+
+      @keyframes modalSlideUp {
+        from {
+          opacity: 0;
+          transform: translateY(100%);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .login-modal-content h1 {
+        font-size: 1.5rem;
+      }
+
+      .login-modal-content h2 {
+        font-size: 1.25rem;
+      }
+
+      .close-modal {
+        top: 12px;
+        right: 12px;
+        width: 32px;
+        height: 32px;
+        font-size: 20px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .login-modal-content {
+        padding: 20px 16px;
+        border-radius: 16px 16px 0 0;
+      }
+
+      .login-modal-content h2 {
+        font-size: 1.1rem;
+      }
+
+      .login-modal-content .bi-robot {
+        font-size: 48px !important;
+      }
+    }
+
+    /* Modern Form Styling */
+    .login-modal-content .form-control {
+      border: 2px solid #e0e0e0;
+      border-radius: 10px;
+      padding: 12px 16px;
+      font-size: 16px;
+      transition: all 0.3s ease;
+      background-color: #fafafa;
+    }
+
+    .login-modal-content .form-control:focus {
+      border-color: var(--primary-color);
+      background-color: #fff;
+      box-shadow: 0 0 0 3px rgba(65, 84, 241, 0.1);
+      outline: none;
+    }
+
+    .login-modal-content .form-label {
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    /* Modern Button Styling */
+    .login-modal-content .btn {
+      border-radius: 10px;
+      padding: 12px 24px;
+      font-weight: 600;
+      font-size: 16px;
+      transition: all 0.3s ease;
+      border: none;
+      min-height: 48px; /* Touch-friendly minimum height */
+    }
+
+    .login-modal-content .btn-primary {
+      background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+      box-shadow: 0 4px 15px rgba(65, 84, 241, 0.3);
+    }
+
+    .login-modal-content .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(65, 84, 241, 0.4);
+    }
+
+    .login-modal-content .btn-success {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+    }
+
+    .login-modal-content .btn-success:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+    }
+
+    .login-modal-content .btn-outline-primary {
+      border: 2px solid var(--primary-color);
+      color: var(--primary-color);
+      background: transparent;
+    }
+
+    .login-modal-content .btn-outline-primary:hover {
+      background: var(--primary-color);
+      color: white;
+      transform: translateY(-2px);
+    }
+
+    .login-modal-content .btn-link {
+      padding: 8px;
+      min-height: auto;
+    }
+
+    /* Mobile form improvements */
+    @media (max-width: 768px) {
+      .login-modal-content .form-control {
+        font-size: 16px; /* Prevents zoom on iOS */
+        padding: 14px 16px;
+      }
+
+      .login-modal-content .btn {
+        padding: 14px 24px;
+        font-size: 16px;
+      }
+
+      .login-modal-content .form-label {
+        font-size: 14px;
+      }
+    }
+
+    /* Prevent input zoom on iOS */
+    @media screen and (max-width: 768px) {
+      input[type="email"],
+      input[type="password"],
+      input[type="text"] {
+        font-size: 16px !important;
+      }
+    }
 
     /* ==================== APP (Hidden until login) ==================== */
     .app-container {
@@ -351,8 +642,25 @@
     }
 
     @media (max-width: 1199px) {
-      .sidebar { left: -280px; }
-      .sidebar.show { left: 0; }
+      .sidebar { 
+        left: -280px;
+        width: 280px;
+        transition: left 0.3s ease;
+      }
+      .sidebar.show { 
+        left: 0;
+        box-shadow: 4px 0 20px rgba(0, 0, 0, 0.2);
+      }
+    }
+
+    /* Mobile sidebar improvements */
+    @media (max-width: 768px) {
+      .sidebar {
+        width: 100%;
+        max-width: 280px;
+        z-index: 998;
+        box-shadow: 4px 0 20px rgba(0, 0, 0, 0.3);
+      }
     }
 
     .sidebar-nav {
@@ -392,7 +700,47 @@
     }
 
     @media (max-width: 1199px) {
-      #main { margin-left: 0; }
+      #main { 
+        margin-left: 0;
+        padding: 20px 15px;
+      }
+    }
+
+    /* Mobile app header and main content */
+    @media (max-width: 768px) {
+      .app-header {
+        padding: 12px 0;
+      }
+
+      #main {
+        margin-top: 56px;
+        padding: 15px 12px;
+      }
+
+      .app-header .container-fluid {
+        padding-left: 12px !important;
+        padding-right: 12px !important;
+      }
+
+      .app-header .logo span {
+        font-size: 20px !important;
+      }
+
+      .app-header .btn {
+        padding: 6px 12px;
+        font-size: 14px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      #main {
+        padding: 12px 10px;
+      }
+
+      .card {
+        margin-bottom: 15px;
+        padding: 15px;
+      }
     }
 
     .card {
@@ -852,8 +1200,8 @@
   </div>
 
   <!-- Login Modal -->
-  <div id="loginModal" class="login-modal">
-    <div class="login-modal-content">
+  <div id="loginModal" class="login-modal" onclick="if(event.target === this) closeLoginModal()">
+    <div class="login-modal-content" onclick="event.stopPropagation()">
       <button class="close-modal" onclick="closeLoginModal()">&times;</button>
       
       <div class="text-center mb-4">
@@ -1855,12 +2203,26 @@
     // ==================== AUTHENTICATION ====================
     
     function showLoginModal() {
-      document.getElementById('loginModal').style.display = 'flex';
+      const modal = document.getElementById('loginModal');
+      modal.classList.add('active');
+      document.body.style.overflow = 'hidden'; // Prevent background scrolling
     }
 
     function closeLoginModal() {
-      document.getElementById('loginModal').style.display = 'none';
+      const modal = document.getElementById('loginModal');
+      modal.classList.remove('active');
+      document.body.style.overflow = ''; // Restore scrolling
       document.getElementById('authError').style.display = 'none';
+      
+      // Reset form fields
+      document.getElementById('loginEmail').value = '';
+      document.getElementById('loginPassword').value = '';
+      document.getElementById('loginFullName').value = '';
+      
+      // Reset to sign in mode
+      document.getElementById('fullNameField').style.display = 'none';
+      document.getElementById('signInBtn').style.display = 'block';
+      document.getElementById('signUpBtn').textContent = 'Sign Up';
     }
 
     async function signIn() {
@@ -2161,7 +2523,28 @@
     // ==================== NAVIGATION ====================
     
     function toggleSidebar() {
-      document.getElementById('sidebar').classList.toggle('show');
+      const sidebar = document.getElementById('sidebar');
+      sidebar.classList.toggle('show');
+      
+      // On mobile, add overlay and prevent body scroll when sidebar is open
+      if (window.innerWidth <= 768) {
+        if (sidebar.classList.contains('show')) {
+          const overlay = document.createElement('div');
+          overlay.id = 'sidebarOverlay';
+          overlay.style.cssText = 'position: fixed; top: 60px; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 997;';
+          overlay.onclick = function() {
+            toggleSidebar();
+          };
+          document.body.appendChild(overlay);
+          document.body.style.overflow = 'hidden';
+        } else {
+          const overlay = document.getElementById('sidebarOverlay');
+          if (overlay) {
+            overlay.remove();
+          }
+          document.body.style.overflow = '';
+        }
+      }
     }
 
     function showSection(sectionName) {
@@ -2174,6 +2557,14 @@
           link.classList.add('active');
         }
       });
+
+      // Close sidebar on mobile after navigation
+      if (window.innerWidth <= 768) {
+        const sidebar = document.getElementById('sidebar');
+        if (sidebar && sidebar.classList.contains('show')) {
+          toggleSidebar();
+        }
+      }
 
       if (sectionName === 'analytics') {
         loadAnalytics();
@@ -3382,6 +3773,12 @@
         document.getElementById('settingsWorkspaceName').value = selected.name;
         document.getElementById('settingsWorkspaceDesc').value = selected.description || '';
         
+        // Update tab locks based on user role
+        updateWorkspaceTabLocks(selected.my_role);
+        
+        // Update button locks based on user role
+        updateWorkspaceButtonLocks(selected.my_role);
+        
         // Show workspace detail section
         document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
         document.getElementById('workspaceDetailSection').classList.add('active');
@@ -3391,13 +3788,74 @@
       }
     }
     
+    function updateWorkspaceButtonLocks(userRole) {
+      // Define which roles have access
+      const privilegedRoles = ['Scrum Master', 'Project Manager'];
+      const isPrivileged = privilegedRoles.includes(userRole);
+      
+      // Lock Create Retrospective button if not privileged
+      const createRetroBtn = document.querySelector('#workspaceDetailSection button[onclick="showCreateRetroModal()"]');
+      if (createRetroBtn) {
+        if (!isPrivileged) {
+          createRetroBtn.disabled = true;
+          createRetroBtn.classList.add('opacity-50');
+          createRetroBtn.title = 'Requires Scrum Master or Project Manager privileges';
+        } else {
+          createRetroBtn.disabled = false;
+          createRetroBtn.classList.remove('opacity-50');
+          createRetroBtn.title = '';
+        }
+      }
+    }
+    
     function exitWorkspace() {
       // Go back to dashboard
       showSection('dashboard');
       currentWorkspace = null;
     }
     
+    function updateWorkspaceTabLocks(userRole) {
+      // Define which roles have access to each feature
+      const privilegedRoles = ['Scrum Master', 'Project Manager'];
+      const isPrivileged = privilegedRoles.includes(userRole);
+      
+      // Tabs that require privileged access
+      const lockedTabs = ['retrospectives', 'team', 'settings'];
+      
+      // Tab info for restoring
+      const tabInfo = {
+        'retrospectives': { icon: 'bi-chat-dots', text: 'Retrospectives' },
+        'team': { icon: 'bi-people', text: 'Team Members' },
+        'settings': { icon: 'bi-gear', text: 'Settings' }
+      };
+      
+      // Update tab locks
+      lockedTabs.forEach(tabName => {
+        const tabLink = document.querySelector(`#workspaceTabs a[onclick*="${tabName}"]`);
+        if (tabLink) {
+          if (!isPrivileged) {
+            // Lock the tab
+            tabLink.style.pointerEvents = 'none';
+            tabLink.style.opacity = '0.5';
+            tabLink.innerHTML = `<i class="bi bi-lock"></i> ${tabInfo[tabName].text}`;
+            tabLink.title = 'Requires Scrum Master or Project Manager privileges';
+          } else {
+            // Unlock the tab
+            tabLink.style.pointerEvents = 'auto';
+            tabLink.style.opacity = '1';
+            tabLink.innerHTML = `<i class="bi ${tabInfo[tabName].icon}"></i> ${tabInfo[tabName].text}`;
+            tabLink.title = '';
+          }
+        }
+      });
+    }
+    
     function showWorkspaceTab(tabName) {
+      // Check if tab is locked
+      const privilegedRoles = ['Scrum Master', 'Project Manager'];
+      const lockedTabs = ['retrospectives', 'team', 'settings'];
+      const isLocked = lockedTabs.includes(tabName) && currentWorkspace && !privilegedRoles.includes(currentWorkspace.my_role);
+      
       // Hide all tabs
       document.querySelectorAll('.workspace-tab').forEach(tab => tab.classList.remove('active'));
       
@@ -3405,6 +3863,20 @@
       const targetTab = document.getElementById(`workspace-${tabName}-tab`);
       if (targetTab) {
         targetTab.classList.add('active');
+        
+        // Show lock message if locked
+        if (isLocked) {
+          const lockMessage = `
+            <div class="text-center py-5">
+              <i class="bi bi-lock display-1 text-muted"></i>
+              <h3 class="mt-3 text-muted">Premium Feature</h3>
+              <p class="text-muted">This feature requires Scrum Master or Project Manager privileges.</p>
+              <p class="text-muted small">Contact your workspace admin to upgrade your access.</p>
+            </div>
+          `;
+          targetTab.innerHTML = lockMessage;
+          return; // Don't load data
+        }
       }
       
       // Update tab navigation
@@ -4435,6 +4907,9 @@
           <!-- Themes will appear here -->
         </div>
       `;
+      
+      // Load any existing themes
+      await loadGroupingResults(retroId);
     }
     
     function closeGroupingOverlay() {
@@ -4461,6 +4936,9 @@
           </div>
         </div>
       `;
+      
+      // Load any existing themes
+      await loadGroupingResults(retroId);
     }
     
     async function generateGrouping(retroId) {
@@ -4486,8 +4964,10 @@
         const data = await response.json();
         showToast(`Created ${data.groups_created} theme groups!`, 'success');
         
+        // Add small delay to ensure database commit is complete
+        await new Promise(resolve => setTimeout(resolve, 500));
         // Load and display grouping results
-        loadGroupingResults(retroId);
+        await loadGroupingResults(retroId);
         
       } catch (error) {
         console.error('Generate grouping error:', error);
@@ -4508,13 +4988,25 @@
           }
         });
         
-        if (!response.ok) return;
+        if (!response.ok) {
+          const error = await response.json();
+          console.error('Load grouping error:', error);
+          const container = document.getElementById('groupingResults');
+          if (container) {
+            container.innerHTML = `<div class="alert alert-warning">Failed to load themes. Please try again.</div>`;
+          }
+          return;
+        }
         
         const data = await response.json();
         displayGroupingResults(data, retroId);
         
       } catch (error) {
         console.error('Load grouping error:', error);
+        const container = document.getElementById('groupingResults');
+        if (container) {
+          container.innerHTML = `<div class="alert alert-warning">Failed to load themes. Please try again.</div>`;
+        }
       }
     }
     

@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from datetime import datetime
 import os
 import json
+import logging
 from openai import OpenAI
 
 from app.database.database import get_db
@@ -18,11 +19,19 @@ from app.models.retrospective_new import (
 from app.models.user import User
 from app.models.workspace import WorkspaceMember
 from app.api.dependencies.auth import get_current_user
+from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/grouping", tags=["grouping"])
 
-# Initialize OpenAI client
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+def get_openai_client():
+    """Get OpenAI client with API key from settings"""
+    api_key = settings.OPENAI_API_KEY
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY is not set")
+    return OpenAI(api_key=api_key)
 
 
 def can_edit_grouping(db: Session, current_user: User, retro: Retrospective) -> bool:
@@ -198,7 +207,8 @@ Do not include any explanatory text before or after the JSON.
         
         try:
             # Call OpenAI (using gpt-4 without json_object mode since it's not supported)
-            response = client.chat.completions.create(
+            openai_client = get_openai_client()
+            response = openai_client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are an expert at analyzing team retrospectives and identifying patterns and themes. Always respond with valid JSON only."},
@@ -271,6 +281,8 @@ Do not include any explanatory text before or after the JSON.
         
         db.commit()
         
+        logger.info(f"✅ Successfully created {len(created_groups)} theme groups for retro {retro_id}")
+        
         return {
             "message": f"Created {len(created_groups)} theme groups",
             "groups_created": len(created_groups),
@@ -281,7 +293,7 @@ Do not include any explanatory text before or after the JSON.
         raise
     except Exception as e:
         db.rollback()
-        print(f"Generate grouping error: {e}")
+        logger.error(f"❌ Generate grouping error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to generate grouping: {str(e)}")
 
 
@@ -295,13 +307,19 @@ async def get_grouping_results(
     Get grouping results with theme groups and ungrouped responses
     """
     try:
+        logger.info(f"📥 Getting grouping results for retro {retro_id}, user {current_user.id}")
+        
+        # Verify retrospective exists
+        retro = db.query(Retrospective).filter(Retrospective.id == retro_id).first()
+        
+        if not retro:
+            raise HTTPException(status_code=404, detail="Retrospective not found")
+        
         # Verify access
         participant = db.query(RetrospectiveParticipant).filter(
             RetrospectiveParticipant.retrospective_id == retro_id,
             RetrospectiveParticipant.user_id == current_user.id
         ).first()
-        
-        retro = db.query(Retrospective).filter(Retrospective.id == retro_id).first()
         
         if not participant and retro.facilitator_id != current_user.id:
             raise HTTPException(status_code=403, detail="Access denied")
@@ -310,6 +328,8 @@ async def get_grouping_results(
         theme_groups = db.query(ThemeGroup).filter(
             ThemeGroup.retrospective_id == retro_id
         ).order_by(ThemeGroup.display_order).all()
+        
+        logger.info(f"Found {len(theme_groups)} theme groups for retro {retro_id}")
         
         theme_group_responses = []
         for group in theme_groups:
