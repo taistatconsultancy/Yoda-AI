@@ -3434,6 +3434,8 @@
         if (dashboardResp && dashboardResp.ok) {
           const dashboard = await dashboardResp.json();
           loadUpcomingRetros(dashboard.upcoming || []);
+          // Setup collapsible sections after content renders
+          setupDashboardCollapsibles();
         }
 
         // Fetch action items
@@ -3456,6 +3458,8 @@
     async function loadUpcomingRetros(retros) {
       const container = document.getElementById('upcomingRetros');
       if (!container) return;
+      // Keep a map for later activity updates
+      window._upcomingRetrosById = Object.create(null);
       
       if (!retros || retros.length === 0) {
         container.innerHTML = '<p class="text-muted">No upcoming retrospectives. Create one to get started!</p>';
@@ -3463,6 +3467,7 @@
       }
       
       container.innerHTML = retros.map(retro => {
+        window._upcomingRetrosById[retro.id] = retro;
         const cardId = `retro-card-${retro.id}`;
         return `
           <div class="card mb-2 border-start border-4 border-info" id="${cardId}">
@@ -3504,6 +3509,7 @@
     function startCountdown(retroId, startDate) {
       const timerEl = document.getElementById(`timer-${retroId}`);
       const actionEl = document.getElementById(`action-${retroId}`);
+      const cardEl = document.getElementById(`retro-card-${retroId}`);
       
       if (!timerEl || !actionEl) return;
       
@@ -3523,6 +3529,17 @@
               <i class="bi bi-play-circle"></i> Join Now
             </button>
           `;
+          // Move from upcoming to recent activity
+          try {
+            const retro = window._upcomingRetrosById ? window._upcomingRetrosById[retroId] : null;
+            if (retro) addRetrospectiveActivityToDashboard(retro, 'started');
+            if (cardEl && cardEl.parentNode) cardEl.parentNode.removeChild(cardEl);
+            // If no more cards, show placeholder text
+            const container = document.getElementById('upcomingRetros');
+            if (container && container.children.length === 0) {
+              container.innerHTML = '<p class="text-muted">No upcoming retrospectives. Create one to get started!</p>';
+            }
+          } catch (e) { /* noop */ }
           return;
         }
         
@@ -3552,6 +3569,69 @@
       
       // Initial update
       updateCountdown();
+    }
+
+    // Add an item to Recent Activity when a retro starts
+    function addRetrospectiveActivityToDashboard(retro, eventType = 'started') {
+      const activityContainer = document.getElementById('recentActivity');
+      if (!activityContainer) return;
+      if (activityContainer.querySelector('.text-muted')) activityContainer.innerHTML = '';
+      const nowStr = new Date().toLocaleString();
+      const badge = eventType === 'started' ? 'primary' : 'secondary';
+      const title = eventType === 'started' ? 'Retrospective Started' : 'Retrospective Update';
+      const icon = 'bi-flag';
+      const html = `
+        <div class="d-flex align-items-start mb-3 p-3 bg-light rounded">
+          <div class="flex-shrink-0 me-3">
+            <div class="bg-${badge} text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+              <i class="bi ${icon}"></i>
+            </div>
+          </div>
+          <div class="flex-grow-1">
+            <div class="d-flex justify-content-between align-items-start mb-1">
+              <div>
+                <strong>${title}</strong>
+                <span class="badge bg-${badge} ms-2">New</span>
+              </div>
+              <small class="text-muted">${nowStr}</small>
+            </div>
+            <p class="text-muted mb-0">
+              ${escapeHtml(retro.title)}${retro.sprint_name ? ` — <em>${escapeHtml(retro.sprint_name)}</em>` : ''}
+            </p>
+          </div>
+        </div>
+      `;
+      activityContainer.insertAdjacentHTML('afterbegin', html);
+    }
+
+    // Collapsible sections for dashboard lists (Upcoming, Recent Activity)
+    function setupDashboardCollapsibles() {
+      const sections = [
+        { titleSelector: '#dashboardSection h5:nth-of-type(1)', contentId: 'recentActivity', storageKey: 'dash_collapse_recent' },
+        { titleSelector: '#dashboardSection h5:nth-of-type(2)', contentId: 'upcomingRetros', storageKey: 'dash_collapse_upcoming' }
+      ];
+      sections.forEach(({ titleSelector, contentId, storageKey }) => {
+        const titleEl = document.querySelector(titleSelector);
+        const contentEl = document.getElementById(contentId);
+        if (!titleEl || !contentEl) return;
+        if (titleEl.querySelector('.dash-collapse-btn')) return; // already added
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-sm btn-outline-secondary dash-collapse-btn ms-2';
+        btn.innerHTML = '<i class="bi bi-chevron-up"></i>'; 
+        const collapsed = localStorage.getItem(storageKey) === '1';
+        if (collapsed) {
+          contentEl.style.display = 'none';
+          btn.innerHTML = '<i class="bi bi-chevron-down"></i>';
+        }
+        btn.addEventListener('click', () => {
+          const isHidden = contentEl.style.display === 'none';
+          contentEl.style.display = isHidden ? '' : 'none';
+          btn.innerHTML = isHidden ? '<i class="bi bi-chevron-up"></i>' : '<i class="bi bi-chevron-down"></i>';
+          localStorage.setItem(storageKey, isHidden ? '0' : '1');
+        });
+        titleEl.appendChild(btn);
+      });
     }
     
     function getTimeUntil(date, now) {
