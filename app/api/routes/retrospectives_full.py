@@ -85,6 +85,23 @@ async def create_retrospective(
     Create and schedule a new retrospective
     """
     try:
+        # Enforce scheduling: start time must be at least 5 minutes in the future
+        now_utc = datetime.now(timezone.utc)
+        start_time = retro_data.scheduled_start_time
+        end_time = retro_data.scheduled_end_time
+
+        # Normalize to timezone-aware UTC if naive
+        if start_time.tzinfo is None:
+            start_time = start_time.replace(tzinfo=timezone.utc)
+        if end_time and end_time.tzinfo is None:
+            end_time = end_time.replace(tzinfo=timezone.utc)
+
+        if start_time < now_utc + timedelta(minutes=5):
+            raise HTTPException(status_code=400, detail="scheduled_start_time must be at least 5 minutes in the future")
+
+        if end_time and end_time <= start_time:
+            raise HTTPException(status_code=400, detail="scheduled_end_time must be after scheduled_start_time")
+
         # Verify user is member of workspace
         membership = db.query(WorkspaceMember).filter(
             WorkspaceMember.workspace_id == retro_data.workspace_id,
@@ -124,8 +141,8 @@ async def create_retrospective(
             sprint_name=retro_data.sprint_name,
             facilitator_id=current_user.id,
             created_by=current_user.id,
-            scheduled_start_time=retro_data.scheduled_start_time,
-            scheduled_end_time=retro_data.scheduled_end_time,
+            scheduled_start_time=start_time,
+            scheduled_end_time=end_time,
             status='scheduled',
             current_phase='input'
         )
