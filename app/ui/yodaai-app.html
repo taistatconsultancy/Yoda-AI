@@ -514,6 +514,26 @@
       }
     }
 
+    /* Ultra-small phones and short viewports (e.g., landscape phones) */
+    @media (max-width: 360px), (max-height: 640px) {
+      .login-modal {
+        padding: 0;
+        align-items: stretch;
+      }
+      .login-modal-content {
+        border-radius: 0;
+        max-height: 100vh;
+        height: 100vh;
+        padding: 16px 14px;
+      }
+      .login-modal-content .btn {
+        min-height: 44px;
+      }
+      .login-modal-content .form-control {
+        min-height: 44px;
+      }
+    }
+
     /* Modern Form Styling */
     .login-modal-content .form-control {
       border: 2px solid #e0e0e0;
@@ -5122,10 +5142,8 @@
         const data = await response.json();
         showToast(`Created ${data.groups_created} theme groups!`, 'success');
         
-        // Add small delay to ensure database commit is complete
-        await new Promise(resolve => setTimeout(resolve, 500));
-        // Load and display grouping results
-        await loadGroupingResults(retroId);
+        // Load and display grouping results with retry (handles DB commit delay)
+        await loadGroupingResultsWithRetry(retroId, 5, 600);
         
       } catch (error) {
         console.error('Generate grouping error:', error);
@@ -5137,6 +5155,21 @@
       }
     }
     
+    async function loadGroupingResultsWithRetry(retroId, attempts = 5, delayMs = 600) {
+      for (let i = 0; i < attempts; i++) {
+        await loadGroupingResults(retroId);
+        const container = document.getElementById('groupingResults');
+        const hasThemes = container && container.querySelector('.theme-item');
+        if (hasThemes) return; // success
+        await new Promise(r => setTimeout(r, delayMs));
+      }
+      // Final fallback message if nothing rendered
+      const container = document.getElementById('groupingResults');
+      if (container && !container.querySelector('.theme-item')) {
+        container.innerHTML = '<div class="alert alert-info">Themes are being prepared. Please try again in a moment.</div>';
+      }
+    }
+
     async function loadGroupingResults(retroId) {
       try {
         const response = await fetch(`/api/v1/grouping/${retroId}`, {
