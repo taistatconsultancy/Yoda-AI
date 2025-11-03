@@ -192,7 +192,7 @@ async def create_retrospective(
             
             # Send calendar invites to all participants
             email_service = EmailService()
-            retro_link = f"{settings.APP_URL}/ui/retrospective.html/{retro_code}"
+            retro_link = f"{settings.APP_URL}/ui/retrospective.html"
             
             for member in members:
                 user = db.query(User).filter(User.id == member.user_id).first()
