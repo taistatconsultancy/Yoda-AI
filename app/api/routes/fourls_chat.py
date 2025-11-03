@@ -2,7 +2,7 @@
 4Ls AI Chat with Dynamic Progress Tracking
 Handles: Liked, Learned, Lacked, Longed For
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
@@ -71,9 +71,14 @@ class ChatSessionResponse(BaseModel):
 # 4LS CHAT ENDPOINTS
 # ============================================================================
 
+class StartChatRequest(BaseModel):
+    retrospective_id: int
+
+
 @router.post("/start")
 async def start_4ls_chat(
-    retrospective_id: int,
+    retrospective_id: Optional[int] = None,
+    start_data: Optional[StartChatRequest] = Body(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -81,8 +86,13 @@ async def start_4ls_chat(
     Start a new 4Ls chat session
     """
     try:
+        # Accept retrospective_id from query or JSON body for compatibility
+        retro_id = retrospective_id if retrospective_id is not None else (start_data.retrospective_id if start_data else None)
+        if retro_id is None:
+            raise HTTPException(status_code=422, detail="retrospective_id is required")
+
         # Verify retrospective exists and is at/after scheduled start
-        retro = db.query(Retrospective).filter(Retrospective.id == retrospective_id).first()
+        retro = db.query(Retrospective).filter(Retrospective.id == retro_id).first()
         if not retro:
             raise HTTPException(status_code=404, detail="Retrospective not found")
         now_utc = datetime.now(timezone.utc)
@@ -97,7 +107,7 @@ async def start_4ls_chat(
 
         # Verify user is participant
         participant = db.query(RetrospectiveParticipant).filter(
-            RetrospectiveParticipant.retrospective_id == retrospective_id,
+            RetrospectiveParticipant.retrospective_id == retro_id,
             RetrospectiveParticipant.user_id == current_user.id
         ).first()
         
