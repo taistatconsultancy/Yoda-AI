@@ -2198,26 +2198,26 @@
       if (!started || started.length === 0) {
         startedContainer.innerHTML = '<p class="text-muted">No started retrospectives.</p>';
       } else {
-        startedContainer.innerHTML = started.map(retro => {
-          window._dashRetrosById[retro.id] = retro;
-          return `
-            <div class="card mb-2 border-start border-4 border-success" id="started-card-${retro.id}">
+        // Choose only the most recent by highest id
+        const latest = started.reduce((acc, cur) => (!acc || (cur.id && cur.id > acc.id) ? cur : acc), null);
+        if (latest) window._dashRetrosById[latest.id] = latest;
+        startedContainer.innerHTML = latest ? `
+            <div class="card mb-2 border-start border-4 border-success" id="started-card-${latest.id}">
               <div class="card-body py-3 d-flex justify-content-between align-items-center">
                 <div class="flex-grow-1">
                   <h6 class="mb-1">
-                    <i class="bi bi-check-circle"></i> ${escapeHtml(retro.title)}
+                    <i class="bi bi-check-circle"></i> ${escapeHtml(latest.title)}
                   </h6>
-                  ${retro.sprint_name ? `<small class=\"text-muted d-block\">${escapeHtml(retro.sprint_name)}</small>` : ''}
+                  ${latest.sprint_name ? `<small class=\"text-muted d-block\">${escapeHtml(latest.sprint_name)}</small>` : ''}
                 </div>
                 <div>
-                  <button class="btn btn-sm btn-primary" onclick="joinRetrospective('${retro.code}')">
+                  <button class="btn btn-sm btn-primary" onclick="joinRetrospective('${latest.code}')">
                     <i class="bi bi-play-circle"></i> Join Now
                   </button>
                 </div>
               </div>
             </div>
-          `;
-        }).join('');
+          ` : '<p class="text-muted">No started retrospectives.</p>';
       }
     }
       } catch (error) {
