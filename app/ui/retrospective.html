@@ -1833,17 +1833,24 @@
         return;
       }
       
-      container.innerHTML = '';
-      history.slice(0, 5).forEach(retro => {
-        const div = document.createElement('div');
-        div.className = 'mb-2';
-        div.innerHTML = `
-          <a href="/ui/retrospective.html/${retro.code}" target="_blank">
-            ${escapeHtml(retro.title)} - ${new Date(retro.created_at).toLocaleDateString()}
-          </a>
-        `;
-        container.appendChild(div);
+      // Pick the most recently started retrospective (fallback to created_at)
+      const sorted = [...history].sort((a, b) => {
+        const aTime = a.actual_start_time ? new Date(a.actual_start_time).getTime() : new Date(a.created_at).getTime();
+        const bTime = b.actual_start_time ? new Date(b.actual_start_time).getTime() : new Date(b.created_at).getTime();
+        return bTime - aTime;
       });
+      const last = sorted[0];
+      const when = last.actual_start_time ? new Date(last.actual_start_time) : new Date(last.created_at);
+      
+      container.innerHTML = '';
+      const div = document.createElement('div');
+      div.className = 'mb-2';
+      div.innerHTML = `
+        <a href="/ui/retrospective.html/${last.code}" target="_blank">
+          ${escapeHtml(last.title)} - ${when.toLocaleDateString()} ${when.toLocaleTimeString()}
+        </a>
+      `;
+      container.appendChild(div);
     }
     
     async function generateSummaryPDF() {
