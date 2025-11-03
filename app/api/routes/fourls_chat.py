@@ -442,15 +442,17 @@ async def send_message(
 
         You’re currently in: {session.current_category.upper()}
 
-        Your flow:
-        1. Acknowledge what they shared with genuine understanding.
-        2. Ask ONE reflective follow-up question that helps them explore the idea further.
-        3. After 1–2 rounds, express appreciation and move to the next category with transitions like:
-        - "Let’s shift to what you LEARNED."
-        - "Now, let’s explore what you LACKED."
-        - "Finally, what did you LONG FOR?"
+        Rules:
+        1) Acknowledge what they shared with genuine understanding.
+        2) Ask ONE reflective follow-up question that helps them explore the idea further.
+        3) Do NOT combine a follow-up question and a category transition in the same message.
+        4) Only suggest transitioning AFTER the user has given AT LEAST TWO responses in the current category.
+        5) When transitioning, be explicit with phrases like:
+           - "Let’s shift to what you LEARNED."
+           - "Now, let’s explore what you LACKED."
+           - "Finally, what did you LONG FOR?"
 
-        Keep your tone grounded, thoughtful, and conversational — encourage self-awareness and insight.
+        Keep your tone grounded, thoughtful, and concise — encourage self-awareness and insight..
         """}
         ]
         
@@ -477,7 +479,7 @@ async def send_message(
             ai_content = "Thank you for sharing! Tell me more about that."
             tokens_used = 0
         
-        # Check if AI wants to move to next category (improved heuristic)
+        # Check if AI wants to move to next category (heuristic)
         move_to_next = any(phrase in ai_content.lower() for phrase in [
             "move on", "next category", "let's talk about", "now let's",
             "what did you learn", "what you learned", "learned about",
@@ -485,6 +487,15 @@ async def send_message(
             "what did you long", "what you longed", "longed for",
             "explore the", "move to", "transition to", "shift to"
         ])
+
+        # Enforce at least two user responses in the current category before moving
+        user_responses_in_current = db.query(ChatMessage).filter(
+            ChatMessage.session_id == session.id,
+            ChatMessage.message_type == 'user',
+            ChatMessage.current_category == session.current_category
+        ).count()
+        if user_responses_in_current < 2:
+            move_to_next = False
         
         new_category = session.current_category
         categories_completed = session.categories_completed or {
