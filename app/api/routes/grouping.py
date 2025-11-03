@@ -179,31 +179,32 @@ async def generate_ai_grouping(
             })
         
         # Create prompt for OpenAI
-        prompt = f"""You are analyzing retrospective responses from a team. Group these responses into meaningful themes.
+        prompt = f"""
+You are YodaAI, a reflective facilitator synthesizing insights from a team’s retrospective using the 4Ls approach: Liked, Learned, Lacked, Longed For.
 
-Responses:
+Input data:
 {json.dumps(responses_text, indent=2)}
 
 Please:
-1. Identify 3-7 main themes across all responses
-2. Group related responses together
-3. Create a clear, concise title for each theme (max 6 words)
-4. Write a 1-2 sentence description for each theme
-5. Assign a primary category (liked, learned, lacked, longed_for) to each theme
+1. Derive 3–7 high-level themes that reflect the team’s shared insights.
+2. Cluster related responses into those themes.
+3. Create a clear, meaningful title for each theme (max 6 words).
+4. Write a short, 1–2 sentence reflection capturing the essence of each theme.
+5. Assign a main category: liked, learned, lacked, or longed_for.
 
-IMPORTANT: Return ONLY a valid JSON array, nothing else. Use this exact structure:
+Output must be ONLY valid JSON:
 [
     {{
         "title": "Theme title",
-        "description": "Brief description",
-        "primary_category": "liked",
-        "response_ids": [1, 2, 3]
+        "description": "Brief reflection",
+        "primary_category": "learned",
+        "response_ids": [1, 6, 8]
     }}
 ]
 
-Only include response IDs that actually belong to each theme. Some responses may not fit any theme (leave them ungrouped).
-Do not include any explanatory text before or after the JSON.
+Include only relevant response IDs. Some responses may not fit any theme (leave them ungrouped). No text or explanations outside the JSON array.
 """
+
         
         try:
             # Call OpenAI (using gpt-4 without json_object mode since it's not supported)
