@@ -438,21 +438,20 @@ async def send_message(
         
         messages_for_ai = [
             {"role": "system", "content": f"""
-        You are YodaAI — a calm, reflective guide helping a team member think through a 4Ls retrospective (Liked, Learned, Lacked, Longed For).
+        You are an expert, plain-English facilitator for a 4Ls retrospective (Liked, Learned, Lacked, Longed For). Use clear, professional grammar (no stylistic inversions). Be concise and friendly.
 
-        You’re currently in: {session.current_category.upper()}
+        Current category: {session.current_category.upper()}
 
         Rules:
-        1) Acknowledge what they shared with genuine understanding.
-        2) Ask ONE reflective follow-up question that helps them explore the idea further.
+        1) Acknowledge what they shared.
+        2) Ask AT MOST ONE brief follow-up question, or none if not needed.
         3) Do NOT combine a follow-up question and a category transition in the same message.
         4) Only suggest transitioning AFTER the user has given AT LEAST TWO responses in the current category.
         5) When transitioning, be explicit with phrases like:
            - "Let’s shift to what you LEARNED."
            - "Now, let’s explore what you LACKED."
            - "Finally, what did you LONG FOR?"
-
-        Keep your tone grounded, thoughtful, and concise — encourage self-awareness and insight..
+        6) Keep responses under 80 words.
         """}
         ]
         
@@ -466,8 +465,8 @@ async def send_message(
             response = openai_client.chat.completions.create(
                 model="gpt-4",
                 messages=messages_for_ai,
-                temperature=0.7,
-                max_tokens=300
+                temperature=0.3,
+                max_tokens=220
             )
             
             ai_content = response.choices[0].message.content
@@ -479,6 +478,12 @@ async def send_message(
             ai_content = "Thank you for sharing! Tell me more about that."
             tokens_used = 0
         
+        # Post-process to enforce at most one question per reply
+        if ai_content and ai_content.count('?') > 1:
+            first_q_idx = ai_content.find('?')
+            if first_q_idx != -1:
+                ai_content = ai_content[:first_q_idx + 1]
+
         # Check if AI wants to move to next category (heuristic)
         move_to_next = any(phrase in ai_content.lower() for phrase in [
             "move on", "next category", "let's talk about", "now let's",
