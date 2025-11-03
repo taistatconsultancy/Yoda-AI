@@ -1833,13 +1833,15 @@
         return;
       }
       
-      // Pick the most recently started retrospective (fallback to created_at)
-      const sorted = [...history].sort((a, b) => {
-        const aTime = a.actual_start_time ? new Date(a.actual_start_time).getTime() : new Date(a.created_at).getTime();
-        const bTime = b.actual_start_time ? new Date(b.actual_start_time).getTime() : new Date(b.created_at).getTime();
-        return bTime - aTime;
-      });
-      const last = sorted[0];
+      // Prefer the most recently STARTED retrospective (actual_start_time present)
+      const started = history.filter(r => !!r.actual_start_time);
+      let last = null;
+      if (started.length > 0) {
+        last = started.sort((a, b) => new Date(b.actual_start_time).getTime() - new Date(a.actual_start_time).getTime())[0];
+      } else {
+        // Fallback to most recently created if none started
+        last = [...history].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+      }
       const when = last.actual_start_time ? new Date(last.actual_start_time) : new Date(last.created_at);
       
       container.innerHTML = '';
