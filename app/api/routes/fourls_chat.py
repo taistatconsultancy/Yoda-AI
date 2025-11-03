@@ -81,6 +81,20 @@ async def start_4ls_chat(
     Start a new 4Ls chat session
     """
     try:
+        # Verify retrospective exists and is at/after scheduled start
+        retro = db.query(Retrospective).filter(Retrospective.id == retrospective_id).first()
+        if not retro:
+            raise HTTPException(status_code=404, detail="Retrospective not found")
+        now_utc = datetime.now(timezone.utc)
+        if retro.scheduled_start_time and retro.scheduled_start_time > now_utc:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "message": "Retrospective not started yet. Please wait until the scheduled time.",
+                    "not_started_until": retro.scheduled_start_time.isoformat()
+                }
+            )
+
         # Verify user is participant
         participant = db.query(RetrospectiveParticipant).filter(
             RetrospectiveParticipant.retrospective_id == retrospective_id,
@@ -151,6 +165,20 @@ async def get_or_create_session_link(
     db: Session = Depends(get_db)
 ):
     """Return a session link for the given retrospective, creating a session if needed."""
+    # Verify retrospective exists and is at/after scheduled start
+    retro = db.query(Retrospective).filter(Retrospective.id == retrospective_id).first()
+    if not retro:
+        raise HTTPException(status_code=404, detail="Retrospective not found")
+    now_utc = datetime.now(timezone.utc)
+    if retro.scheduled_start_time and retro.scheduled_start_time > now_utc:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "message": "Retrospective not started yet. Please wait until the scheduled time.",
+                "not_started_until": retro.scheduled_start_time.isoformat()
+            }
+        )
+
     # Verify user is participant
     participant = db.query(RetrospectiveParticipant).filter(
         RetrospectiveParticipant.retrospective_id == retrospective_id,
@@ -202,6 +230,20 @@ async def get_email_session_link(
     db: Session = Depends(get_db)
 ):
     """Public endpoint for email links - creates session and returns direct chat URL."""
+    # Verify retrospective exists and is at/after scheduled start
+    retro = db.query(Retrospective).filter(Retrospective.id == retrospective_id).first()
+    if not retro:
+        raise HTTPException(status_code=404, detail="Retrospective not found")
+    now_utc = datetime.now(timezone.utc)
+    if retro.scheduled_start_time and retro.scheduled_start_time > now_utc:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "message": "Retrospective not started yet. Please wait until the scheduled time.",
+                "not_started_until": retro.scheduled_start_time.isoformat()
+            }
+        )
+
     # Verify user exists and is participant
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -341,6 +383,18 @@ async def send_message(
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
         
+        # Ensure retrospective time has started
+        retro = db.query(Retrospective).filter(Retrospective.id == session.retrospective_id).first()
+        now_utc = datetime.now(timezone.utc)
+        if retro and retro.scheduled_start_time and retro.scheduled_start_time > now_utc:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "message": "Retrospective not started yet. Please wait until the scheduled time.",
+                    "not_started_until": retro.scheduled_start_time.isoformat()
+                }
+            )
+
         if session.is_completed:
             raise HTTPException(status_code=400, detail="Session already completed")
         
@@ -373,20 +427,21 @@ async def send_message(
         ).order_by(ChatMessage.created_at).all()
         
         messages_for_ai = [
-            {"role": "system", "content": f"""You are YodaAI, a facilitator for agile retrospectives. You are currently guiding a team member through the 4Ls: Liked, Learned, Lacked, Longed For. 
-            
-Current category: {session.current_category.upper()}
+            {"role": "system", "content": f"""
+        You are YodaAI — a calm, reflective guide helping a team member think through a 4Ls retrospective (Liked, Learned, Lacked, Longed For).
 
-Your role:
-1. Acknowledge their response
-2. Ask ONE follow-up question if needed for clarity (keep it brief)
-3. After 1-2 responses in a category, thank them and EXPLICITLY transition to the next category using phrases like:
-   - "Now let's move to what you LEARNED"
-   - "Let's talk about what you LACKED"
-   - "Now, what did you LONG FOR"
-4. Categories order: liked → learned → lacked → longed_for
+        You’re currently in: {session.current_category.upper()}
 
-Be conversational, encouraging, and concise. Always use the category name when transitioning."""}
+        Your flow:
+        1. Acknowledge what they shared with genuine understanding.
+        2. Ask ONE reflective follow-up question that helps them explore the idea further.
+        3. After 1–2 rounds, express appreciation and move to the next category with transitions like:
+        - "Let’s shift to what you LEARNED."
+        - "Now, let’s explore what you LACKED."
+        - "Finally, what did you LONG FOR?"
+
+        Keep your tone grounded, thoughtful, and conversational — encourage self-awareness and insight.
+        """}
         ]
         
         for msg in conversation_history:
