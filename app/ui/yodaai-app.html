@@ -5,7 +5,7 @@
 <head>
   <meta charset="utf-8">
   <meta content="width=device-width, initial-scale=1.0" name="viewport">
-  <title>YodaAI - Assistant</title>
+  <title>YodaAI - AI-Powered Retrospective Assistant</title>
   <meta content="Transform your agile retrospectives with AI-powered facilitation. YodaAI guides teams through structured 4Ls retrospectives." name="description">
   <meta content="retrospective, agile, scrum, AI, 4Ls, team management" name="keywords">
   
@@ -3588,8 +3588,15 @@
           window.location.href = data.url;
         } else {
           const errorData = await response.json().catch(() => ({}));
-          const errorMsg = errorData.detail || 'Failed to open retrospective';
-          showToast(errorMsg, 'danger');
+          // Handle scheduled gate
+          if (response.status === 403 && errorData && errorData.detail && errorData.detail.not_started_until) {
+            const until = new Date(errorData.detail.not_started_until);
+            showCountdownBanner(until, () => openRetrospective(retroId));
+            showToast('Retrospective is scheduled. You can join when the timer ends.', 'info');
+          } else {
+            const errorMsg = (errorData && (errorData.detail?.message || errorData.detail)) || 'Failed to open retrospective';
+            showToast(errorMsg, 'danger');
+          }
         }
       } catch (error) {
         console.error('Open retrospective error:', error);
@@ -4718,7 +4725,16 @@
           }
         });
         
-        if (!response.ok) throw new Error('Failed to start chat');
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}));
+          if (response.status === 403 && err && err.detail && err.detail.not_started_until) {
+            const until = new Date(err.detail.not_started_until);
+            // Show countdown and retry starting automatically at time
+            showCountdownBanner(until, () => start4LsChat(retroId));
+            return;
+          }
+          throw new Error((err && (err.detail?.message || err.detail)) || 'Failed to start chat');
+        }
         
         const data = await response.json();
         currentChatSession = data.session_id;
@@ -4768,6 +4784,16 @@
           data.messages.forEach(msg => {
             addRetroMessage(msg.content, msg.message_type);
           });
+        } else {
+          const err = await response.json().catch(() => ({}));
+          if (response.status === 403 && err && err.detail && err.detail.not_started_until) {
+            const until = new Date(err.detail.not_started_until);
+            disableRetroInput(true);
+            showCountdownBanner(until, () => {
+              disableRetroInput(false);
+              loadChatSession();
+            });
+          }
         }
       } catch (error) {
         console.error('Load chat session error:', error);
@@ -4838,9 +4864,19 @@
             showToast('All categories completed! Click "Finish & Proceed" to continue.', 'success');
           }
         } else {
-          const error = await response.json();
-          console.error('API error:', error);
-          addRetroMessage('Sorry, I encountered an error: ' + (error.detail || 'Unknown error'), 'assistant');
+          const error = await response.json().catch(() => ({}));
+          if (response.status === 403 && error && error.detail && error.detail.not_started_until) {
+            const until = new Date(error.detail.not_started_until);
+            addRetroMessage('Retrospective not started yet. I will be available when the timer ends.', 'assistant');
+            disableRetroInput(true);
+            showCountdownBanner(until, () => {
+              disableRetroInput(false);
+              addRetroMessage('We can start now. Please send your message again.', 'assistant');
+            });
+          } else {
+            console.error('API error:', error);
+            addRetroMessage('Sorry, I encountered an error: ' + (error.detail || 'Unknown error'), 'assistant');
+          }
         }
       } catch (error) {
         console.error('Send message error:', error);
@@ -4885,6 +4921,48 @@
     function focusRetroCategory(category) {
       // Progress sidebar was removed - this function kept for compatibility
       // No longer updates any UI elements since sidebar is gone
+    }
+
+    // ==================== RETRO SCHEDULING GATE HELPERS ====================
+    function disableRetroInput(disabled) {
+      const input = document.getElementById('retroChatInput');
+      const btn = document.getElementById('sendRetroBtn');
+      if (input) input.disabled = disabled;
+      if (btn) btn.disabled = disabled;
+    }
+
+    function showCountdownBanner(untilDate, onReady) {
+      let banner = document.getElementById('retroCountdownBanner');
+      if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'retroCountdownBanner';
+        banner.className = 'alert alert-info position-fixed top-0 start-50 translate-middle-x mt-3 shadow';
+        banner.style.zIndex = '9999';
+        banner.innerHTML = `
+          <i class="bi bi-clock"></i>
+          <span id="retroCountdownText">Retrospective starts soon...</span>
+        `;
+        document.body.appendChild(banner);
+      }
+
+      const textEl = banner.querySelector('#retroCountdownText');
+      const intervalId = setInterval(() => {
+        const now = new Date();
+        const diff = untilDate - now;
+        if (diff <= 0) {
+          clearInterval(intervalId);
+          banner.remove();
+          if (typeof onReady === 'function') onReady();
+          return;
+        }
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+        const parts = [];
+        if (hours > 0) parts.push(`${hours}h`);
+        parts.push(`${minutes}m`, `${seconds}s`);
+        textEl.textContent = `Retrospective starts in ${parts.join(' ')}. This will unlock automatically.`;
+      }, 1000);
     }
     
     // NEW: Show grouping inline in chat area instead of overlay
