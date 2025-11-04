@@ -353,7 +353,7 @@ async def verify_email(
                 <h1>Email Verified Successfully!</h1>
                 <p>Your email address has been verified. You can now access all features of YodaAI!</p>
                 <p><strong>Welcome to YodaAI, {user.full_name}!</strong></p>
-                <a href="http://localhost:8000/" class="button">Go to YodaAI App</a>
+                <a href="{settings.APP_URL}/ui/yodaai-app.html" class="button">Go to YodaAI App</a>
             </div>
         </body>
         </html>
