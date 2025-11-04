@@ -95,15 +95,6 @@ async def start_4ls_chat(
         retro = db.query(Retrospective).filter(Retrospective.id == retro_id).first()
         if not retro:
             raise HTTPException(status_code=404, detail="Retrospective not found")
-        now_utc = datetime.now(timezone.utc)
-        if retro.scheduled_start_time and retro.scheduled_start_time > now_utc:
-            raise HTTPException(
-                status_code=403,
-                detail={
-                    "message": "Retrospective not started yet. Please wait until the scheduled time.",
-                    "not_started_until": retro.scheduled_start_time.isoformat()
-                }
-            )
 
         # Verify user is participant
         participant = db.query(RetrospectiveParticipant).filter(
@@ -179,15 +170,6 @@ async def get_or_create_session_link(
     retro = db.query(Retrospective).filter(Retrospective.id == retrospective_id).first()
     if not retro:
         raise HTTPException(status_code=404, detail="Retrospective not found")
-    now_utc = datetime.now(timezone.utc)
-    if retro.scheduled_start_time and retro.scheduled_start_time > now_utc:
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "message": "Retrospective not started yet. Please wait until the scheduled time.",
-                "not_started_until": retro.scheduled_start_time.isoformat()
-            }
-        )
 
     # Verify user is participant
     participant = db.query(RetrospectiveParticipant).filter(
@@ -244,15 +226,6 @@ async def get_email_session_link(
     retro = db.query(Retrospective).filter(Retrospective.id == retrospective_id).first()
     if not retro:
         raise HTTPException(status_code=404, detail="Retrospective not found")
-    now_utc = datetime.now(timezone.utc)
-    if retro.scheduled_start_time and retro.scheduled_start_time > now_utc:
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "message": "Retrospective not started yet. Please wait until the scheduled time.",
-                "not_started_until": retro.scheduled_start_time.isoformat()
-            }
-        )
 
     # Verify user exists and is participant
     user = db.query(User).filter(User.id == user_id).first()
@@ -393,18 +366,6 @@ async def send_message(
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
         
-        # Ensure retrospective time has started
-        retro = db.query(Retrospective).filter(Retrospective.id == session.retrospective_id).first()
-        now_utc = datetime.now(timezone.utc)
-        if retro and retro.scheduled_start_time and retro.scheduled_start_time > now_utc:
-            raise HTTPException(
-                status_code=403,
-                detail={
-                    "message": "Retrospective not started yet. Please wait until the scheduled time.",
-                    "not_started_until": retro.scheduled_start_time.isoformat()
-                }
-            )
-
         if session.is_completed:
             raise HTTPException(status_code=400, detail="Session already completed")
         
