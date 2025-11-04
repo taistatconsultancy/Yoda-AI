@@ -134,7 +134,7 @@ def create_fallback_grouping(responses):
 # GROUPING ENDPOINTS
 # ============================================================================
 
-@router.post("/{retro_id}/generate")
+@router.post("/{retro_id}/generate", response_model=GroupingResult)
 async def generate_ai_grouping(
     retro_id: int,
     current_user: User = Depends(get_current_user),
@@ -142,6 +142,7 @@ async def generate_ai_grouping(
 ):
     """
     Generate AI-powered theme grouping for retrospective responses
+    Returns the full grouping result with all theme groups
     """
     try:
         # Verify user is facilitator or participant
@@ -246,6 +247,20 @@ Include only relevant response IDs. Some responses may not fit any theme (leave 
             print("Using fallback: grouping by category")
             themes = create_fallback_grouping(responses)
         
+        # If AI returned an empty list, fallback to category grouping so UI has content
+        if not themes:
+            print("AI returned empty themes. Using fallback: grouping by category")
+            themes = create_fallback_grouping(responses)
+        
+        # Unassign all existing theme assignments first to avoid stale links
+        existing_resp_links = db.query(RetrospectiveResponse).filter(
+            RetrospectiveResponse.retrospective_id == retro_id,
+            RetrospectiveResponse.theme_group_id.isnot(None)
+        ).all()
+        for resp in existing_resp_links:
+            resp.theme_group_id = None
+        db.flush()
+
         # Clear existing theme groups for this retro
         existing_groups = db.query(ThemeGroup).filter(
             ThemeGroup.retrospective_id == retro_id
@@ -282,13 +297,70 @@ Include only relevant response IDs. Some responses may not fit any theme (leave 
         
         db.commit()
         
+        # Refresh all created groups to ensure they're fully loaded with relationships
+        for group in created_groups:
+            db.refresh(group)
+        
         logger.info(f"✅ Successfully created {len(created_groups)} theme groups for retro {retro_id}")
         
-        return {
-            "message": f"Created {len(created_groups)} theme groups",
-            "groups_created": len(created_groups),
-            "responses_processed": len(responses)
-        }
+        # Build full response with theme group data (same format as GET endpoint)
+        theme_group_responses = []
+        for group in created_groups:
+            # Reload responses for this group to ensure they're up to date
+            group_responses = db.query(RetrospectiveResponse, User).join(
+                User, RetrospectiveResponse.user_id == User.id
+            ).filter(
+                RetrospectiveResponse.theme_group_id == group.id
+            ).all()
+            
+            responses_list = [
+                ResponseWithAuthor(
+                    id=resp.id,
+                    content=resp.content,
+                    category=resp.category,
+                    author_name=user.full_name,
+                    author_id=user.id,
+                    theme_group_id=group.id
+                )
+                for resp, user in group_responses
+            ]
+            
+            theme_group_responses.append(ThemeGroupResponse(
+                id=group.id,
+                title=group.title,
+                description=group.description,
+                primary_category=group.primary_category,
+                response_count=len(responses_list),
+                responses=responses_list,
+                ai_generated=group.ai_generated
+            ))
+        
+        # Get ungrouped responses
+        ungrouped = db.query(RetrospectiveResponse, User).join(
+            User, RetrospectiveResponse.user_id == User.id
+        ).filter(
+            RetrospectiveResponse.retrospective_id == retro_id,
+            RetrospectiveResponse.theme_group_id.is_(None)
+        ).all()
+        
+        ungrouped_list = [
+            ResponseWithAuthor(
+                id=resp.id,
+                content=resp.content,
+                category=resp.category,
+                author_name=user.full_name,
+                author_id=user.id,
+                theme_group_id=None
+            )
+            for resp, user in ungrouped
+        ]
+        
+        return GroupingResult(
+            theme_groups=theme_group_responses,
+            ungrouped_responses=ungrouped_list,
+            total_responses=len(responses),
+            total_groups=len(created_groups)
+        )
         
     except HTTPException:
         raise
@@ -325,12 +397,20 @@ async def get_grouping_results(
         if not participant and retro.facilitator_id != current_user.id:
             raise HTTPException(status_code=403, detail="Access denied")
         
-        # Get all theme groups
+        # Get all theme groups - ensure we're querying fresh from database
+        from sqlalchemy import asc
         theme_groups = db.query(ThemeGroup).filter(
             ThemeGroup.retrospective_id == retro_id
-        ).order_by(ThemeGroup.display_order).all()
+        ).order_by(asc(ThemeGroup.display_order)).all()
         
         logger.info(f"Found {len(theme_groups)} theme groups for retro {retro_id}")
+        
+        # Log theme group details for debugging
+        if len(theme_groups) == 0:
+            logger.warning(f"No theme groups found for retro {retro_id}. This may indicate a display issue.")
+        else:
+            for group in theme_groups:
+                logger.debug(f"Theme group: {group.id} - {group.title} (category: {group.primary_category})")
         
         theme_group_responses = []
         for group in theme_groups:
