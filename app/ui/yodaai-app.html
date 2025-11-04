@@ -2367,9 +2367,11 @@
         const data = await response.json();
         
         // Check if email verification is required
-        if (data.requires_verification) {
+        // RegistrationResponse format: { message, email, requires_verification: true }
+        if (data.requires_verification === true || (!data.access_token && !data.user && data.email)) {
           // Show success message with verification instructions
-          showAuthError('Registration successful! Please check your email (' + data.email + ') to verify your account. You can sign in after verification.', 'success');
+          const userEmail = data.email || email;
+          showAuthError('Registration successful! Please check your email (' + userEmail + ') to verify your account. You can sign in after verification.', 'success');
           
           // Reset form and switch back to sign-in mode
           document.getElementById('loginEmail').value = '';
@@ -2385,7 +2387,8 @@
         }
         
         // If we have a token (for auto-verified accounts), proceed with login
-        if (data.access_token && data.user) {
+        // TokenResponse format: { access_token, token_type, user: { id, email, username, ... } }
+        if (data.access_token && data.user && data.user.id) {
           currentUser = {
             uid: data.user.id,
             id: data.user.id,
@@ -2409,6 +2412,19 @@
             showSection('onboarding');
             showToast('Welcome! Let\'s get you set up.', 'success');
           }, 500);
+        } else {
+          // Fallback: if we don't have expected data structure, assume verification is needed
+          console.warn('Unexpected registration response format:', data);
+          showAuthError('Registration successful! Please check your email to verify your account. You can sign in after verification.', 'success');
+          
+          // Reset form and switch back to sign-in mode
+          document.getElementById('loginEmail').value = '';
+          document.getElementById('loginPassword').value = '';
+          document.getElementById('loginFullName').value = '';
+          
+          if (isSignUpMode) {
+            toggleSignUpMode();
+          }
         }
       } catch (error) {
         console.error('Sign up error:', error);
