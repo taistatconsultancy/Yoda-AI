@@ -949,10 +949,15 @@
         
         if (response.ok) {
           const data = await response.json();
-          showToast(`Created ${data.groups_created || 0} theme groups!`, 'success');
-          // Add small delay to ensure database commit is complete
-          await new Promise(resolve => setTimeout(resolve, 500));
-          await loadGroupingResults();
+          // Use the data returned directly from generate endpoint
+          if (data.theme_groups && data.theme_groups.length > 0) {
+            displayGroupingResults(data);
+            showToast(`Created ${data.total_groups || 0} theme groups!`, 'success');
+          } else {
+            // Fallback: try to load with retry logic
+            await loadGroupingResultsWithRetry();
+            showToast(`Theme groups created!`, 'success');
+          }
         } else {
           const error = await response.json();
           showToast('Failed to generate grouping: ' + (error.detail || 'Unknown error'), 'danger');
@@ -960,6 +965,8 @@
       } catch (error) {
         console.error('Generate grouping error:', error);
         showToast('Failed to generate grouping. Please try again.', 'danger');
+        // Try to load anyway in case themes were created
+        await loadGroupingResultsWithRetry();
       } finally {
         if (btn) {
           btn.disabled = false;
@@ -993,6 +1000,48 @@
         const container = document.getElementById('groupingResults');
         if (container) {
           container.innerHTML = `<div class="alert alert-warning">Failed to load themes. Please try again.</div>`;
+        }
+      }
+    }
+    
+    async function loadGroupingResultsWithRetry(maxRetries = 3, delay = 500) {
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          const response = await fetch(`/api/v1/grouping/${retroData.id}`, {
+            headers: {
+              'Authorization': `Bearer ${authToken}`
+            }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            // Check if we actually got theme groups
+            if (data.theme_groups && data.theme_groups.length > 0) {
+              displayGroupingResults(data);
+              return; // Success, exit retry loop
+            } else if (attempt < maxRetries) {
+              // No themes yet, wait and retry
+              console.log(`No themes found, retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`);
+              await new Promise(resolve => setTimeout(resolve, delay));
+              delay *= 1.5; // Exponential backoff
+              continue;
+            }
+          }
+        } catch (error) {
+          console.error(`Load grouping error (attempt ${attempt}/${maxRetries}):`, error);
+          if (attempt < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, delay));
+            delay *= 1.5;
+            continue;
+          }
+        }
+        
+        // If we get here and it's the last attempt, show error
+        if (attempt === maxRetries) {
+          const container = document.getElementById('groupingResults');
+          if (container) {
+            container.innerHTML = `<div class="alert alert-warning">Themes may still be loading. Please refresh the page or try again.</div>`;
+          }
         }
       }
     }
