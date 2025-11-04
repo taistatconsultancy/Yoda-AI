@@ -85,7 +85,7 @@ async def create_retrospective(
     Create and schedule a new retrospective
     """
     try:
-        # Enforce scheduling: start time must be at least 5 minutes in the future
+        # Normalize timezone-aware UTC if naive
         now_utc = datetime.now(timezone.utc)
         start_time = retro_data.scheduled_start_time
         end_time = retro_data.scheduled_end_time
@@ -96,9 +96,7 @@ async def create_retrospective(
         if end_time and end_time.tzinfo is None:
             end_time = end_time.replace(tzinfo=timezone.utc)
 
-        if start_time < now_utc + timedelta(minutes=5):
-            raise HTTPException(status_code=400, detail="scheduled_start_time must be at least 5 minutes in the future")
-
+        # Validate end time is after start time
         if end_time and end_time <= start_time:
             raise HTTPException(status_code=400, detail="scheduled_end_time must be after scheduled_start_time")
 
@@ -626,16 +624,8 @@ async def start_retrospective(
         if retro.status != 'scheduled':
             raise HTTPException(status_code=400, detail=f"Retrospective is already {retro.status}")
         
-        # Check if scheduled time has arrived
+        # Allow starting retrospective at any time (no time constraint)
         now_utc = datetime.now(timezone.utc)
-        if retro.scheduled_start_time and retro.scheduled_start_time > now_utc:
-            time_until_start = (retro.scheduled_start_time - now_utc).total_seconds()
-            hours = int(time_until_start // 3600)
-            minutes = int((time_until_start % 3600) // 60)
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Retrospective is scheduled to start in {hours}h {minutes}m. Please wait until the scheduled time."
-            )
         
         retro.status = 'in_progress'
         retro.actual_start_time = now_utc
