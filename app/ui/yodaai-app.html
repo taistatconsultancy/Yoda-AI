@@ -5,7 +5,7 @@
 <head>
   <meta charset="utf-8">
   <meta content="width=device-width, initial-scale=1.0" name="viewport">
-  <title>YodaAI - Assistant</title>
+  <title>YodaAI - AI-Powered Retrospective Assistant</title>
   <meta content="Transform your agile retrospectives with AI-powered facilitation. YodaAI guides teams through structured 4Ls retrospectives." name="description">
   <meta content="retrospective, agile, scrum, AI, 4Ls, team management" name="keywords">
   
@@ -2366,29 +2366,50 @@
 
         const data = await response.json();
         
-        currentUser = {
-          uid: data.user.id,
-          id: data.user.id,
-          email: data.user.email,
-          displayName: data.user.full_name || data.user.username,
-          username: data.user.username
-        };
+        // Check if email verification is required
+        if (data.requires_verification) {
+          // Show success message with verification instructions
+          showAuthError('Registration successful! Please check your email (' + data.email + ') to verify your account. You can sign in after verification.', 'success');
+          
+          // Reset form and switch back to sign-in mode
+          document.getElementById('loginEmail').value = '';
+          document.getElementById('loginPassword').value = '';
+          document.getElementById('loginFullName').value = '';
+          
+          // Switch back to sign-in mode
+          if (isSignUpMode) {
+            toggleSignUpMode();
+          }
+          
+          return;
+        }
         
-        authToken = data.access_token;
+        // If we have a token (for auto-verified accounts), proceed with login
+        if (data.access_token && data.user) {
+          currentUser = {
+            uid: data.user.id,
+            id: data.user.id,
+            email: data.user.email,
+            displayName: data.user.full_name || data.user.username,
+            username: data.user.username
+          };
+          
+          authToken = data.access_token;
 
-        // Store in localStorage
-        localStorage.setItem('yodaai_user', JSON.stringify(currentUser));
-        localStorage.setItem('yodaai_token', authToken);
-        
-        console.log('Sign up successful:', currentUser.email);
-        showApp();
-        checkPendingSession();
-        
-        // Show onboarding for new users
-        setTimeout(() => {
-          showSection('onboarding');
-          showToast('Welcome! Let\'s get you set up.', 'success');
-        }, 500);
+          // Store in localStorage
+          localStorage.setItem('yodaai_user', JSON.stringify(currentUser));
+          localStorage.setItem('yodaai_token', authToken);
+          
+          console.log('Sign up successful:', currentUser.email);
+          showApp();
+          checkPendingSession();
+          
+          // Show onboarding for new users
+          setTimeout(() => {
+            showSection('onboarding');
+            showToast('Welcome! Let\'s get you set up.', 'success');
+          }, 500);
+        }
       } catch (error) {
         console.error('Sign up error:', error);
         if (error.message.includes('already registered')) {
@@ -2498,9 +2519,10 @@
       }
     }
 
-    function showAuthError(message) {
+    function showAuthError(message, type = 'error') {
       const errorDiv = document.getElementById('authError');
       errorDiv.textContent = message;
+      errorDiv.className = type === 'success' ? 'alert alert-success mt-3' : 'alert alert-danger mt-3';
       errorDiv.style.display = 'block';
     }
 
