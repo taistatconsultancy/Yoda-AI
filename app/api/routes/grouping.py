@@ -4,7 +4,7 @@ Groups retrospective responses into themes using OpenAI
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
 import os
@@ -60,7 +60,7 @@ class ResponseWithAuthor(BaseModel):
     category: str
     author_name: str
     author_id: int
-    theme_group_id: int = None
+    theme_group_id: Optional[int] = None
     
     class Config:
         from_attributes = True
