@@ -3711,8 +3711,8 @@
       try {
         showToast('Loading retrospective...', 'info');
         
-        // Get or create session link
-        const response = await fetch(`/api/v1/fourls-chat/link/by-retro/${retroId}`, {
+        // Get retrospective to get the code
+        const response = await fetch(`/api/v1/retrospectives/${retroId}`, {
           headers: {
             'Authorization': `Bearer ${authToken}`,
             'Content-Type': 'application/json'
@@ -3720,10 +3720,10 @@
         });
         
         if (response.ok) {
-          const data = await response.json();
+          const retroData = await response.json();
           
-          // Navigate to the chat session
-          window.location.href = data.url;
+          // Navigate to retrospective.html with code
+          window.location.href = `/ui/retrospective.html/${retroData.code}`;
         } else {
           const errorData = await response.json().catch(() => ({}));
           // Handle scheduled gate
@@ -4842,12 +4842,27 @@
         });
         
         if (response.ok) {
-          showToast('Retrospective started! Beginning 4Ls chat...', 'success');
-          // Start 4Ls chat
-          setTimeout(() => start4LsChat(retroId), 500);
+          showToast('Retrospective started! Redirecting...', 'success');
+          // Get retrospective code and navigate to retrospective.html
+          const retroResponse = await fetch(`/api/v1/retrospectives/${retroId}`, {
+            headers: {
+              'Authorization': `Bearer ${authToken}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          if (retroResponse.ok) {
+            const retroData = await retroResponse.json();
+            // Navigate to retrospective.html with code
+            window.location.href = `/ui/retrospective.html/${retroData.code}`;
+          } else {
+            // Fallback: try to open retrospective
+            openRetrospective(retroId);
+          }
         }
       } catch (error) {
         console.error('Start retro error:', error);
+        showToast('Failed to start retrospective', 'danger');
       }
     }
     
