@@ -514,6 +514,26 @@
       }
     }
 
+    /* Ultra-small phones and short viewports (e.g., landscape phones) */
+    @media (max-width: 360px), (max-height: 640px) {
+      .login-modal {
+        padding: 0;
+        align-items: stretch;
+      }
+      .login-modal-content {
+        border-radius: 0;
+        max-height: 100vh;
+        height: 100vh;
+        padding: 16px 14px;
+      }
+      .login-modal-content .btn {
+        min-height: 44px;
+      }
+      .login-modal-content .form-control {
+        min-height: 44px;
+      }
+    }
+
     /* Modern Form Styling */
     .login-modal-content .form-control {
       border: 2px solid #e0e0e0;
@@ -1327,6 +1347,23 @@
           </div>
         </div>
 
+
+        <div class="card">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h5 class="mb-0">Workspaces</h5>
+              <button class="btn btn-info btn-sm" onclick="showCreateWorkspaceModal()">
+                <i class="bi bi-plus-circle"></i> Create Workspace
+              </button>
+            </div>
+            <div id="workspacesList">
+              <p class="text-muted">No workspaces yet. Create your first workspace to get started!</p>
+            </div>
+          </div>
+        </div>
+
+        
+
         <div class="card mb-4">
           <div class="card-body">
             <h5>Recent Activity</h5>
@@ -1345,19 +1382,6 @@
           </div>
         </div>
 
-        <div class="card">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-              <h5 class="mb-0">Workspaces</h5>
-              <button class="btn btn-info btn-sm" onclick="showCreateWorkspaceModal()">
-                <i class="bi bi-plus-circle"></i> Create Workspace
-              </button>
-            </div>
-            <div id="workspacesList">
-              <p class="text-muted">No workspaces yet. Create your first workspace to get started!</p>
-            </div>
-          </div>
-        </div>
       </section>
 
       <!-- Retrospectives -->
@@ -1528,8 +1552,8 @@
             </a>
           </li>
           <li class="nav-item">
-            <a class="nav-link" href="#" onclick="showWorkspaceTab('settings'); return false;">
-              <i class="bi bi-gear"></i> Settings
+            <a class="nav-link" href="#" onclick="showWorkspaceTab('summary'); return false;">
+              <i class="bi bi-file-text"></i> Summary
             </a>
           </li>
         </ul>
@@ -1550,8 +1574,8 @@
                   </div>
                 </div>
 
-                <div class="row g-3">
-                  <div class="col-md-6">
+            <div id="onboardingSteps">
+              <div class="onboarding-step" data-step="1">
                     <div class="card border-start border-primary border-4">
                       <div class="card-body">
                         <h6><i class="bi bi-1-circle-fill text-primary"></i> Workspace Setup</h6>
@@ -1563,21 +1587,22 @@
                     </div>
                   </div>
 
-                  <div class="col-md-6">
+              <div class="onboarding-step" data-step="2">
                     <div class="card border-start border-success border-4">
                       <div class="card-body">
-                        <h6><i class="bi bi-2-circle-fill text-success"></i> Upload Documents</h6>
-                        <p class="text-muted small">Upload project PDFs for AI context</p>
-                        <div id="workspaceDocumentStatus">
-                          <div class="mb-2">
-                            <input type="file" class="form-control form-control-sm" id="additionalWorkspaceDoc" accept=".pdf">
+                    <h6><i class="bi bi-2-circle-fill text-success"></i> Generate AI Summary</h6>
+                    <p class="text-muted small">Upload a file (.txt, .md, .pdf) and generate an AI summary</p>
+                    <div class="row g-2 align-items-center mb-2">
+                      <div class="col-12 col-md-8">
+                        <input type="file" class="form-control form-control-sm" id="summaryUploadInput" accept=".txt,.md,.pdf">
                           </div>
-                          <button class="btn btn-sm btn-success" onclick="uploadAdditionalDocument()">
-                            <i class="bi bi-upload"></i> Upload
+                      <div class="col-12 col-md-4 d-flex gap-2">
+                        <button id="generateSummaryBtn" class="btn btn-sm btn-info" onclick="generateDocumentSummary()">
+                          <i class="bi bi-cpu"></i> Generate AI Summary
                           </button>
-                          <button class="btn btn-sm btn-info ms-2" onclick="generateDocumentSummary()">
-                            <i class="bi bi-cpu"></i> AI Summary
-                          </button>
+                      </div>
+                    </div>
+                    <div id="workspaceDocumentStatus">
                         </div>
                         <div id="uploadedDocsList" class="mt-3"></div>
                         <div id="docSummary" class="mt-3" style="display:none;">
@@ -1590,7 +1615,7 @@
                     </div>
                   </div>
 
-                  <div class="col-md-6">
+              <div class="onboarding-step" data-step="3">
                     <div class="card border-start border-warning border-4">
                       <div class="card-body">
                         <h6><i class="bi bi-3-circle-fill text-warning"></i> Add Team Members</h6>
@@ -1602,38 +1627,22 @@
                     </div>
                   </div>
 
-                  <div class="col-md-6">
-                    <div class="card border-start border-info border-4">
-                      <div class="card-body">
-                        <h6><i class="bi bi-4-circle-fill text-info"></i> Review DA Guide</h6>
-                        <p class="text-muted small">Learn about Disciplined Agile</p>
-                        <button class="btn btn-sm btn-info" onclick="completeWorkspaceStep('da_guide_reviewed')">Review</button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="col-md-6">
+              <div class="onboarding-step" data-step="4">
                     <div class="card border-start border-danger border-4">
                       <div class="card-body">
-                        <h6><i class="bi bi-5-circle-fill text-danger"></i> Create First Retrospective</h6>
+                    <h6><i class="bi bi-4-circle-fill text-danger"></i> Create First Retrospective</h6>
                         <p class="text-muted small">Start your first retro session</p>
                         <button class="btn btn-sm btn-danger" onclick="showCreateRetroModal()">
                           <i class="bi bi-plus-circle"></i> Create Retro
                         </button>
+                  </div>
                       </div>
                     </div>
                   </div>
 
-                  <div class="col-md-6">
-                    <div class="card border-start border-dark border-4">
-                      <div class="card-body">
-                        <h6><i class="bi bi-6-circle-fill text-dark"></i> Setup Notifications <span class="badge bg-secondary">Optional</span></h6>
-                        <p class="text-muted small">Configure email notifications</p>
-                        <button class="btn btn-sm btn-dark" onclick="completeWorkspaceStep('notifications_configured')">Configure</button>
-                        <button class="btn btn-sm btn-outline-secondary" onclick="skipWorkspaceStep('notifications_configured')">Skip</button>
-                      </div>
-                    </div>
-                  </div>
+            <div class="d-flex justify-content-between mt-3">
+              <button class="btn btn-outline-secondary" id="onboardingPrevBtn" onclick="prevWorkspaceWizardStep()">Back</button>
+              <button class="btn btn-primary" id="onboardingNextBtn" onclick="nextWorkspaceWizardStep()">Next</button>
                 </div>
               </div>
             </div>
@@ -1706,23 +1715,14 @@
             </div>
           </div>
 
-          <!-- Settings Tab -->
-          <div id="workspace-settings-tab" class="workspace-tab">
-            <h3 class="mb-4">Workspace Settings</h3>
+          <!-- Summary Tab -->
+          <div id="workspace-summary-tab" class="workspace-tab">
+            <h3 class="mb-4">Workspace Summary</h3>
             <div class="card">
               <div class="card-body">
-                <h5>Workspace Details</h5>
-                <div class="mb-3">
-                  <label class="form-label">Workspace Name</label>
-                  <input type="text" class="form-control" id="settingsWorkspaceName">
+                <div id="workspaceSummaryContainer">
+                  <p class="text-muted">Loading summary...</p>
                 </div>
-                <div class="mb-3">
-                  <label class="form-label">Description</label>
-                  <textarea class="form-control" id="settingsWorkspaceDesc" rows="3"></textarea>
-                </div>
-                <button class="btn btn-primary" onclick="updateWorkspaceSettings()">
-                  <i class="bi bi-save"></i> Save Changes
-                </button>
               </div>
             </div>
           </div>
@@ -2346,29 +2346,66 @@
 
         const data = await response.json();
         
-        currentUser = {
-          uid: data.user.id,
-          id: data.user.id,
-          email: data.user.email,
-          displayName: data.user.full_name || data.user.username,
-          username: data.user.username
-        };
+        // Check if email verification is required
+        // RegistrationResponse format: { message, email, requires_verification: true }
+        if (data.requires_verification === true || (!data.access_token && !data.user && data.email)) {
+          // Show success message with verification instructions
+          const userEmail = data.email || email;
+          showAuthError('Registration successful! Please check your email (' + userEmail + ') to verify your account. You can sign in after verification.', 'success');
+          
+          // Reset form and switch back to sign-in mode
+          document.getElementById('loginEmail').value = '';
+          document.getElementById('loginPassword').value = '';
+          document.getElementById('loginFullName').value = '';
+          
+          // Switch back to sign-in mode
+          if (isSignUpMode) {
+            toggleSignUpMode();
+          }
+          
+          return;
+        }
         
-        authToken = data.access_token;
+        // If we have a token (for auto-verified accounts), proceed with login
+        // TokenResponse format: { access_token, token_type, user: { id, email, username, ... } }
+        if (data.access_token && data.user && data.user.id) {
+          currentUser = {
+            uid: data.user.id,
+            id: data.user.id,
+            email: data.user.email,
+            displayName: data.user.full_name || data.user.username,
+            username: data.user.username
+          };
+          
+          authToken = data.access_token;
 
-        // Store in localStorage
-        localStorage.setItem('yodaai_user', JSON.stringify(currentUser));
-        localStorage.setItem('yodaai_token', authToken);
-        
-        console.log('Sign up successful:', currentUser.email);
-        showApp();
-        checkPendingSession();
-        
-        // Show onboarding for new users
-        setTimeout(() => {
-          showSection('onboarding');
-          showToast('Welcome! Let\'s get you set up.', 'success');
-        }, 500);
+          // Store in localStorage
+          localStorage.setItem('yodaai_user', JSON.stringify(currentUser));
+          localStorage.setItem('yodaai_token', authToken);
+          
+          console.log('Sign up successful:', currentUser.email);
+          showApp();
+          checkPendingSession();
+          
+          // Show onboarding for new users
+          setTimeout(() => {
+            showSection('onboarding');
+            showToast('Welcome! Let\'s get you set up.', 'success');
+          }, 500);
+        } else {
+          // Fallback: if we don't have expected data structure, assume verification is needed
+          console.warn('Unexpected registration response format:', data);
+          showAuthError('Registration successful! Please check your email to verify your account. You can sign in after verification.', 'success');
+          
+          // Reset form and switch back to sign-in mode
+          document.getElementById('loginEmail').value = '';
+          document.getElementById('loginPassword').value = '';
+          document.getElementById('loginFullName').value = '';
+          
+          if (isSignUpMode) {
+            toggleSignUpMode();
+          }
+        }
       } catch (error) {
         console.error('Sign up error:', error);
         if (error.message.includes('already registered')) {
@@ -2478,9 +2515,10 @@
       }
     }
 
-    function showAuthError(message) {
+    function showAuthError(message, type = 'error') {
       const errorDiv = document.getElementById('authError');
       errorDiv.textContent = message;
+      errorDiv.className = type === 'success' ? 'alert alert-success mt-3' : 'alert alert-danger mt-3';
       errorDiv.style.display = 'block';
     }
 
@@ -3434,6 +3472,8 @@
         if (dashboardResp && dashboardResp.ok) {
           const dashboard = await dashboardResp.json();
           loadUpcomingRetros(dashboard.upcoming || []);
+          // Setup collapsible sections after content renders
+          setupDashboardCollapsibles();
         }
 
         // Fetch action items
@@ -3456,6 +3496,8 @@
     async function loadUpcomingRetros(retros) {
       const container = document.getElementById('upcomingRetros');
       if (!container) return;
+      // Keep a map for later activity updates
+      window._upcomingRetrosById = Object.create(null);
       
       if (!retros || retros.length === 0) {
         container.innerHTML = '<p class="text-muted">No upcoming retrospectives. Create one to get started!</p>';
@@ -3463,6 +3505,7 @@
       }
       
       container.innerHTML = retros.map(retro => {
+        window._upcomingRetrosById[retro.id] = retro;
         const cardId = `retro-card-${retro.id}`;
         return `
           <div class="card mb-2 border-start border-4 border-info" id="${cardId}">
@@ -3504,6 +3547,7 @@
     function startCountdown(retroId, startDate) {
       const timerEl = document.getElementById(`timer-${retroId}`);
       const actionEl = document.getElementById(`action-${retroId}`);
+      const cardEl = document.getElementById(`retro-card-${retroId}`);
       
       if (!timerEl || !actionEl) return;
       
@@ -3523,6 +3567,17 @@
               <i class="bi bi-play-circle"></i> Join Now
             </button>
           `;
+          // Move from upcoming to recent activity
+          try {
+            const retro = window._upcomingRetrosById ? window._upcomingRetrosById[retroId] : null;
+            if (retro) addRetrospectiveActivityToDashboard(retro, 'started');
+            if (cardEl && cardEl.parentNode) cardEl.parentNode.removeChild(cardEl);
+            // If no more cards, show placeholder text
+            const container = document.getElementById('upcomingRetros');
+            if (container && container.children.length === 0) {
+              container.innerHTML = '<p class="text-muted">No upcoming retrospectives. Create one to get started!</p>';
+            }
+          } catch (e) { /* noop */ }
           return;
         }
         
@@ -3553,6 +3608,69 @@
       // Initial update
       updateCountdown();
     }
+
+    // Add an item to Recent Activity when a retro starts
+    function addRetrospectiveActivityToDashboard(retro, eventType = 'started') {
+      const activityContainer = document.getElementById('recentActivity');
+      if (!activityContainer) return;
+      if (activityContainer.querySelector('.text-muted')) activityContainer.innerHTML = '';
+      const nowStr = new Date().toLocaleString();
+      const badge = eventType === 'started' ? 'primary' : 'secondary';
+      const title = eventType === 'started' ? 'Retrospective Started' : 'Retrospective Update';
+      const icon = 'bi-flag';
+      const html = `
+        <div class="d-flex align-items-start mb-3 p-3 bg-light rounded">
+          <div class="flex-shrink-0 me-3">
+            <div class="bg-${badge} text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+              <i class="bi ${icon}"></i>
+            </div>
+          </div>
+          <div class="flex-grow-1">
+            <div class="d-flex justify-content-between align-items-start mb-1">
+              <div>
+                <strong>${title}</strong>
+                <span class="badge bg-${badge} ms-2">New</span>
+              </div>
+              <small class="text-muted">${nowStr}</small>
+            </div>
+            <p class="text-muted mb-0">
+              ${escapeHtml(retro.title)}${retro.sprint_name ? ` — <em>${escapeHtml(retro.sprint_name)}</em>` : ''}
+            </p>
+          </div>
+        </div>
+      `;
+      activityContainer.insertAdjacentHTML('afterbegin', html);
+    }
+
+    // Collapsible sections for dashboard lists (Upcoming, Recent Activity)
+    function setupDashboardCollapsibles() {
+      const sections = [
+        { titleSelector: '#dashboardSection h5:nth-of-type(1)', contentId: 'recentActivity', storageKey: 'dash_collapse_recent' },
+        { titleSelector: '#dashboardSection h5:nth-of-type(2)', contentId: 'upcomingRetros', storageKey: 'dash_collapse_upcoming' }
+      ];
+      sections.forEach(({ titleSelector, contentId, storageKey }) => {
+        const titleEl = document.querySelector(titleSelector);
+        const contentEl = document.getElementById(contentId);
+        if (!titleEl || !contentEl) return;
+        if (titleEl.querySelector('.dash-collapse-btn')) return; // already added
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-sm btn-outline-secondary dash-collapse-btn ms-2';
+        btn.innerHTML = '<i class="bi bi-chevron-up"></i>'; 
+        const collapsed = localStorage.getItem(storageKey) === '1';
+        if (collapsed) {
+          contentEl.style.display = 'none';
+          btn.innerHTML = '<i class="bi bi-chevron-down"></i>';
+        }
+        btn.addEventListener('click', () => {
+          const isHidden = contentEl.style.display === 'none';
+          contentEl.style.display = isHidden ? '' : 'none';
+          btn.innerHTML = isHidden ? '<i class="bi bi-chevron-up"></i>' : '<i class="bi bi-chevron-down"></i>';
+          localStorage.setItem(storageKey, isHidden ? '0' : '1');
+        });
+        titleEl.appendChild(btn);
+      });
+    }
     
     function getTimeUntil(date, now) {
       const diffMs = date - now;
@@ -3573,8 +3691,8 @@
       try {
         showToast('Loading retrospective...', 'info');
         
-        // Get or create session link
-        const response = await fetch(`/api/v1/fourls-chat/link/by-retro/${retroId}`, {
+        // Get retrospective to get the code
+        const response = await fetch(`/api/v1/retrospectives/${retroId}`, {
           headers: {
             'Authorization': `Bearer ${authToken}`,
             'Content-Type': 'application/json'
@@ -3582,14 +3700,21 @@
         });
         
         if (response.ok) {
-          const data = await response.json();
+          const retroData = await response.json();
           
-          // Navigate to the chat session
-          window.location.href = data.url;
+          // Navigate to retrospective.html with code
+          window.location.href = `/ui/retrospective.html/${retroData.code}`;
         } else {
           const errorData = await response.json().catch(() => ({}));
-          const errorMsg = errorData.detail || 'Failed to open retrospective';
-          showToast(errorMsg, 'danger');
+          // Handle scheduled gate
+          if (response.status === 403 && errorData && errorData.detail && errorData.detail.not_started_until) {
+            const until = new Date(errorData.detail.not_started_until);
+            showCountdownBanner(until, () => openRetrospective(retroId));
+            showToast('Retrospective is scheduled. You can join when the timer ends.', 'info');
+          } else {
+            const errorMsg = (errorData && (errorData.detail?.message || errorData.detail)) || 'Failed to open retrospective';
+            showToast(errorMsg, 'danger');
+          }
         }
       } catch (error) {
         console.error('Open retrospective error:', error);
@@ -3769,9 +3894,8 @@
         document.getElementById('workspaceDetailName').textContent = selected.name;
         document.getElementById('workspaceDetailDesc').textContent = selected.description || 'No description';
         
-        // Load workspace settings
-        document.getElementById('settingsWorkspaceName').value = selected.name;
-        document.getElementById('settingsWorkspaceDesc').value = selected.description || '';
+        // Load workspace summary when opening if needed
+        // (Explicit loading also occurs when switching to the Summary tab)
         
         // Update tab locks based on user role
         updateWorkspaceTabLocks(selected.my_role);
@@ -3818,32 +3942,51 @@
       // Define which roles have access to each feature
       const privilegedRoles = ['Scrum Master', 'Project Manager'];
       const isPrivileged = privilegedRoles.includes(userRole);
+      // Owner/facilitator roles no longer used for UI gating; use privileged roles instead
       
       // Tabs that require privileged access
-      const lockedTabs = ['retrospectives', 'team', 'settings'];
+      const lockedTabs = ['retrospectives', 'team'];
+      // Tabs that require owner access specifically
+      const ownerOnlyTabs = ['onboarding'];
       
       // Tab info for restoring
       const tabInfo = {
         'retrospectives': { icon: 'bi-chat-dots', text: 'Retrospectives' },
         'team': { icon: 'bi-people', text: 'Team Members' },
-        'settings': { icon: 'bi-gear', text: 'Settings' }
+        'onboarding': { icon: 'bi-rocket-takeoff', text: 'Getting Started' }
       };
       
-      // Update tab locks
+      // Update privileged tabs
       lockedTabs.forEach(tabName => {
         const tabLink = document.querySelector(`#workspaceTabs a[onclick*="${tabName}"]`);
         if (tabLink) {
           if (!isPrivileged) {
-            // Lock the tab
             tabLink.style.pointerEvents = 'none';
             tabLink.style.opacity = '0.5';
             tabLink.innerHTML = `<i class="bi bi-lock"></i> ${tabInfo[tabName].text}`;
             tabLink.title = 'Requires Scrum Master or Project Manager privileges';
           } else {
-            // Unlock the tab
             tabLink.style.pointerEvents = 'auto';
             tabLink.style.opacity = '1';
             tabLink.innerHTML = `<i class="bi ${tabInfo[tabName].icon}"></i> ${tabInfo[tabName].text}`;
+            tabLink.title = '';
+          }
+        }
+      });
+      
+      // Update owner-only tabs (privileged roles)
+      ownerOnlyTabs.forEach(tabName => {
+        const tabLink = document.querySelector(`#workspaceTabs a[onclick*="${tabName}"]`);
+        if (tabLink) {
+          if (!isPrivileged) {
+            tabLink.style.pointerEvents = 'none';
+            tabLink.style.opacity = '0.5';
+            tabLink.innerHTML = `<i class=\"bi bi-lock\"></i> ${tabInfo[tabName].text}`;
+            tabLink.title = 'Requires Scrum Master or Project Manager privileges';
+          } else {
+            tabLink.style.pointerEvents = 'auto';
+            tabLink.style.opacity = '1';
+            tabLink.innerHTML = `<i class=\"bi ${tabInfo[tabName].icon}\"></i> ${tabInfo[tabName].text}`;
             tabLink.title = '';
           }
         }
@@ -3853,8 +3996,13 @@
     function showWorkspaceTab(tabName) {
       // Check if tab is locked
       const privilegedRoles = ['Scrum Master', 'Project Manager'];
-      const lockedTabs = ['retrospectives', 'team', 'settings'];
-      const isLocked = lockedTabs.includes(tabName) && currentWorkspace && !privilegedRoles.includes(currentWorkspace.my_role);
+      const lockedTabs = ['retrospectives', 'team'];
+      const ownerOnlyTabs = ['onboarding'];
+      const role = currentWorkspace ? (currentWorkspace.my_role || '') : '';
+      const roleLower2 = String(role).toLowerCase();
+      const isLockedPriv = lockedTabs.includes(tabName) && currentWorkspace && !privilegedRoles.includes(role);
+      const isLockedOwner = ownerOnlyTabs.includes(tabName) && currentWorkspace && !(roleLower2 === 'scrum master' || roleLower2 === 'project manager');
+      const isLocked = isLockedPriv || isLockedOwner;
       
       // Hide all tabs
       document.querySelectorAll('.workspace-tab').forEach(tab => tab.classList.remove('active'));
@@ -3869,9 +4017,8 @@
           const lockMessage = `
             <div class="text-center py-5">
               <i class="bi bi-lock display-1 text-muted"></i>
-              <h3 class="mt-3 text-muted">Premium Feature</h3>
-              <p class="text-muted">This feature requires Scrum Master or Project Manager privileges.</p>
-              <p class="text-muted small">Contact your workspace admin to upgrade your access.</p>
+              <h3 class="mt-3 text-muted">Access Restricted</h3>
+              <p class="text-muted">${ownerOnlyTabs.includes(tabName) ? 'This feature requires Scrum master or Project Manager privileges.' : 'This feature requires Scrum Master or Project Manager privileges.'}</p>
             </div>
           `;
           targetTab.innerHTML = lockMessage;
@@ -3893,7 +4040,88 @@
         loadWorkspaceActionItems();
       } else if (tabName === 'team') {
         loadWorkspaceTeamMembers();
+      } else if (tabName === 'onboarding') {
+        initWorkspaceWizard();
+      } else if (tabName === 'summary') {
+        loadWorkspaceSummary();
       }
+    }
+
+    // ============== Workspace Onboarding Wizard ==============
+    let _workspaceWizardCurrent = 1;
+    function initWorkspaceWizard() {
+      _workspaceWizardCurrent = 1;
+      showWorkspaceWizardStep(_workspaceWizardCurrent);
+    }
+    function getWorkspaceWizardTotal() {
+      const steps = document.querySelectorAll('#workspace-onboarding-tab .onboarding-step');
+      return steps ? steps.length : 0;
+    }
+    function showWorkspaceWizardStep(stepIndex) {
+      const steps = Array.from(document.querySelectorAll('#workspace-onboarding-tab .onboarding-step'));
+      if (!steps.length) return;
+      const total = steps.length;
+      _workspaceWizardCurrent = Math.max(1, Math.min(stepIndex, total));
+      steps.forEach((el, idx) => {
+        el.style.display = (idx + 1) === _workspaceWizardCurrent ? 'block' : 'none';
+      });
+      const prevBtn = document.getElementById('onboardingPrevBtn');
+      const nextBtn = document.getElementById('onboardingNextBtn');
+      if (prevBtn) prevBtn.disabled = _workspaceWizardCurrent === 1;
+      if (nextBtn) nextBtn.textContent = _workspaceWizardCurrent === total ? 'Finish' : 'Next';
+      // Update progress bar positionally
+      const percent = Math.round((_workspaceWizardCurrent - 1) / (total - 1 || 1) * 100);
+      const bar = document.getElementById('workspaceProgressBar');
+      const label = document.getElementById('workspaceOnboardingProgress');
+      if (bar) bar.style.width = percent + '%';
+      if (label) label.textContent = percent + '%';
+    }
+    let isFinishingOnboarding = false;
+
+    async function nextWorkspaceWizardStep() {
+      const total = getWorkspaceWizardTotal();
+      if (_workspaceWizardCurrent >= total) {
+        // Finish: take user to Retrospectives tab
+        if (isFinishingOnboarding) return; // lock to prevent multiple inputs
+        isFinishingOnboarding = true;
+        
+        const nextBtn = document.getElementById('onboardingNextBtn');
+        const prevBtn = document.getElementById('onboardingPrevBtn');
+        const originalText = nextBtn ? nextBtn.textContent : 'Finish';
+        
+        if (nextBtn) {
+          nextBtn.disabled = true;
+          nextBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Finishing...';
+        }
+        if (prevBtn) prevBtn.disabled = true;
+        
+        try {
+          if (currentWorkspace && authToken) {
+            const resp = await fetch(`/api/v1/workspaces/${currentWorkspace.id}/onboarding/complete`, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${authToken}` }
+            });
+            if (resp.ok) {
+              showToast('Onboarding completed!', 'success');
+            }
+          }
+        } catch (e) {
+          showToast('Failed to complete onboarding', 'danger');
+        } finally {
+          isFinishingOnboarding = false;
+          if (nextBtn) {
+            nextBtn.disabled = false;
+            nextBtn.textContent = originalText;
+          }
+          if (prevBtn) prevBtn.disabled = false;
+        }
+        showWorkspaceTab('retrospectives');
+        return;
+      }
+      showWorkspaceWizardStep(_workspaceWizardCurrent + 1);
+    }
+    function prevWorkspaceWizardStep() {
+      showWorkspaceWizardStep(_workspaceWizardCurrent - 1);
     }
     
     async function loadWorkspaceRetros() {
@@ -4093,13 +4321,238 @@
         showToast('Please select a file', 'warning');
         return;
       }
-      // TODO: Implement document upload
-      showToast('Document uploaded successfully!', 'success');
+      const file = fileInput.files[0];
+      const form = new FormData();
+      form.append('file', file);
+      try {
+        const resp = await fetch(`/api/v1/workspaces/${currentWorkspace.id}/onboarding/upload`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}` },
+          body: form
+        });
+        if (resp.ok) {
+          showToast('File uploaded', 'success');
+          // Auto-generate AI summary after upload
+          const gen = await fetch(`/api/v1/workspaces/${currentWorkspace.id}/onboarding/generate`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${authToken}` }
+          });
+          if (gen.ok) {
+            showToast('AI summary generated', 'success');
+            // Reflect in onboarding tab UI summary area if present
+            const docSummary = document.getElementById('docSummary');
+            const docSummaryText = document.getElementById('docSummaryText');
+            if (docSummary && docSummaryText) {
+              const json = await gen.json().catch(() => null);
+              const text = json && json.onboarding_data && json.onboarding_data.ai_summary ? json.onboarding_data.ai_summary : 'Summary created.';
+              docSummaryText.textContent = text;
+              docSummary.style.display = 'block';
+            }
+          } else {
+            showToast('Failed to generate summary', 'danger');
+          }
+        } else {
+          const msg = await resp.text();
+          showToast(msg || 'Failed to upload file', 'danger');
+        }
+      } catch (e) {
+        showToast('Network error uploading file', 'danger');
+      }
     }
     
+    let isGeneratingSummary = false;
+    
     async function generateDocumentSummary() {
-      // TODO: Implement document summary generation
-      showToast('Summary generated!', 'success');
+      if (!currentWorkspace) return;
+      if (isGeneratingSummary) return; // lock to prevent multiple inputs
+      
+      // Failsafe: Require a file selection (avoid summarizing an existing summary)
+      const input = document.getElementById('summaryUploadInput');
+      const hasFile = input && input.files && input.files[0];
+      if (!hasFile) {
+        showToast('Please select a file to upload first', 'warning');
+        return;
+      }
+      
+      isGeneratingSummary = true;
+      const btn = document.getElementById('generateSummaryBtn');
+      const fileInput = document.getElementById('summaryUploadInput');
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generating...'; }
+      if (fileInput) { fileInput.disabled = true; }
+      try {
+        // If a file is selected, upload it first
+        if (hasFile) {
+          const form = new FormData();
+          form.append('file', input.files[0]);
+          const up = await fetch(`/api/v1/workspaces/${currentWorkspace.id}/onboarding/upload`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${authToken}` },
+            body: form
+          });
+          if (!up.ok) {
+            const msg = await up.text();
+            showToast(msg || 'Failed to upload file', 'danger');
+            return; // exit early on upload failure
+          }
+        }
+
+        const gen = await fetch(`/api/v1/workspaces/${currentWorkspace.id}/onboarding/generate`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (gen.ok) {
+          showToast('AI summary generated', 'success');
+          const statusDiv = document.getElementById('workspaceDocumentStatus');
+          if (statusDiv && !document.getElementById('viewSummaryBtn')) {
+            const btn2 = document.createElement('button');
+            btn2.className = 'btn btn-outline-primary btn-sm ms-2';
+            btn2.id = 'viewSummaryBtn';
+            btn2.innerHTML = '<i class="bi bi-file-text"></i> View Summary';
+            btn2.onclick = () => showWorkspaceTab('summary');
+            statusDiv.appendChild(btn2);
+          }
+        } else {
+          if (gen.status === 403) {
+            showToast('You do not have permission (Scrum Master or Project Manager required)', 'danger');
+          } else {
+            showToast('Failed to generate summary', 'danger');
+          }
+        }
+      } catch (e) {
+        showToast('Network error generating summary', 'danger');
+      } finally {
+        isGeneratingSummary = false;
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-cpu"></i> Generate AI Summary'; }
+        if (fileInput) { fileInput.disabled = false; }
+      }
+    }
+
+    async function loadWorkspaceSummary() {
+      if (!currentWorkspace) return;
+      const container = document.getElementById('workspaceSummaryContainer');
+      if (!container) return;
+
+      const userRole = currentWorkspace.my_role || 'member';
+
+      // Load onboarding summary from canonical endpoint
+      let summaryText = '';
+      try {
+        const resp = await fetch(`/api/v1/workspaces/${currentWorkspace.id}/onboarding`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+        if (resp.ok) {
+          const data = await resp.json();
+          const onboardingObj = data && data.onboarding_data ? data.onboarding_data : null;
+          if (onboardingObj && typeof onboardingObj === 'object') {
+            summaryText = onboardingObj.ai_summary || '';
+          } else if (typeof onboardingObj === 'string') {
+            summaryText = onboardingObj;
+          }
+        } else if (resp.status === 403) {
+          container.innerHTML = `<p class="text-muted">You do not have access to view this summary.</p>`;
+          return;
+        }
+      } catch (_) {}
+
+      if (summaryText && summaryText.trim() !== '') {
+        container.innerHTML = `
+          <div class="alert alert-info">
+            <strong>AI Summary</strong>
+          </div>
+          <div class="mb-3">${renderSummaryHtml(summaryText)}</div>
+        `;
+        return;
+      }
+
+      container.innerHTML = `<p class="text-muted">No summary has been uploaded for this workspace yet.</p>`;
+    }
+
+    function renderSummaryHtml(text) {
+      // Escape HTML first
+      const escaped = escapeHtml(text);
+      const lines = escaped.split(/\r?\n/);
+      const html = [];
+      let inList = false;
+      const flushList = () => { if (inList) { html.push('</ul>'); inList = false; } };
+      const boldRegex = /\*\*(.+?)\*\*/g; // simple **bold**
+      for (let raw of lines) {
+        const line = raw.trimEnd();
+        if (/^[-*]\s+/.test(line)) {
+          if (!inList) { html.push('<ul>'); inList = true; }
+          const item = line.replace(/^[-*]\s+/, '').replace(boldRegex, '<strong>$1<\/strong>');
+          html.push(`<li>${item}</li>`);
+        } else if (line === '') {
+          flushList();
+          html.push('<br>');
+        } else {
+          flushList();
+          html.push(`<p>${line.replace(boldRegex, '<strong>$1<\/strong>')}</p>`);
+        }
+      }
+      flushList();
+      return html.join('');
+    }
+
+    async function uploadWorkspaceSummarySource() {
+      const input = document.getElementById('summaryUploadInput');
+      if (!input || !input.files || !input.files[0]) {
+        showToast('Please select a file', 'warning');
+        return;
+      }
+      const file = input.files[0];
+      const form = new FormData();
+      form.append('file', file);
+      try {
+        const resp = await fetch(`/api/v1/workspaces/${currentWorkspace.id}/onboarding/upload`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}` },
+          body: form
+        });
+        if (resp.ok) {
+          showToast('File uploaded', 'success');
+          // Auto-generate AI summary after upload
+          const gen = await fetch(`/api/v1/workspaces/${currentWorkspace.id}/onboarding/generate`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${authToken}` }
+          });
+          if (gen.ok) {
+            showToast('AI summary generated', 'success');
+            const statusDiv = document.getElementById('workspaceDocumentStatus');
+            if (statusDiv && !document.getElementById('viewSummaryBtn')) {
+              const btn2 = document.createElement('button');
+              btn2.className = 'btn btn-outline-primary btn-sm ms-2';
+              btn2.id = 'viewSummaryBtn';
+              btn2.innerHTML = '<i class="bi bi-file-text"></i> View Summary';
+              btn2.onclick = () => showWorkspaceTab('summary');
+              statusDiv.appendChild(btn2);
+            }
+            loadWorkspaceSummary();
+          } else {
+            showToast('Failed to generate summary', 'danger');
+          }
+        } else {
+          const msg = await resp.text();
+          showToast(msg || 'Failed to upload file', 'danger');
+        }
+      } catch (e) {
+        showToast('Network error uploading file', 'danger');
+      }
+    }
+
+    async function generateWorkspaceSummary() {
+      if (!currentWorkspace) return;
+      try {
+        const resp = await fetch(`/api/v1/workspaces/${currentWorkspace.id}/onboarding/generate`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (resp.ok) {
+          showToast('AI summary generated', 'success');
+          loadWorkspaceSummary();
+        } else {
+          showToast('Failed to generate summary', 'danger');
+        }
+      } catch (e) {
+        showToast('Network error generating summary', 'danger');
+      }
     }
     
     async function updateWorkspaceSettings() {
@@ -4697,12 +5150,27 @@
         });
         
         if (response.ok) {
-          showToast('Retrospective started! Beginning 4Ls chat...', 'success');
-          // Start 4Ls chat
-          setTimeout(() => start4LsChat(retroId), 500);
+          showToast('Retrospective started! Redirecting...', 'success');
+          // Get retrospective code and navigate to retrospective.html
+          const retroResponse = await fetch(`/api/v1/retrospectives/${retroId}`, {
+            headers: {
+              'Authorization': `Bearer ${authToken}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          if (retroResponse.ok) {
+            const retroData = await retroResponse.json();
+            // Navigate to retrospective.html with code
+            window.location.href = `/ui/retrospective.html/${retroData.code}`;
+          } else {
+            // Fallback: try to open retrospective
+            openRetrospective(retroId);
+          }
         }
       } catch (error) {
         console.error('Start retro error:', error);
+        showToast('Failed to start retrospective', 'danger');
       }
     }
     
@@ -4718,7 +5186,16 @@
           }
         });
         
-        if (!response.ok) throw new Error('Failed to start chat');
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}));
+          if (response.status === 403 && err && err.detail && err.detail.not_started_until) {
+            const until = new Date(err.detail.not_started_until);
+            // Show countdown and retry starting automatically at time
+            showCountdownBanner(until, () => start4LsChat(retroId));
+            return;
+          }
+          throw new Error((err && (err.detail?.message || err.detail)) || 'Failed to start chat');
+        }
         
         const data = await response.json();
         currentChatSession = data.session_id;
@@ -4768,6 +5245,16 @@
           data.messages.forEach(msg => {
             addRetroMessage(msg.content, msg.message_type);
           });
+        } else {
+          const err = await response.json().catch(() => ({}));
+          if (response.status === 403 && err && err.detail && err.detail.not_started_until) {
+            const until = new Date(err.detail.not_started_until);
+            disableRetroInput(true);
+            showCountdownBanner(until, () => {
+              disableRetroInput(false);
+              loadChatSession();
+            });
+          }
         }
       } catch (error) {
         console.error('Load chat session error:', error);
@@ -4838,9 +5325,19 @@
             showToast('All categories completed! Click "Finish & Proceed" to continue.', 'success');
           }
         } else {
-          const error = await response.json();
-          console.error('API error:', error);
-          addRetroMessage('Sorry, I encountered an error: ' + (error.detail || 'Unknown error'), 'assistant');
+          const error = await response.json().catch(() => ({}));
+          if (response.status === 403 && error && error.detail && error.detail.not_started_until) {
+            const until = new Date(error.detail.not_started_until);
+            addRetroMessage('Retrospective not started yet. I will be available when the timer ends.', 'assistant');
+            disableRetroInput(true);
+            showCountdownBanner(until, () => {
+              disableRetroInput(false);
+              addRetroMessage('We can start now. Please send your message again.', 'assistant');
+            });
+          } else {
+            console.error('API error:', error);
+            addRetroMessage('Sorry, I encountered an error: ' + (error.detail || 'Unknown error'), 'assistant');
+          }
         }
       } catch (error) {
         console.error('Send message error:', error);
@@ -4885,6 +5382,48 @@
     function focusRetroCategory(category) {
       // Progress sidebar was removed - this function kept for compatibility
       // No longer updates any UI elements since sidebar is gone
+    }
+
+    // ==================== RETRO SCHEDULING GATE HELPERS ====================
+    function disableRetroInput(disabled) {
+      const input = document.getElementById('retroChatInput');
+      const btn = document.getElementById('sendRetroBtn');
+      if (input) input.disabled = disabled;
+      if (btn) btn.disabled = disabled;
+    }
+
+    function showCountdownBanner(untilDate, onReady) {
+      let banner = document.getElementById('retroCountdownBanner');
+      if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'retroCountdownBanner';
+        banner.className = 'alert alert-info position-fixed top-0 start-50 translate-middle-x mt-3 shadow';
+        banner.style.zIndex = '9999';
+        banner.innerHTML = `
+          <i class="bi bi-clock"></i>
+          <span id="retroCountdownText">Retrospective starts soon...</span>
+        `;
+        document.body.appendChild(banner);
+      }
+
+      const textEl = banner.querySelector('#retroCountdownText');
+      const intervalId = setInterval(() => {
+        const now = new Date();
+        const diff = untilDate - now;
+        if (diff <= 0) {
+          clearInterval(intervalId);
+          banner.remove();
+          if (typeof onReady === 'function') onReady();
+          return;
+        }
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+        const parts = [];
+        if (hours > 0) parts.push(`${hours}h`);
+        parts.push(`${minutes}m`, `${seconds}s`);
+        textEl.textContent = `Retrospective starts in ${parts.join(' ')}. This will unlock automatically.`;
+      }, 1000);
     }
     
     // NEW: Show grouping inline in chat area instead of overlay
@@ -4964,10 +5503,8 @@
         const data = await response.json();
         showToast(`Created ${data.groups_created} theme groups!`, 'success');
         
-        // Add small delay to ensure database commit is complete
-        await new Promise(resolve => setTimeout(resolve, 500));
-        // Load and display grouping results
-        await loadGroupingResults(retroId);
+        // Load and display grouping results with retry (handles DB commit delay)
+        await loadGroupingResultsWithRetry(retroId, 5, 600);
         
       } catch (error) {
         console.error('Generate grouping error:', error);
@@ -4979,6 +5516,21 @@
       }
     }
     
+    async function loadGroupingResultsWithRetry(retroId, attempts = 5, delayMs = 600) {
+      for (let i = 0; i < attempts; i++) {
+        await loadGroupingResults(retroId);
+        const container = document.getElementById('groupingResults');
+        const hasThemes = container && container.querySelector('.theme-item');
+        if (hasThemes) return; // success
+        await new Promise(r => setTimeout(r, delayMs));
+      }
+      // Final fallback message if nothing rendered
+      const container = document.getElementById('groupingResults');
+      if (container && !container.querySelector('.theme-item')) {
+        container.innerHTML = '<div class="alert alert-info">Themes are being prepared. Please try again in a moment.</div>';
+      }
+    }
+
     async function loadGroupingResults(retroId) {
       try {
         const response = await fetch(`/api/v1/grouping/${retroId}`, {

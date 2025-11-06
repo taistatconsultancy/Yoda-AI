@@ -35,6 +35,8 @@ openai==2.3.0
 
 # PDF generation
 reportlab==4.0.9
+pypdf==4.3.1
+python-docx==1.1.0
 
 # Email
 email-validator==2.3.0

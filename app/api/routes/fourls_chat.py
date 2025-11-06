@@ -2,7 +2,7 @@
 4Ls AI Chat with Dynamic Progress Tracking
 Handles: Liked, Learned, Lacked, Longed For
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
@@ -71,9 +71,14 @@ class ChatSessionResponse(BaseModel):
 # 4LS CHAT ENDPOINTS
 # ============================================================================
 
+class StartChatRequest(BaseModel):
+    retrospective_id: int
+
+
 @router.post("/start")
 async def start_4ls_chat(
-    retrospective_id: int,
+    retrospective_id: Optional[int] = None,
+    start_data: Optional[StartChatRequest] = Body(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -81,9 +86,19 @@ async def start_4ls_chat(
     Start a new 4Ls chat session
     """
     try:
+        # Accept retrospective_id from query or JSON body for compatibility
+        retro_id = retrospective_id if retrospective_id is not None else (start_data.retrospective_id if start_data else None)
+        if retro_id is None:
+            raise HTTPException(status_code=422, detail="retrospective_id is required")
+
+        # Verify retrospective exists and is at/after scheduled start
+        retro = db.query(Retrospective).filter(Retrospective.id == retro_id).first()
+        if not retro:
+            raise HTTPException(status_code=404, detail="Retrospective not found")
+
         # Verify user is participant
         participant = db.query(RetrospectiveParticipant).filter(
-            RetrospectiveParticipant.retrospective_id == retrospective_id,
+            RetrospectiveParticipant.retrospective_id == retro_id,
             RetrospectiveParticipant.user_id == current_user.id
         ).first()
         
@@ -151,6 +166,11 @@ async def get_or_create_session_link(
     db: Session = Depends(get_db)
 ):
     """Return a session link for the given retrospective, creating a session if needed."""
+    # Verify retrospective exists and is at/after scheduled start
+    retro = db.query(Retrospective).filter(Retrospective.id == retrospective_id).first()
+    if not retro:
+        raise HTTPException(status_code=404, detail="Retrospective not found")
+
     # Verify user is participant
     participant = db.query(RetrospectiveParticipant).filter(
         RetrospectiveParticipant.retrospective_id == retrospective_id,
@@ -191,8 +211,9 @@ async def get_or_create_session_link(
         db.add(welcome_msg)
         db.commit()
 
-    url = f"{settings.APP_URL}/ui/yodaai-app.html?session_id={session.session_id}"
-    return {"session_id": session.session_id, "url": url}
+    # Return URL to retrospective.html with code instead of yodaai-app.html
+    url = f"{settings.APP_URL}/ui/retrospective.html/{retro.code}"
+    return {"session_id": session.session_id, "url": url, "code": retro.code}
 
 
 @router.get("/email-link/{retrospective_id}/{user_id}")
@@ -202,6 +223,11 @@ async def get_email_session_link(
     db: Session = Depends(get_db)
 ):
     """Public endpoint for email links - creates session and returns direct chat URL."""
+    # Verify retrospective exists and is at/after scheduled start
+    retro = db.query(Retrospective).filter(Retrospective.id == retrospective_id).first()
+    if not retro:
+        raise HTTPException(status_code=404, detail="Retrospective not found")
+
     # Verify user exists and is participant
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
@@ -246,8 +272,8 @@ async def get_email_session_link(
         db.add(welcome_msg)
         db.commit()
 
-    # Return direct URL to chat with session_id
-    chat_url = f"{settings.APP_URL}/ui/yodaai-app.html?session_id={session.session_id}"
+    # Return direct URL to retrospective.html with code instead of yodaai-app.html
+    chat_url = f"{settings.APP_URL}/ui/retrospective.html/{retro.code}"
     return {"redirect_url": chat_url}
 
 
@@ -373,20 +399,22 @@ async def send_message(
         ).order_by(ChatMessage.created_at).all()
         
         messages_for_ai = [
-            {"role": "system", "content": f"""You are YodaAI, a facilitator for agile retrospectives. You are currently guiding a team member through the 4Ls: Liked, Learned, Lacked, Longed For. 
-            
-Current category: {session.current_category.upper()}
+            {"role": "system", "content": f"""
+        You are an expert, plain-English facilitator for a 4Ls retrospective (Liked, Learned, Lacked, Longed For). Use clear, professional grammar (no stylistic inversions). Be concise and friendly.
 
-Your role:
-1. Acknowledge their response
-2. Ask ONE follow-up question if needed for clarity (keep it brief)
-3. After 1-2 responses in a category, thank them and EXPLICITLY transition to the next category using phrases like:
-   - "Now let's move to what you LEARNED"
-   - "Let's talk about what you LACKED"
-   - "Now, what did you LONG FOR"
-4. Categories order: liked → learned → lacked → longed_for
+        Current category: {session.current_category.upper()}
 
-Be conversational, encouraging, and concise. Always use the category name when transitioning."""}
+        Rules:
+        1) Acknowledge what they shared.
+        2) Ask AT MOST ONE brief follow-up question, or none if not needed.
+        3) Do NOT combine a follow-up question and a category transition in the same message.
+        4) Only suggest transitioning AFTER the user has given AT LEAST TWO responses in the current category.
+        5) When transitioning, be explicit with phrases like:
+           - "Let’s shift to what you LEARNED."
+           - "Now, let’s explore what you LACKED."
+           - "Finally, what did you LONG FOR?"
+        6) Keep responses under 80 words.
+        """}
         ]
         
         for msg in conversation_history:
@@ -399,8 +427,8 @@ Be conversational, encouraging, and concise. Always use the category name when t
             response = openai_client.chat.completions.create(
                 model="gpt-4",
                 messages=messages_for_ai,
-                temperature=0.7,
-                max_tokens=300
+                temperature=0.3,
+                max_tokens=220
             )
             
             ai_content = response.choices[0].message.content
@@ -412,7 +440,13 @@ Be conversational, encouraging, and concise. Always use the category name when t
             ai_content = "Thank you for sharing! Tell me more about that."
             tokens_used = 0
         
-        # Check if AI wants to move to next category (improved heuristic)
+        # Post-process to enforce at most one question per reply
+        if ai_content and ai_content.count('?') > 1:
+            first_q_idx = ai_content.find('?')
+            if first_q_idx != -1:
+                ai_content = ai_content[:first_q_idx + 1]
+
+        # Check if AI wants to move to next category (heuristic)
         move_to_next = any(phrase in ai_content.lower() for phrase in [
             "move on", "next category", "let's talk about", "now let's",
             "what did you learn", "what you learned", "learned about",
@@ -420,6 +454,15 @@ Be conversational, encouraging, and concise. Always use the category name when t
             "what did you long", "what you longed", "longed for",
             "explore the", "move to", "transition to", "shift to"
         ])
+
+        # Enforce at least two user responses in the current category before moving
+        user_responses_in_current = db.query(ChatMessage).filter(
+            ChatMessage.session_id == session.id,
+            ChatMessage.message_type == 'user',
+            ChatMessage.current_category == session.current_category
+        ).count()
+        if user_responses_in_current < 2:
+            move_to_next = False
         
         new_category = session.current_category
         categories_completed = session.categories_completed or {

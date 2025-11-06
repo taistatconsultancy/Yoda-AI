@@ -2,18 +2,19 @@
 Onboarding and user journey models
 """
 
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean, JSON, Text
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean, JSON, Text, UniqueConstraint
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.database.database import Base
 
 
 class UserOnboarding(Base):
-    """Track user onboarding progress"""
+    """Track user onboarding progress per workspace"""
     __tablename__ = "user_onboarding"
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id"), nullable=False)
     
     # Onboarding steps completion
     workspace_setup_completed = Column(Boolean, default=False)
@@ -31,11 +32,17 @@ class UserOnboarding(Base):
     started_at = Column(DateTime(timezone=True), server_default=func.now())
     completed_at = Column(DateTime(timezone=True), nullable=True)
     
+    # Unique constraint: one onboarding record per user per workspace
+    __table_args__ = (
+        UniqueConstraint('user_id', 'workspace_id', name='uq_user_workspace_onboarding'),
+    )
+    
     # Relationships
     user = relationship("User", back_populates="onboarding")
+    workspace = relationship("Workspace")
     
     def __repr__(self):
-        return f"<UserOnboarding(user_id={self.user_id}, completed={self.onboarding_completed})>"
+        return f"<UserOnboarding(user_id={self.user_id}, workspace_id={self.workspace_id}, completed={self.onboarding_completed})>"
 
 
 class ScheduledRetrospective(Base):

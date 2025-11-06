@@ -842,11 +842,34 @@ async def download_summary_pdf(
                     elements.append(Paragraph(f"⚠ {challenge}", normal_style))
                 elements.append(Spacer(1, 0.3*inch))
             
-            # Disciplined Agile Recommendations
+            # Disciplined Agile Recommendations (format bullets + bold)
             if da_rec and da_rec.content:
                 elements.append(PageBreak())
                 elements.append(Paragraph("Disciplined Agile Recommendations", heading_style))
-                elements.append(Paragraph(da_rec.content, normal_style))
+                try:
+                    import re
+                    raw = da_rec.content or ""
+                    # Convert **bold** to <b> for reportlab Paragraph
+                    raw = re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", raw)
+                    # Split into lines and bullets
+                    lines = [l.strip() for l in raw.splitlines() if l.strip()]
+                    bullet_lines = []
+                    for line in lines:
+                        m = re.match(r"^[-•]\s*(.*)$", line)
+                        if m:
+                            bullet_lines.append(m.group(1))
+                        else:
+                            # Further split on ' - ' to extract sub-bullets
+                            parts = [p.strip() for p in re.split(r"\s-\s", line) if p.strip()]
+                            if len(parts) > 1:
+                                bullet_lines.extend(parts)
+                            else:
+                                bullet_lines.append(line)
+                    for blt in bullet_lines:
+                        elements.append(Paragraph(f"• {blt}", normal_style))
+                except Exception:
+                    # Fallback to raw paragraph
+                    elements.append(Paragraph(da_rec.content, normal_style))
                 elements.append(Spacer(1, 0.3*inch))
             
             # Recommendations (if in insights)

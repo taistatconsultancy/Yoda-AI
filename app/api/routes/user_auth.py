@@ -51,6 +51,13 @@ class TokenResponse(BaseModel):
     user: UserResponse
 
 
+class RegistrationResponse(BaseModel):
+    """Registration response when email verification is required"""
+    message: str
+    email: str
+    requires_verification: bool = True
+
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify password using bcrypt"""
     try:
@@ -87,7 +94,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     return encoded_jwt
 
 
-@router.post("/register", response_model=TokenResponse)
+@router.post("/register", response_model=RegistrationResponse)
 async def register(
     user_data: UserRegister,
     db: Session = Depends(get_db)
@@ -95,6 +102,7 @@ async def register(
     """
     Register a new user with email and password
     Stores user in Neon database
+    Returns success response indicating email verification is required
     """
     try:
         # Check if user already exists
@@ -162,11 +170,11 @@ async def register(
             print(f"⚠️ Failed to send verification email. Token: {verification_link}")
             print(f"Verification link (check console): {verification_link}")
         
-        # Return response indicating email verification required
-        from fastapi import HTTPException as HTTP403
-        raise HTTP403(
-            status_code=403,
-            detail="Verification email sent. Please check your email to verify your account."
+        # Return success response indicating email verification required
+        return RegistrationResponse(
+            message="Registration successful! Please check your email to verify your account before logging in.",
+            email=new_user.email,
+            requires_verification=True
         )
     except HTTPException:
         raise
@@ -345,7 +353,7 @@ async def verify_email(
                 <h1>Email Verified Successfully!</h1>
                 <p>Your email address has been verified. You can now access all features of YodaAI!</p>
                 <p><strong>Welcome to YodaAI, {user.full_name}!</strong></p>
-                <a href="http://localhost:8000/" class="button">Go to YodaAI App</a>
+                <a href="{settings.APP_URL}/ui/yodaai-app.html" class="button">Go to YodaAI App</a>
             </div>
         </body>
         </html>
