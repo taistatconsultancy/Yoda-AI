@@ -51,7 +51,7 @@ class User(Base):
     vote_allocations = relationship("VoteAllocation", back_populates="user")
     assigned_action_items = relationship("ActionItem", foreign_keys="ActionItem.assigned_to", back_populates="assignee")
     created_action_items = relationship("ActionItem", foreign_keys="ActionItem.created_by", back_populates="creator")
-    onboarding = relationship("UserOnboarding", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    onboarding = relationship("UserOnboarding", back_populates="user", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<User(id={self.id}, email='{self.email}', username='{self.username}')>"
