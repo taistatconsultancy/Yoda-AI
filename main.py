@@ -16,7 +16,7 @@ from app.core.config import settings
 from app.api.routes import (
     action_items, scheduling, user_auth, users,
     workspaces, retrospectives_full, fourls_chat, grouping, voting, discussion_summary, 
-    google_auth, workspace_invitations
+    google_auth, workspace_invitations, onboarding
 )
 
 # Configure logging
@@ -73,6 +73,7 @@ app.include_router(workspaces.router)  # Has its own prefix
 app.include_router(workspace_invitations.router)
 app.include_router(workspace_invitations.token_router)
 app.include_router(retrospectives_full.router)  # Has its own prefix
+app.include_router(onboarding.router)  # /api/v1/workspaces/{id}/onboarding
 
 # Add redirect for old retrospective paths
 @app.get("/retrospectives/{retro_id}")
