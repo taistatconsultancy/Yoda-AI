@@ -1576,74 +1576,74 @@
 
             <div id="onboardingSteps">
               <div class="onboarding-step" data-step="1">
-                <div class="card border-start border-primary border-4">
-                  <div class="card-body">
-                    <h6><i class="bi bi-1-circle-fill text-primary"></i> Workspace Setup</h6>
-                    <p class="text-muted small">Workspace created successfully!</p>
-                    <button class="btn btn-sm btn-success" disabled>
-                      <i class="bi bi-check-lg"></i> Completed
-                    </button>
+                    <div class="card border-start border-primary border-4">
+                      <div class="card-body">
+                        <h6><i class="bi bi-1-circle-fill text-primary"></i> Workspace Setup</h6>
+                        <p class="text-muted small">Workspace created successfully!</p>
+                        <button class="btn btn-sm btn-success" disabled>
+                          <i class="bi bi-check-lg"></i> Completed
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
 
               <div class="onboarding-step" data-step="2">
-                <div class="card border-start border-success border-4">
-                  <div class="card-body">
+                    <div class="card border-start border-success border-4">
+                      <div class="card-body">
                     <h6><i class="bi bi-2-circle-fill text-success"></i> Generate AI Summary</h6>
                     <p class="text-muted small">Upload a file (.txt, .md, .pdf) and generate an AI summary</p>
                     <div class="row g-2 align-items-center mb-2">
                       <div class="col-12 col-md-8">
                         <input type="file" class="form-control form-control-sm" id="summaryUploadInput" accept=".txt,.md,.pdf">
-                      </div>
+                          </div>
                       <div class="col-12 col-md-4 d-flex gap-2">
                         <button id="generateSummaryBtn" class="btn btn-sm btn-info" onclick="generateDocumentSummary()">
                           <i class="bi bi-cpu"></i> Generate AI Summary
-                        </button>
+                          </button>
                       </div>
                     </div>
                     <div id="workspaceDocumentStatus">
-                    </div>
-                    <div id="uploadedDocsList" class="mt-3"></div>
-                    <div id="docSummary" class="mt-3" style="display:none;">
-                      <div class="alert alert-info">
-                        <strong>AI Summary:</strong>
-                        <p class="mb-0 mt-2" id="docSummaryText"></p>
+                        </div>
+                        <div id="uploadedDocsList" class="mt-3"></div>
+                        <div id="docSummary" class="mt-3" style="display:none;">
+                          <div class="alert alert-info">
+                            <strong>AI Summary:</strong>
+                            <p class="mb-0 mt-2" id="docSummaryText"></p>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </div>
 
               <div class="onboarding-step" data-step="3">
-                <div class="card border-start border-warning border-4">
-                  <div class="card-body">
-                    <h6><i class="bi bi-3-circle-fill text-warning"></i> Add Team Members</h6>
-                    <p class="text-muted small">Invite team to workspace</p>
-                    <button class="btn btn-sm btn-warning" onclick="showWorkspaceTab('team')">
-                      <i class="bi bi-person-plus"></i> Add Members
-                    </button>
+                    <div class="card border-start border-warning border-4">
+                      <div class="card-body">
+                        <h6><i class="bi bi-3-circle-fill text-warning"></i> Add Team Members</h6>
+                        <p class="text-muted small">Invite team to workspace</p>
+                        <button class="btn btn-sm btn-warning" onclick="showWorkspaceTab('team')">
+                          <i class="bi bi-person-plus"></i> Add Members
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
 
               <div class="onboarding-step" data-step="4">
-                <div class="card border-start border-danger border-4">
-                  <div class="card-body">
+                    <div class="card border-start border-danger border-4">
+                      <div class="card-body">
                     <h6><i class="bi bi-4-circle-fill text-danger"></i> Create First Retrospective</h6>
-                    <p class="text-muted small">Start your first retro session</p>
-                    <button class="btn btn-sm btn-danger" onclick="showCreateRetroModal()">
-                      <i class="bi bi-plus-circle"></i> Create Retro
-                    </button>
+                        <p class="text-muted small">Start your first retro session</p>
+                        <button class="btn btn-sm btn-danger" onclick="showCreateRetroModal()">
+                          <i class="bi bi-plus-circle"></i> Create Retro
+                        </button>
                   </div>
-                </div>
-              </div>
-            </div>
+                      </div>
+                    </div>
+                  </div>
 
             <div class="d-flex justify-content-between mt-3">
               <button class="btn btn-outline-secondary" id="onboardingPrevBtn" onclick="prevWorkspaceWizardStep()">Back</button>
               <button class="btn btn-primary" id="onboardingNextBtn" onclick="nextWorkspaceWizardStep()">Next</button>
-            </div>
+                </div>
               </div>
             </div>
           </div>
@@ -4361,7 +4361,7 @@
     }
     
     let isGeneratingSummary = false;
-
+    
     async function generateDocumentSummary() {
       if (!currentWorkspace) return;
       if (isGeneratingSummary) return; // lock to prevent multiple inputs
