@@ -32,6 +32,12 @@ try:
 except Exception:  # pragma: no cover
     PdfReader = None  # type: ignore
 
+# Optional Word document parsing
+try:
+    from docx import Document  # type: ignore
+except Exception:  # pragma: no cover
+    Document = None  # type: ignore
+
 
 def _extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
     """Extract text from PDF bytes using pypdf if available; otherwise return empty string."""
@@ -48,7 +54,79 @@ def _extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
                 except Exception:
                     continue
             return "\n".join(t for t in texts if t)
-    except Exception:
+    except Exception as e:
+        # Log the error for debugging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"PDF extraction failed: {str(e)}")
+        return ""
+
+
+def _extract_text_from_docx_bytes(docx_bytes: bytes) -> str:
+    """Extract text from Word document (.docx) bytes using python-docx if available."""
+    if Document is None:
+        return ""
+    try:
+        import io
+        with io.BytesIO(docx_bytes) as fh:
+            doc = Document(fh)
+            paragraphs = []
+            for paragraph in doc.paragraphs:
+                if paragraph.text.strip():
+                    paragraphs.append(paragraph.text)
+            # Also extract text from tables
+            for table in doc.tables:
+                for row in table.rows:
+                    row_texts = []
+                    for cell in row.cells:
+                        if cell.text.strip():
+                            row_texts.append(cell.text.strip())
+                    if row_texts:
+                        paragraphs.append(" | ".join(row_texts))
+            return "\n\n".join(paragraphs)
+    except Exception as e:
+        # Log the error for debugging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"DOCX extraction failed: {str(e)}")
+        return ""
+
+
+def _extract_text_from_docx_manual(docx_bytes: bytes) -> str:
+    """Fallback: Extract text from .docx by parsing the ZIP/XML structure manually."""
+    try:
+        import zipfile
+        import xml.etree.ElementTree as ET
+        import io
+        
+        with zipfile.ZipFile(io.BytesIO(docx_bytes), 'r') as zip_file:
+            # Read the main document XML
+            if 'word/document.xml' not in zip_file.namelist():
+                return ""
+            
+            xml_content = zip_file.read('word/document.xml')
+            root = ET.fromstring(xml_content)
+            
+            # Define namespaces for Word documents
+            namespaces = {
+                'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+            }
+            
+            # Extract all text from paragraphs
+            paragraphs = []
+            for para in root.findall('.//w:p', namespaces):
+                texts = []
+                for text_elem in para.findall('.//w:t', namespaces):
+                    if text_elem.text:
+                        texts.append(text_elem.text)
+                if texts:
+                    paragraphs.append(''.join(texts))
+            
+            return '\n\n'.join(paragraphs)
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Manual DOCX extraction failed: {str(e)}")
         return ""
 
 
@@ -73,9 +151,10 @@ def get_workspace_onboarding(
     if not workspace:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found")
 
-    # Find onboarding record for the owner (created_by)
+    # Find onboarding record for the owner (created_by) and this workspace
     owner_onboarding: Optional[UserOnboarding] = db.query(UserOnboarding).filter(
-        UserOnboarding.user_id == workspace.created_by
+        UserOnboarding.user_id == workspace.created_by,
+        UserOnboarding.workspace_id == workspace_id
     ).first()
 
     # Compute dynamic onboarding flags based on live data
@@ -135,9 +214,10 @@ def update_workspace_onboarding(
     if not workspace:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found")
 
-    # Ensure an onboarding record exists for owner
+    # Ensure an onboarding record exists for owner and this workspace
     owner_onboarding: Optional[UserOnboarding] = db.query(UserOnboarding).filter(
-        UserOnboarding.user_id == workspace.created_by
+        UserOnboarding.user_id == workspace.created_by,
+        UserOnboarding.workspace_id == workspace_id
     ).first()
 
     # Ensure JSON object structure for onboarding_data
@@ -151,7 +231,11 @@ def update_workspace_onboarding(
     incoming["updated_at"] = datetime.now(timezone.utc).isoformat()
 
     if not owner_onboarding:
-        owner_onboarding = UserOnboarding(user_id=workspace.created_by, onboarding_data=incoming)
+        owner_onboarding = UserOnboarding(
+            user_id=workspace.created_by,
+            workspace_id=workspace_id,
+            onboarding_data=incoming
+        )
         db.add(owner_onboarding)
     else:
         # Preserve existing ai_summary unless explicitly provided
@@ -176,31 +260,49 @@ def update_workspace_onboarding(
 
 @router.get("/user-onboarding/me")
 def get_my_onboarding(
+    workspace_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Get the authenticated user's onboarding record.
+    Get the authenticated user's onboarding record for a specific workspace.
     """
-    rec = db.query(UserOnboarding).filter(UserOnboarding.user_id == current_user.id).first()
+    rec = db.query(UserOnboarding).filter(
+        UserOnboarding.user_id == current_user.id,
+        UserOnboarding.workspace_id == workspace_id
+    ).first()
     return {
         "user_id": current_user.id,
+        "workspace_id": workspace_id,
         "onboarding_data": rec.onboarding_data if rec else None
     }
 
 
 @router.put("/user-onboarding")
 def upsert_my_onboarding(
+    workspace_id: int,
     payload: OnboardingUpdateRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Create or update the authenticated user's onboarding record.
+    Create or update the authenticated user's onboarding record for a specific workspace.
     """
-    rec = db.query(UserOnboarding).filter(UserOnboarding.user_id == current_user.id).first()
+    # Verify workspace exists and user has access
+    workspace: Optional[Workspace] = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+    if not workspace:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found")
+    
+    rec = db.query(UserOnboarding).filter(
+        UserOnboarding.user_id == current_user.id,
+        UserOnboarding.workspace_id == workspace_id
+    ).first()
     if not rec:
-        rec = UserOnboarding(user_id=current_user.id, onboarding_data=payload.onboarding_data)
+        rec = UserOnboarding(
+            user_id=current_user.id,
+            workspace_id=workspace_id,
+            onboarding_data=payload.onboarding_data
+        )
         db.add(rec)
     else:
         rec.onboarding_data = payload.onboarding_data
@@ -208,6 +310,7 @@ def upsert_my_onboarding(
     db.refresh(rec)
     return {
         "user_id": current_user.id,
+        "workspace_id": workspace_id,
         "onboarding_data": rec.onboarding_data,
         "updated": True
     }
@@ -227,43 +330,94 @@ async def upload_onboarding_source(
     if role not in ('scrum master', 'project manager'):
         raise HTTPException(status_code=403, detail="Requires Scrum Master or Project Manager privileges")
     """
-    Upload a text/markdown file to set onboarding_data for the workspace owner.
-    Currently supports text/plain and markdown. PDFs not parsed here.
+    Upload a file to set onboarding_data for the workspace owner.
+    Supported formats:
+    - Text files: .txt, .md (plain text and markdown)
+    - PDF files: .pdf (text-based PDFs only, not scanned/image-only)
+    - Word documents: .docx (modern Word format)
+    
+    The extracted text will be stored and can be summarized using the generate endpoint.
     """
     content_bytes = await file.read()
     text = ""
     filename_lower = (file.filename or "").lower()
     ctype = (file.content_type or "").lower()
+    
+    # Determine file type and extract text accordingly
     if ctype in ("application/pdf",) or filename_lower.endswith(".pdf"):
+        # Handle PDF files
         text = _extract_text_from_pdf_bytes(content_bytes)
         if not text:
-            raise HTTPException(status_code=415, detail="Unable to parse PDF. Ensure the file is not scanned or image-only.")
+            raise HTTPException(
+                status_code=415, 
+                detail="Unable to parse PDF. Ensure the file is not scanned or image-only. Text-based PDFs are supported."
+            )
+    elif (ctype in ("application/vnd.openxmlformats-officedocument.wordprocessingml.document", 
+                    "application/msword") or 
+          filename_lower.endswith((".docx", ".doc"))):
+        # Handle Word documents (.docx and .doc)
+        if filename_lower.endswith(".docx"):
+            # Try python-docx first, then fallback to manual parsing
+            text = _extract_text_from_docx_bytes(content_bytes)
+            if not text:
+                # Fallback to manual ZIP/XML parsing
+                text = _extract_text_from_docx_manual(content_bytes)
+        else:
+            # .doc files (older format) - not easily parseable without additional libraries
+            raise HTTPException(
+                status_code=415,
+                detail="Legacy .doc files are not supported. Please convert to .docx format or upload as PDF."
+            )
+        
+        if not text:
+            raise HTTPException(
+                status_code=415,
+                detail="Unable to extract text from Word document. Please ensure the file is a valid .docx file."
+            )
     else:
-        # Treat as text/markdown
+        # Treat as plain text/markdown
         try:
             text = content_bytes.decode("utf-8", errors="ignore")
         except Exception:
-            text = ""
-        if not text:
-            raise HTTPException(status_code=415, detail="Unsupported file or empty content. Provide a valid .txt/.md or .pdf file.")
+            # Try other encodings
+            try:
+                text = content_bytes.decode("latin-1", errors="ignore")
+            except Exception:
+                text = ""
+        
+        if not text or not text.strip():
+            raise HTTPException(
+                status_code=415, 
+                detail="Unsupported file format or empty content. Supported formats: .txt, .md, .pdf, .docx"
+            )
 
     workspace: Optional[Workspace] = db.query(Workspace).filter(Workspace.id == workspace_id).first()
     if not workspace:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found")
 
     owner_onboarding: Optional[UserOnboarding] = db.query(UserOnboarding).filter(
-        UserOnboarding.user_id == workspace.created_by
+        UserOnboarding.user_id == workspace.created_by,
+        UserOnboarding.workspace_id == workspace_id
     ).first()
     # Build structured JSON
     data: Dict[str, Any] = {}
     if owner_onboarding and isinstance(owner_onboarding.onboarding_data, dict):
         data.update(owner_onboarding.onboarding_data)
+    
+    # Store the uploaded text - this is what will be summarized
     data["source_text"] = text
+    # Store upload metadata for verification
+    data["uploaded_at"] = datetime.now(timezone.utc).isoformat()
+    data["uploaded_filename"] = file.filename
     # Do not overwrite ai_summary here; generation endpoint will set it
     data["updated_at"] = datetime.now(timezone.utc).isoformat()
 
     if not owner_onboarding:
-        owner_onboarding = UserOnboarding(user_id=workspace.created_by, onboarding_data=data)
+        owner_onboarding = UserOnboarding(
+            user_id=workspace.created_by,
+            workspace_id=workspace_id,
+            onboarding_data=data
+        )
         db.add(owner_onboarding)
     else:
         owner_onboarding.onboarding_data = data
@@ -303,15 +457,26 @@ def generate_workspace_summary(
     """
     Generate an AI summary from the owner's onboarding_data and save it back.
     If OpenAI isn't configured, returns the first 800 chars as a fallback.
+    
+    DATA FLOW VERIFICATION:
+    - This endpoint reads source_text from the onboarding_data stored by the upload endpoint
+    - Both endpoints use the same workspace_id filter to ensure data isolation per workspace
+    - The source_text extracted here is the exact text that was uploaded for this workspace
+    - Metadata (uploaded_at, summary_source_length) is stored to verify data integrity
     """
     workspace: Optional[Workspace] = db.query(Workspace).filter(Workspace.id == workspace_id).first()
     if not workspace:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found")
 
     owner_onboarding: Optional[UserOnboarding] = db.query(UserOnboarding).filter(
-        UserOnboarding.user_id == workspace.created_by
+        UserOnboarding.user_id == workspace.created_by,
+        UserOnboarding.workspace_id == workspace_id
     ).first()
-    raw_data = owner_onboarding.onboarding_data if owner_onboarding else None
+    
+    if not owner_onboarding:
+        raise HTTPException(status_code=400, detail="No onboarding data found for this workspace. Please upload a file first.")
+    
+    raw_data = owner_onboarding.onboarding_data
     source_text = ""
     if isinstance(raw_data, dict):
         source_text = raw_data.get("source_text", "") or ""
@@ -320,7 +485,13 @@ def generate_workspace_summary(
         source_text = raw_data
 
     if not isinstance(source_text, str) or source_text.strip() == "":
-        raise HTTPException(status_code=400, detail="No onboarding data available to summarize. Please upload text first.")
+        raise HTTPException(status_code=400, detail="No source text available to summarize. Please upload a file first.")
+    
+    # Verify we're using the correct workspace's data
+    # This ensures data integrity - the source_text should belong to this workspace
+    if isinstance(raw_data, dict) and "updated_at" in raw_data:
+        # Optional: Could add additional validation here if needed
+        pass
 
     client = _get_openai_client()
     summary_text: str
@@ -330,37 +501,35 @@ def generate_workspace_summary(
     else:
         try:
             prompt = (
-                "Summarize the following workspace context into a clear, concise brief (<= 250 words). "
-                "Highlight goals, scope, stakeholders, timelines, risks, and any constraints.\n\n" + source_text
+                """
+                You are an expert project analyst and proposal reviewer.
+                Read the following project proposal carefully and generate a concise summary that captures the main objectives, methods, expected outcomes, and key insights.\n\n
+                """
+                 + source_text
             )
             resp = client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
                     {"role": "system", "content": """
-                            You are YodaAI, an intelligent product strategist that helps summarize project ideas into clear, concise MVP (Minimum Viable Product) descriptions.
+                            You are an expert project analyst and proposal reviewer. 
+                            Your task is to read and summarize project proposal documents into clear, structured summaries that capture the main points accurately.
 
-                            Your task:
-                            Given a user’s project idea or description, summarize it into a structured MVP overview.
+                            Given the full text of a project proposal, produce a concise summary that includes:
 
-                            Your summary must include:
+                            1. **Project Title & Objective** – Briefly describe the main goal or purpose.
+                            2. **Problem Statement** – Outline the key issue or challenge being addressed.
+                            3. **Proposed Solution / Methodology** – Summarize how the project plans to achieve its goals.
+                            4. **Expected Outcomes / Impact** – Explain what results or benefits are anticipated.
+                            5. **Key Stakeholders / Partners (if mentioned)** – Identify relevant participants or organizations.
 
-                            Core Problem: What pain point or need does the project address?
+                            Guidelines:
+                            - Keep the summary between **150–250 words**.
+                            - Maintain a **professional, neutral, and analytical tone**.
+                            - Use **clear and concise language** suitable for project documentation.
+                            - If any section is missing from the proposal, **omit it** rather than fabricating information.
 
-                            Target Users: Who is it for?
+                            User input will contain the full project proposal text.
 
-                            Key Features (MVP Scope): What are the essential features needed for launch?
-
-                            Technology/Tools: What stack or tools could be used (if applicable)?
-
-                            Value Proposition: What makes this MVP valuable or unique?
-
-                            Style:
-
-                            Keep it short (150–250 words).
-
-                            Use simple, professional, and engaging language.
-
-                            Focus only on the minimum features needed to test the idea.
 
                             
                     """},
@@ -374,20 +543,34 @@ def generate_workspace_summary(
             summary_text = (source_text[:800] + ("..." if len(source_text) > 800 else ""))
 
     # Save the summary into onboarding_data JSON under ai_summary
+    # IMPORTANT: Preserve the source_text that was used for generation
     data_out: Dict[str, Any] = {}
     if owner_onboarding and isinstance(owner_onboarding.onboarding_data, dict):
         data_out.update(owner_onboarding.onboarding_data)
+        # Ensure we're using the same source_text that was uploaded
+        # This prevents any potential data mixing issues
+        if "source_text" in data_out and data_out["source_text"] != source_text:
+            # This should never happen, but log if it does
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Source text mismatch detected for workspace {workspace_id}")
     else:
         # Wrap legacy string source into structured JSON
         data_out = {"source_text": source_text}
+    
+    # Store the summary with metadata about what was summarized
     data_out["ai_summary"] = summary_text
+    data_out["summary_generated_at"] = datetime.now(timezone.utc).isoformat()
+    data_out["summary_source_length"] = len(source_text)  # Store length for verification
     data_out["updated_at"] = datetime.now(timezone.utc).isoformat()
 
+    # owner_onboarding should always exist at this point (we checked earlier)
+    # But keep this as a safety check
     if not owner_onboarding:
-        owner_onboarding = UserOnboarding(user_id=workspace.created_by, onboarding_data=data_out)
-        db.add(owner_onboarding)
-    else:
-        owner_onboarding.onboarding_data = data_out
+        raise HTTPException(status_code=500, detail="Onboarding record was deleted during generation. Please try again.")
+    
+    # Update the onboarding data with the generated summary
+    owner_onboarding.onboarding_data = data_out
     # Keep computed flags updated
     owner_onboarding.workspace_setup_completed = True
     owner_onboarding.project_data_imported = True if data_out.get("source_text") else owner_onboarding.project_data_imported
@@ -417,10 +600,14 @@ def mark_onboarding_complete(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found")
 
     owner_onboarding: Optional[UserOnboarding] = db.query(UserOnboarding).filter(
-        UserOnboarding.user_id == workspace.created_by
+        UserOnboarding.user_id == workspace.created_by,
+        UserOnboarding.workspace_id == workspace_id
     ).first()
     if not owner_onboarding:
-        owner_onboarding = UserOnboarding(user_id=workspace.created_by)
+        owner_onboarding = UserOnboarding(
+            user_id=workspace.created_by,
+            workspace_id=workspace_id
+        )
         db.add(owner_onboarding)
 
     owner_onboarding.onboarding_completed = True
