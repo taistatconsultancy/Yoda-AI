@@ -812,6 +812,29 @@ async def advance_phase(
                 ).all()
                 for allocation in allocations:
                     allocation.updated_at = now_utc
+        elif next_phase == 'voting':
+            # Ensure a voting session exists when entering voting phase
+            active_session = db.query(VotingSession).filter(
+                VotingSession.retrospective_id == retro_id,
+                VotingSession.is_active == True
+            ).first()
+            
+            if not active_session:
+                new_session = VotingSession(
+                    retrospective_id=retro_id,
+                    votes_per_member=10,
+                    min_votes_to_discuss=3,
+                    is_active=True,
+                    started_at=now_utc
+                )
+                db.add(new_session)
+                
+                # Reset participant voting completion flags for fresh session
+                participants = db.query(RetrospectiveParticipant).filter(
+                    RetrospectiveParticipant.retrospective_id == retro_id
+                ).all()
+                for participant in participants:
+                    participant.completed_voting = False
         
         # If leaving discussion phase, mark all discussion topics as ended
         if retro.current_phase == 'discussion':
