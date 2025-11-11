@@ -2717,11 +2717,20 @@
           
           showToast('PDF downloaded successfully!', 'success');
         } else {
-          throw new Error('Failed to generate PDF');
+          let errorDetail = 'Failed to generate PDF';
+          try {
+            const errorData = await response.json();
+            if (errorData?.detail) {
+              errorDetail = errorData.detail;
+            }
+          } catch (parseError) {
+            // ignore
+          }
+          throw new Error(errorDetail);
         }
       } catch (error) {
         console.error('Generate PDF error:', error);
-        showToast('Failed to generate PDF', 'danger');
+        showToast(error.message || 'Failed to generate PDF', 'danger');
       }
     }
     
