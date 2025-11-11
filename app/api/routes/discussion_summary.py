@@ -955,8 +955,13 @@ async def download_summary_pdf(
                                 bullet_lines.extend(parts)
                             else:
                                 bullet_lines.append(line)
-                    for idx, blt in enumerate(bullet_lines, 1):
-                        elements.append(Paragraph(f"{idx}. {blt}", normal_style))
+                    number_idx = 1
+                    for blt in bullet_lines:
+                        if '<b>' in blt and '</b>' in blt:
+                            elements.append(Paragraph(f"{number_idx}. {blt}", normal_style))
+                            number_idx += 1
+                        else:
+                            elements.append(Paragraph(f"• {blt}", normal_style))
                 except Exception:
                     # Fallback to raw paragraph
                     elements.append(Paragraph(da_rec.content, normal_style))
