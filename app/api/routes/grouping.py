@@ -195,11 +195,12 @@ Input data:
 
 Please:
 1. Derive high-level themes that reflect the team’s shared insights.
-2. Cluster related responses into those themes.
-3. Create a clear, meaningful title for each theme (max 6 words).
-4. Write a 1–2 sentence summary describing the core insight of each theme.
-5. Assign a main category: liked, learned, lacked, or longed_for.
-6. Include the list of user names that contributed to each theme.
+2. In each category: Have atleast 2-3 themes  
+3. Cluster related responses into those themes.
+4. Create a clear, meaningful title for each theme (max 6 words).
+5. Write a 1–2 sentence summary describing the core insight of each theme.
+6. Assign a main category: liked, learned, lacked, or longed_for.
+7. Include the list of user names that contributed to each theme.
 
 Output must be ONLY valid JSON:
 [
@@ -750,3 +751,4 @@ async def reorder_themes(
         db.rollback()
         print(f"Reorder themes error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to reorder themes: {str(e)}")
+
