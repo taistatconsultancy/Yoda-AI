@@ -1441,35 +1441,7 @@
         });
         
         if (!response.ok) {
-          if (response.status === 404 && isFacilitator && !attemptedAutoStartVoting) {
-            attemptedAutoStartVoting = true;
-            try {
-              const startResponse = await fetch(`/api/v1/voting/${retroData.id}/start`, {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${authToken}`
-                }
-              });
-              if (startResponse.ok) {
-                await loadVotingStatus();
-                return;
-              }
-            } catch (startError) {
-              console.error('Auto-start voting error:', startError);
-            }
-          }
-          
-          const themesDiv = document.getElementById('votingThemes');
-          if (themesDiv) {
-            const message = response.status === 404
-              ? '<i class="bi bi-hourglass-split"></i> Waiting for voting session to start...'
-              : '<i class="bi bi-exclamation-circle"></i> Voting session is not available yet.';
-            themesDiv.innerHTML = `
-              <div class="alert alert-warning text-center">
-                ${message}
-              </div>
-            `;
-          }
+          await handleVotingUnavailable(response.status);
           return;
         }
         
@@ -1537,14 +1509,7 @@
         updateSubmitButton();
       } catch (error) {
         console.error('Load voting status error:', error);
-        const themesDiv = document.getElementById('votingThemes');
-        if (themesDiv) {
-          themesDiv.innerHTML = `
-            <div class="alert alert-danger text-center">
-              <i class="bi bi-exclamation-circle"></i> Failed to load voting themes. Please refresh the page.
-            </div>
-          `;
-        }
+        await handleVotingUnavailable();
       }
     }
     
