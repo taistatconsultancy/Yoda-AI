@@ -531,6 +531,7 @@
     let votingPollInterval = null;
     let mainPollInterval = null;
     let attemptedAutoStartVoting = false;
+    let bypassVotingRequirement = false;
     // Dashboard cache for quick card moves
     window._dashRetrosById = Object.create(null);
     
@@ -1438,6 +1439,8 @@
           </div>
         </div>
         
+        <div id="votingAlerts" class="mb-3"></div>
+        
         <div id="votingThemes">
           <!-- Loading themes... -->
         </div>
@@ -1454,6 +1457,7 @@
       `;
       
       attemptedAutoStartVoting = false;
+      bypassVotingRequirement = false;
       loadVotingStatus();
       
       // Start voting polling if not already started
@@ -1479,6 +1483,7 @@
         
         const data = await response.json();
         attemptedAutoStartVoting = false;
+        updateVotingAlerts(data);
         
         // If user already submitted votes, show server data
         if (votesSubmitted) {
@@ -1611,6 +1616,72 @@
       }
     }
     
+    function updateVotingAlerts(data) {
+      const alertsDiv = document.getElementById('votingAlerts');
+      if (!alertsDiv) return;
+
+      const hasPending = Array.isArray(data.pending_participants) && data.pending_participants.length > 0;
+
+      if (!hasPending) {
+        alertsDiv.innerHTML = '';
+        bypassVotingRequirement = false;
+        return;
+      }
+
+      const names = data.pending_participants.join(', ');
+      const facilitatorExtra = data.bypass_allowed ? `
+        <div class="mt-3">
+          <button id="enableVotingBypassBtn" class="btn btn-sm btn-outline-warning" onclick="enableVotingBypass()" ${bypassVotingRequirement ? 'disabled' : ''}>
+            <i class="bi bi-shield-exclamation"></i> Allow bypass (member absent)
+          </button>
+          <div class="form-text mt-2">
+            This lets you advance even if these participants remain absent.
+          </div>
+        </div>
+      ` : '';
+
+      alertsDiv.innerHTML = `
+        <div class="alert alert-warning">
+          <strong>Pending votes:</strong> ${names}
+          ${facilitatorExtra}
+        </div>
+      `;
+    }
+    
+    function enableVotingBypass() {
+      bypassVotingRequirement = true;
+      const btn = document.getElementById('enableVotingBypassBtn');
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-shield-check"></i> Bypass enabled';
+      }
+      showToast('Bypass enabled. You can now advance after confirming.', 'info');
+    }
+    
+    function renderPendingVotingNotice(data) {
+      if (!Array.isArray(data.pending_participants) || data.pending_participants.length === 0) {
+        bypassVotingRequirement = false;
+        return '';
+      }
+      const names = data.pending_participants.join(', ');
+      const facilitatorExtra = isFacilitator ? `
+        <div class="mt-3">
+          <button id="enableVotingBypassBtn" class="btn btn-sm btn-outline-warning" onclick="enableVotingBypass()" ${bypassVotingRequirement ? 'disabled' : ''}>
+            <i class="bi bi-shield-exclamation"></i> Allow bypass (member absent)
+          </button>
+          <div class="form-text mt-2">
+            This allows moving forward even if the listed members remain absent.
+          </div>
+        </div>
+      ` : '';
+      return `
+        <div class="alert alert-warning mt-4 text-start" style="max-width: 420px; margin: 0 auto;">
+          <strong>Pending votes:</strong> ${names}
+          ${facilitatorExtra}
+        </div>
+      `;
+    }
+    
     function displaySubmittedVotingInterface(data) {
       // User has submitted, show read-only view with server data
       const content = document.getElementById('mainContent');
@@ -1640,6 +1711,7 @@
                 ${Math.round((data.participants_who_voted / data.total_participants) * 100)}%
               </div>
             </div>
+            ${renderPendingVotingNotice(data)}
             <p class="text-muted mt-4">
               <small>This page will automatically refresh when everyone has voted</small>
             </p>
@@ -1676,6 +1748,7 @@
         }
       });
       
+      bypassVotingRequirement = false;
       content.innerHTML = html;
     }
     
@@ -2792,12 +2865,17 @@
         // If moving from voting to discussion, finalize voting first to create topics
         if (currentPhase === 'voting' && nextPhase === 'discussion') {
           try {
-            const finalizeResponse = await fetch(`/api/v1/voting/${retroData.id}/finalize`, {
+            const finalizeOptions = {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${authToken}`
               }
-            });
+            };
+            if (bypassVotingRequirement) {
+              finalizeOptions.headers['Content-Type'] = 'application/json';
+              finalizeOptions.body = JSON.stringify({ bypass: true });
+            }
+            const finalizeResponse = await fetch(`/api/v1/voting/${retroData.id}/finalize`, finalizeOptions);
             if (!finalizeResponse.ok) {
               const error = await finalizeResponse.json().catch(() => ({}));
               showToast(error.detail || 'Unable to finalize voting. Ensure everyone has submitted votes.', 'danger');
@@ -2807,6 +2885,7 @@
               }
               return;
             }
+            bypassVotingRequirement = false;
           } catch (error) {
             console.error('Finalize voting error:', error);
             showToast('Failed to finalize voting. Please try again.', 'danger');
