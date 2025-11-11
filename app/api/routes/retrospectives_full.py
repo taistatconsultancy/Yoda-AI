@@ -780,8 +780,26 @@ async def advance_phase(
         next_phase = phase_order[current_index + 1]
         now_utc = datetime.now(timezone.utc)
         
-        # If leaving voting phase, update vote allocation timestamps
+        # If leaving voting phase, ensure all participants submitted votes and update allocations
         if retro.current_phase == 'voting':
+            pending_participants = db.query(RetrospectiveParticipant, User).join(
+                User, RetrospectiveParticipant.user_id == User.id
+            ).filter(
+                RetrospectiveParticipant.retrospective_id == retro_id,
+                RetrospectiveParticipant.completed_voting == False
+            ).all()
+            
+            if pending_participants:
+                waiting_on = [
+                    (user.full_name or user.email or f"User {user.id}").strip()
+                    for _, user in pending_participants
+                ]
+                names = ', '.join(waiting_on)
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Cannot advance to discussion. Waiting for votes from: {names}"
+                )
+            
             # Get active voting session
             session = db.query(VotingSession).filter(
                 VotingSession.retrospective_id == retro_id,
