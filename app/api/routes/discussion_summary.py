@@ -795,31 +795,31 @@ async def download_summary_pdf(
             title_style = ParagraphStyle(
                 'CustomTitle',
                 parent=styles['Heading1'],
-                fontSize=24,
+                fontSize=22,
                 textColor=colors.HexColor('#667eea'),
-                spaceAfter=20,
+                spaceAfter=18,
                 alignment=1,  # Center alignment
             )
             heading_style = ParagraphStyle(
                 'CustomHeading',
                 parent=styles['Heading2'],
-                fontSize=16,
+                fontSize=14,
                 textColor=colors.HexColor('#667eea'),
-                spaceAfter=12,
-                spaceBefore=12,
+                spaceAfter=10,
+                spaceBefore=10,
             )
             subheading_style = ParagraphStyle(
                 'SubHeading',
                 parent=styles['Heading3'],
-                fontSize=14,
+                fontSize=12,
                 textColor=colors.HexColor('#4a5568'),
-                spaceAfter=8,
+                spaceAfter=6,
             )
             normal_style = ParagraphStyle(
                 'Normal',
                 parent=styles['Normal'],
-                fontSize=11,
-                leading=14,
+                fontSize=9,
+                leading=12,
             )
             
             # Title
@@ -859,10 +859,7 @@ async def download_summary_pdf(
                         Paragraph(email, normal_style),
                         Paragraph(voting_complete, normal_style)
                     ])
-                participant_table = Table(
-                    participant_table_data,
-                    colWidths=[2.8*inch, 2.4*inch, 1.0*inch]
-                )
+                participant_table = Table(participant_table_data)
                 participant_table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#667eea')),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
@@ -872,6 +869,7 @@ async def download_summary_pdf(
                     ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                     ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.whitesmoke, colors.lightgrey]),
                     ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#cbd5f5')),
+                    ('FONTSIZE', (0, 0), (-1, -1), 9),
                 ]))
                 elements.append(participant_table)
                 elements.append(Spacer(1, 0.3*inch))
@@ -895,10 +893,7 @@ async def download_summary_pdf(
                         Paragraph(xml_escape(due_text), normal_style),
                         Paragraph(progress_text, normal_style)
                     ])
-                action_table = Table(
-                    action_table_data,
-                    colWidths=[2.8*inch, 1.5*inch, 1.0*inch, 1.0*inch, 0.7*inch]
-                )
+                action_table = Table(action_table_data)
                 action_table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4c51bf')),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
@@ -908,6 +903,7 @@ async def download_summary_pdf(
                     ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                     ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.whitesmoke, colors.HexColor('#edf2ff')]),
                     ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#d0d7f9')),
+                    ('FONTSIZE', (0, 0), (-1, -1), 9),
                 ]))
                 elements.append(action_table)
             else:
@@ -916,7 +912,6 @@ async def download_summary_pdf(
             
             # Overall Assessment
             if retro.ai_summary:
-                elements.append(PageBreak())
                 elements.append(Paragraph("Overall Assessment", heading_style))
                 elements.append(Paragraph(retro.ai_summary, normal_style))
                 elements.append(Spacer(1, 0.3*inch))
@@ -939,7 +934,6 @@ async def download_summary_pdf(
             
             # Disciplined Agile Recommendations (format bullets + bold)
             if da_rec and da_rec.content:
-                elements.append(PageBreak())
                 elements.append(Paragraph("Disciplined Agile Recommendations", heading_style))
                 try:
                     import re
