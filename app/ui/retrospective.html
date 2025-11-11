@@ -283,6 +283,11 @@
       opacity: 0.5;
     }
     
+    .theme-item .drag-handle {
+      cursor: grab;
+      font-size: 18px;
+    }
+    
     .vote-count {
       display: inline-block;
       background: var(--primary-color);
@@ -474,12 +479,21 @@
     let chatMessages = [];
     let currentChatCategory = null;
     let chatSessionId = null;
+    let chatPollInterval = null;
     let themes = {
       liked: [],
       learned: [],
       lacked: [],
       longedFor: []
     };
+    let canEditGrouping = false;
+    let groupingPollInterval = null;
+    let themeSortables = {};
+    let isGroupingLoading = false;
+    let retroParticipants = [];
+    let retroActionItems = [];
+    let retroActionFilter = 'all';
+    let retroActionItemModalInstance = null;
     let pendingVotes = {};
     let votesSubmitted = false;
     let votingPollInterval = null;
@@ -542,13 +556,20 @@
         
         // Check if current user is facilitator
         isFacilitator = currentUser && retroData.facilitator_id === currentUser.id;
+        const currentUserRole = (currentUser && (currentUser.role || currentUser.workspace_role || currentUser.workspaceRole)) || '';
+        canEditGrouping = Boolean(
+          isFacilitator ||
+          ['Scrum Master', 'Project Manager', 'Owner', 'owner'].includes(currentUserRole)
+        );
         
         // Set current phase
         currentPhase = retroData.current_phase || 'input';
         
         // Show facilitator controls if applicable and not completed
-        if (isFacilitator && currentPhase !== 'completed') {
+        if (isFacilitator && currentPhase !== 'completed' && currentPhase !== 'input') {
           document.getElementById('facilitatorControls').style.display = 'block';
+        } else {
+          document.getElementById('facilitatorControls').style.display = 'none';
         }
         
         updatePhaseIndicator();
@@ -621,6 +642,7 @@
     function displayParticipants(participants) {
       const container = document.getElementById('participants');
       container.innerHTML = '';
+      retroParticipants = Array.isArray(participants) ? participants : [];
       
       participants.forEach(p => {
         const span = document.createElement('span');
@@ -639,6 +661,25 @@
     
     async function renderPhase(phase) {
       const content = document.getElementById('mainContent');
+      const facilitatorControls = document.getElementById('facilitatorControls');
+
+      if (facilitatorControls) {
+        facilitatorControls.style.display = (isFacilitator && phase !== 'input' && phase !== 'completed') ? 'block' : 'none';
+      }
+
+      if (phase !== 'input' && chatPollInterval) {
+        clearInterval(chatPollInterval);
+        chatPollInterval = null;
+      }
+
+      if (phase !== 'grouping' && groupingPollInterval) {
+        clearInterval(groupingPollInterval);
+        groupingPollInterval = null;
+      }
+
+      if (phase !== 'grouping' && typeof destroyThemeSortables === 'function') {
+        destroyThemeSortables();
+      }
       
       // Stop voting polling if leaving voting phase
       if (phase !== 'voting' && votingPollInterval) {
@@ -684,13 +725,23 @@
             <i class="bi bi-send"></i> Send
           </button>
         </div>
-        
-        
+        ${isFacilitator ? `
+          <div class="d-grid mt-3">
+            <button class="btn btn-outline-primary btn-next-phase-inline" onclick="nextPhase()">
+              <i class="bi bi-arrow-right-circle"></i> Next Phase
+            </button>
+          </div>
+        ` : ''}
       `;
       
       // Initialize and load chat session
       await initializeChatSession();
-      loadChatSession();
+      await loadChatSession();
+
+      if (chatPollInterval) {
+        clearInterval(chatPollInterval);
+      }
+      chatPollInterval = setInterval(loadChatSession, 4000);
     }
     
     
@@ -701,30 +752,34 @@
       }
       
       try {
-        const response = await fetch('/api/v1/fourls-chat/start', {
-          method: 'POST',
+        // Try to find an existing chat session first
+        const linkResponse = await fetch(`/api/v1/fourls-chat/link/by-retro/${retroData.id}`, {
           headers: {
             'Authorization': `Bearer ${authToken}`,
             'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            retrospective_id: retroData.id
-          })
+          }
         });
         
-        if (response.ok) {
-          const data = await response.json();
-          chatSessionId = data.session_id;
-        } else {
-          // Try to get existing session
-          const linkResponse = await fetch(`/api/v1/fourls-chat/link/by-retro/${retroData.id}`, {
+        if (linkResponse.ok) {
+          const linkData = await linkResponse.json();
+          chatSessionId = linkData.session_id;
+        }
+
+        if (!chatSessionId) {
+          const response = await fetch('/api/v1/fourls-chat/start', {
+            method: 'POST',
             headers: {
-              'Authorization': `Bearer ${authToken}`
-            }
+              'Authorization': `Bearer ${authToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              retrospective_id: retroData.id
+            })
           });
-          if (linkResponse.ok) {
-            const linkData = await linkResponse.json();
-            chatSessionId = linkData.session_id;
+          
+          if (response.ok) {
+            const data = await response.json();
+            chatSessionId = data.session_id;
           }
         }
       } catch (error) {
@@ -899,34 +954,53 @@
     
     function renderGroupingPhase() {
       const content = document.getElementById('mainContent');
-      
-      if (isFacilitator) {
-        content.innerHTML = `
-          <div class="d-flex justify-content-between align-items-center mb-4">
-            <h3 class="mb-0"><i class="bi bi-collection"></i> AI Grouping & Themes</h3>
-            </div>
-          <p class="text-muted mb-4">AI will analyze all team responses and group them into meaningful themes.</p>
-          
-          <button id="generateGroupingBtn" onclick="generateGrouping()" class="btn btn-primary btn-lg mb-4">
-            <i class="bi bi-magic"></i> Generate AI Grouping
+      if (!content) return;
+
+      if (groupingPollInterval) {
+        clearInterval(groupingPollInterval);
+        groupingPollInterval = null;
+      }
+
+      const actionControls = canEditGrouping
+        ? `
+            <div class="d-flex gap-2">
+              <button id="generateGroupingBtn" onclick="generateGrouping()" class="btn btn-primary">
+                <i class="bi bi-magic"></i> Generate AI Grouping
               </button>
-          
-          <div id="groupingResults">
-            <!-- Themes will appear here -->
+              <button class="btn btn-outline-secondary" onclick="loadGroupingResults()">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+              </button>
             </div>
-        `;
-      } else {
-        content.innerHTML = `
-          <div class="text-center py-5">
-            <i class="bi bi-hourglass-split display-1 text-primary"></i>
-            <h3 class="mt-3">Waiting for facilitator to generate grouping...</h3>
+          `
+        : `
+            <span class="badge bg-light text-dark border border-secondary">
+              <i class="bi bi-eye"></i> Live View
+            </span>
+          `;
+
+      content.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <h3 class="mb-0"><i class="bi bi-collection"></i> AI Grouping & Themes</h3>
+          ${actionControls}
+        </div>
+        <p class="text-muted mb-4">
+          AI clusters team reflections into themes. ${canEditGrouping ? 'You can fine-tune the grouping, rename themes, and drag them between categories.' : 'Updates appear automatically once the facilitator organizes the themes.'}
+        </p>
+        ${!canEditGrouping ? `
+          <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> Themes will appear as soon as they are generated.
+          </div>
+        ` : ''}
+        <div id="groupingResults">
+          <div class="text-center text-muted py-5">
+            <div class="loading-spinner mb-3"></div>
+            <p>Loading theme groups...</p>
+          </div>
         </div>
       `;
-      }
-      
-      if (isFacilitator) {
-        loadGroupingResults();
-      }
+
+      loadGroupingResults();
+      groupingPollInterval = setInterval(loadGroupingResults, 4000);
     }
     
     async function generateGrouping() {
@@ -976,6 +1050,10 @@
     }
     
     async function loadGroupingResults() {
+      if (isGroupingLoading) {
+        return;
+      }
+      isGroupingLoading = true;
       try {
         const response = await fetch(`/api/v1/grouping/${retroData.id}`, {
           headers: {
@@ -1001,6 +1079,8 @@
         if (container) {
           container.innerHTML = `<div class="alert alert-warning">Failed to load themes. Please try again.</div>`;
         }
+      } finally {
+        isGroupingLoading = false;
       }
     }
     
@@ -1048,70 +1128,160 @@
     
     function displayGroupingResults(data) {
       const container = document.getElementById('groupingResults');
-        if (!container) return;
-        
-      // Group themes by primary_category
+      if (!container) return;
+
+      if (!data || !Array.isArray(data.theme_groups)) {
+        container.innerHTML = `
+          <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle"></i> No themes available yet. Please try again shortly.
+          </div>
+        `;
+        return;
+      }
+
       const themesByCategory = {
-        'liked': [],
-        'learned': [],
-        'lacked': [],
-        'longed_for': []
+        liked: [],
+        learned: [],
+        lacked: [],
+        longed_for: []
       };
-      
+
       data.theme_groups.forEach(theme => {
         const category = theme.primary_category || 'liked';
-        if (themesByCategory[category]) {
-          themesByCategory[category].push(theme);
+        if (!themesByCategory[category]) {
+          themesByCategory[category] = [];
         }
+        themesByCategory[category].push(theme);
       });
-      
-      let html = '';
-      
-      // Display themes grouped by 4Ls categories
+
       const categoryConfig = {
-        'liked': { name: 'Liked', icon: 'heart-fill', class: 'liked' },
-        'learned': { name: 'Learned', icon: 'lightbulb-fill', class: 'learned' },
-        'lacked': { name: 'Lacked', icon: 'exclamation-triangle-fill', class: 'lacked' },
-        'longed_for': { name: 'Longed For', icon: 'star-fill', class: 'longed' }
+        liked: { name: 'Liked', icon: 'heart-fill', class: 'liked' },
+        learned: { name: 'Learned', icon: 'lightbulb-fill', class: 'learned' },
+        lacked: { name: 'Lacked', icon: 'exclamation-triangle-fill', class: 'lacked' },
+        longed_for: { name: 'Longed For', icon: 'star-fill', class: 'longed' }
       };
-      
+
+      let html = '';
+
       Object.keys(categoryConfig).forEach(category => {
         const config = categoryConfig[category];
-        const categoryThemes = themesByCategory[category];
-        
+        const categoryThemes = themesByCategory[category] || [];
+        const addButton = canEditGrouping
+          ? `<button class="btn btn-sm btn-success" onclick="addTheme('${category}', ${retroData.id})">
+               <i class="bi bi-plus"></i> Add Theme
+             </button>`
+          : '';
+
+        const themeCards = categoryThemes.map(theme => {
+          const contributors = Array.isArray(theme.contributors) ? theme.contributors : [];
+          const contributorsHtml = contributors.length
+            ? `<div class="mt-2">
+                 <small class="text-muted">Contributors:</small><br>
+                 ${contributors.map(name => `<span class="badge bg-light text-dark border me-1 mb-1">${escapeHtml(name)}</span>`).join('')}
+               </div>`
+            : '';
+          const responseMeta = typeof theme.response_count === 'number'
+            ? `<small class="text-muted d-block mt-1">${theme.response_count} response${theme.response_count === 1 ? '' : 's'}</small>`
+            : '';
+          const editButtons = canEditGrouping
+            ? `<button class="btn btn-sm btn-outline-primary me-2" onclick="editTheme('${category}', ${theme.id}, ${retroData.id})" title="Edit">
+                 <i class="bi bi-pencil"></i>
+               </button>`
+            : '';
+          const dragHandle = canEditGrouping
+            ? `<i class="bi bi-grip-vertical text-muted drag-handle" title="Drag to reorder or move"></i>`
+            : '';
+
+          return `
+            <div class="theme-item" data-theme-id="${theme.id}" data-category="${category}">
+              <div class="flex-grow-1">
+                <strong>${escapeHtml(theme.title)}</strong>
+                ${theme.description ? `<br><small class="text-muted">${escapeHtml(theme.description)}</small>` : ''}
+                ${responseMeta}
+                ${contributorsHtml}
+              </div>
+              <div class="d-flex align-items-center">
+                ${editButtons}
+                ${dragHandle}
+              </div>
+            </div>
+          `;
+        }).join('');
+
         html += `
           <div class="fourls-category ${config.class}">
             <div class="d-flex justify-content-between align-items-center mb-3">
               <h5><i class="bi bi-${config.icon}"></i> ${config.name}</h5>
-              <button class="btn btn-sm btn-success" onclick="addTheme('${category}', ${retroData.id})">
-                <i class="bi bi-plus"></i> Add Theme
-              </button>
+              ${addButton}
             </div>
-            <div id="themes-${category}" class="themes-list">
-              ${categoryThemes.map((theme, idx) => `
-                <div class="theme-item" data-theme-id="${theme.id}" data-category="${category}">
-            <div class="flex-grow-1">
-              <strong>${escapeHtml(theme.title)}</strong>
-              ${theme.description ? `<br><small class="text-muted">${escapeHtml(theme.description)}</small>` : ''}
+            <div id="themes-${category}" class="themes-list" data-category="${category}">
+              ${themeCards || '<p class="text-muted text-center py-3">No themes yet</p>'}
             </div>
-            <div>
-                    <button class="btn btn-sm btn-outline-primary me-2" onclick="editTheme('${category}', ${theme.id}, ${retroData.id})" title="Edit">
-                <i class="bi bi-pencil"></i>
-              </button>
-              <i class="bi bi-grip-vertical text-muted"></i>
-                  </div>
-                </div>
-              `).join('')}
-              ${categoryThemes.length === 0 ? '<p class="text-muted text-center py-3">No themes yet</p>' : ''}
-            </div>
-            </div>
-          `;
+          </div>
+        `;
       });
-      
+
       container.innerHTML = html;
+
+      if (canEditGrouping) {
+        initThemeDragAndDrop();
+      } else {
+        destroyThemeSortables();
+      }
+    }
+
+    function destroyThemeSortables() {
+      Object.keys(themeSortables).forEach(key => {
+        try {
+          themeSortables[key]?.destroy();
+        } catch (err) {
+          console.warn('Failed to destroy sortable', err);
+        }
+      });
+      themeSortables = {};
+    }
+
+    function initThemeDragAndDrop() {
+      const categories = ['liked', 'learned', 'lacked', 'longed_for'];
+      categories.forEach(category => {
+        const el = document.getElementById(`themes-${category}`);
+        if (!el) return;
+        if (themeSortables[category]) {
+          themeSortables[category].destroy();
+        }
+        themeSortables[category] = new Sortable(el, {
+          group: { name: 'theme-groups', pull: true, put: true },
+          animation: 150,
+          handle: '.drag-handle',
+          ghostClass: 'dragging',
+          onAdd: async function(evt) {
+            const themeId = evt.item?.dataset?.themeId;
+            const newCategory = evt.to?.dataset?.category;
+            if (!themeId || !newCategory) {
+              return;
+            }
+            const updated = await setThemeCategory(themeId, newCategory);
+            if (!updated) {
+              loadGroupingResults();
+              return;
+            }
+            evt.item.dataset.category = newCategory;
+            await saveThemeOrder(newCategory, retroData.id);
+          },
+          onEnd: async function(evt) {
+            if (evt.from === evt.to) {
+              const nextCategory = evt.to?.dataset?.category || category;
+              if (nextCategory) {
+                await saveThemeOrder(nextCategory, retroData.id);
+              }
+            }
+          }
+        });
+      });
     }
     
     async function saveThemeOrder(category, retroId) {
+      if (!canEditGrouping) return;
       const container = document.getElementById(`themes-${category}`);
       if (!container) return;
       
@@ -1130,6 +1300,30 @@
         });
       } catch (error) {
         console.error('Save theme order error:', error);
+      }
+    }
+    
+    async function setThemeCategory(themeId, category) {
+      if (!canEditGrouping) return false;
+      try {
+        const response = await fetch(`/api/v1/grouping/theme/${themeId}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ category })
+        });
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({}));
+          showToast('Failed to move theme: ' + (error.detail || 'Unknown error'), 'danger');
+          return false;
+        }
+        return true;
+      } catch (error) {
+        console.error('Set theme category error:', error);
+        showToast('Failed to move theme', 'danger');
+        return false;
       }
     }
     
@@ -1195,22 +1389,6 @@
         console.error('Update theme error:', error);
         showToast('Failed to update theme', 'danger');
       }
-      
-      // Initialize drag and drop AFTER rendering
-      setTimeout(() => {
-        ['liked', 'learned', 'lacked', 'longed_for'].forEach(category => {
-          const el = document.getElementById(`themes-${category}`);
-          if (el) {
-            new Sortable(el, {
-              animation: 150,
-              ghostClass: 'dragging',
-              onEnd: function(evt) {
-                saveThemeOrder(category, retroData.id);
-              }
-            });
-          }
-        });
-      }, 100);
     }
     
     function renderVotingPhase() {
@@ -1297,7 +1475,7 @@
             const pendingCount = pendingVotes[theme.theme_id] || 0;
             const currentTotal = Object.values(pendingVotes).reduce((sum, v) => sum + v, 0);
             html += `
-              <div class="card mb-3">
+              <div class="card mb-3" data-theme-id="${theme.theme_id}">
                 <div class="card-body">
                   <div style="display:flex; justify-content:space-between; align-items:center;">
                     <div style="flex:1;">
@@ -1313,11 +1491,11 @@
                     </div>
                   </div>
                   <div style="margin-top:15px; display:flex; align-items:center; gap:10px;">
-                    <button onclick="adjustLocalVote(${theme.theme_id}, 1)" class="btn btn-sm btn-primary" ${currentTotal >= 10 ? 'disabled' : ''}>
-                      <i class="bi bi-plus"></i> +1
+                    <button onclick="adjustLocalVote(${theme.theme_id}, 1)" class="btn btn-sm btn-success vote-add-btn" title="Add vote" ${currentTotal >= 10 ? 'disabled' : ''}>
+                      <i class="bi bi-hand-thumbs-up-fill"></i>
                     </button>
-                    <button onclick="adjustLocalVote(${theme.theme_id}, -1)" class="btn btn-sm btn-outline-secondary" ${pendingCount === 0 ? 'disabled' : ''}>
-                      <i class="bi bi-dash"></i> -1
+                    <button onclick="adjustLocalVote(${theme.theme_id}, -1)" class="btn btn-sm btn-outline-danger vote-remove-btn" title="Remove vote" ${pendingCount === 0 ? 'disabled' : ''}>
+                      <i class="bi bi-hand-thumbs-down"></i>
                     </button>
                     <span style="color:#666; margin-left:10px;">
                       <strong id="pending-${theme.theme_id}">${pendingCount}</strong> pending
@@ -1447,10 +1625,10 @@
       updateSubmitButton();
       
       // Re-enable/decrease buttons for all cards
-      document.querySelectorAll('.card.mb-3').forEach(card => {
-        const increaseBtn = card.querySelector('[onclick*=", 1)"]');
-        const decreaseBtn = card.querySelector('[onclick*=", -1)"]');
-        const cardThemeId = card.innerHTML.match(/adjustLocalVote\((\d+),/)?.[1];
+      document.querySelectorAll('.card.mb-3[data-theme-id]').forEach(card => {
+        const increaseBtn = card.querySelector('.vote-add-btn');
+        const decreaseBtn = card.querySelector('.vote-remove-btn');
+        const cardThemeId = card.dataset.themeId;
         
         if (increaseBtn && cardThemeId) {
           const newTotal = Object.values(pendingVotes).reduce((sum, v) => sum + v, 0);
@@ -1479,13 +1657,13 @@
       const total = Object.values(pendingVotes).reduce((sum, v) => sum + v, 0);
       const submitBtn = document.getElementById('submitVotesBtn');
       if (submitBtn) {
-        submitBtn.disabled = total === 0 || total > 10;
+        submitBtn.disabled = total > 10;
       }
       
       const statusEl = document.getElementById('voteStatus');
       if (statusEl) {
         if (total === 0) {
-          statusEl.textContent = 'No votes allocated yet';
+          statusEl.textContent = 'No votes allocated yet. You can submit without votes.';
           statusEl.className = 'text-muted';
         } else if (total > 10) {
           statusEl.textContent = `Too many votes! (${total}/10)`;
@@ -1500,14 +1678,19 @@
     async function submitAllVotes() {
       const total = Object.values(pendingVotes).reduce((sum, v) => sum + v, 0);
       
-      if (total === 0) {
-        showToast('Please allocate at least one vote', 'warning');
-        return;
-      }
-      
       if (total > 10) {
         showToast('You cannot allocate more than 10 votes', 'danger');
         return;
+      }
+      
+      const btn = document.getElementById('submitVotesBtn');
+      const originalText = btn ? btn.innerHTML : '';
+      
+      if (total === 0) {
+        const confirmZero = confirm('You have not allocated any votes. Submit zero votes?');
+        if (!confirmZero) {
+          return;
+        }
       }
       
       // Prepare batch request
@@ -1516,10 +1699,10 @@
         votes: votes
       }));
       
-      const btn = document.getElementById('submitVotesBtn');
-      const originalText = btn.innerHTML;
-      btn.disabled = true;
-      btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Submitting...';
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Submitting...';
+      }
       
       try {
         const response = await fetch(`/api/v1/voting/${retroData.id}/submit-votes`, {
@@ -1548,43 +1731,99 @@
         console.error('Submit votes error:', error);
         showToast('Failed to submit votes', 'danger');
       } finally {
-        btn.disabled = false;
-        btn.innerHTML = originalText;
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = originalText;
+        }
       }
     }
     
-    function renderDiscussionPhase() {
+    function renderDiscussionPhase(fromSummary = false) {
       const content = document.getElementById('mainContent');
       content.innerHTML = `
-        <h3 class="mb-4"><i class="bi bi-chat-dots"></i> Discussion</h3>
-        <p class="text-muted">Discuss the top voted themes with the team and get AI insights based on Disciplined Agile.</p>
+        <h3 class="mb-3"><i class="bi bi-chat-dots"></i> Discussion & Action Items</h3>
+        <p class="text-muted">Review the top themes and capture concrete follow-up actions for the team.</p>
         
-        <div class="row">
-          <div class="col-md-6">
-            <h5>Top Themes</h5>
-            <div id="topThemes"></div>
+        <div class="row g-4">
+          <div class="col-lg-5">
+            <div class="card h-100">
+              <div class="card-body">
+                <h5 class="mb-3"><i class="bi bi-collection"></i> Top Themes</h5>
+                <div id="topThemes">
+                  <div class="text-center py-4">
+                    <div class="loading-spinner mb-3"></div>
+                    <p class="text-muted mb-0">Loading discussion topics...</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="da-recommendation mt-4">
+              <h5><i class="bi bi-book"></i> Disciplined Agile Recommendations</h5>
+              <div id="daRecommendations">Loading recommendations...</div>
+            </div>
           </div>
-          <div class="col-md-6">
-            <h5>AI Discussion Support</h5>
-            <div class="chat-container" id="discussionChat" style="height: 400px;"></div>
-            <div class="input-group">
-              <input type="text" class="form-control" id="discussionInput" 
-                     placeholder="Ask AI about the themes..." onkeypress="handleDiscussionKeyPress(event)">
-              <button class="btn btn-primary" onclick="sendDiscussionMessage()">
-                <i class="bi bi-send"></i>
-              </button>
+          <div class="col-lg-7">
+            <div class="card h-100">
+              <div class="card-body d-flex flex-column">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <h5 class="mb-0"><i class="bi bi-check2-square"></i> Action Items</h5>
+                  <button class="btn btn-primary btn-sm" onclick="openRetroActionItemModal()">
+                    <i class="bi bi-plus-lg"></i> New Action Item
+                  </button>
+                </div>
+                <ul class="nav nav-tabs mb-3" id="discussionActionItemTabs">
+                  <li class="nav-item">
+                    <a class="nav-link active" href="#" onclick="filterRetroActionItems('all'); return false;">All</a>
+                  </li>
+                  <li class="nav-item">
+                    <a class="nav-link" href="#" onclick="filterRetroActionItems('pending'); return false;">Pending</a>
+                  </li>
+                  <li class="nav-item">
+                    <a class="nav-link" href="#" onclick="filterRetroActionItems('in_progress'); return false;">In Progress</a>
+                  </li>
+                  <li class="nav-item">
+                    <a class="nav-link" href="#" onclick="filterRetroActionItems('completed'); return false;">Completed</a>
+                  </li>
+                  <li class="nav-item">
+                    <a class="nav-link" href="#" onclick="filterRetroActionItems('cancelled'); return false;">Cancelled</a>
+                  </li>
+                  <li class="nav-item">
+                    <a class="nav-link" href="#" onclick="filterRetroActionItems('blocked'); return false;">Blocked</a>
+                  </li>
+                </ul>
+                <div id="discussionActionItemsList" class="flex-grow-1 overflow-auto">
+                  <div class="text-center py-4">
+                    <div class="loading-spinner mb-3"></div>
+                    <p class="text-muted mb-0">Loading action items...</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-        
-        <div class="da-recommendation">
-          <h5><i class="bi bi-book"></i> Disciplined Agile Recommendations</h5>
-          <div id="daRecommendations">Loading recommendations...</div>
-        </div>
       `;
       
+      retroActionFilter = 'all';
+      highlightRetroActionItemTab('all');
+      ensureRetroActionItemModal();
       loadTopThemes();
       loadDARecommendations();
+      loadRetroActionItems();
+
+      if (fromSummary) {
+        const banner = document.createElement('div');
+        banner.className = 'alert alert-info d-flex justify-content-between align-items-center';
+        banner.innerHTML = `
+          <div>
+            <i class="bi bi-arrow-repeat me-2"></i>
+            Reviewing discussion details while the retrospective is in the summary phase.
+          </div>
+          <button class="btn btn-sm btn-outline-secondary" onclick="renderSummaryPhase()">
+            <i class="bi bi-arrow-right"></i> Return to Summary
+          </button>
+        `;
+        content.insertBefore(banner, content.firstChild);
+      }
     }
     
     async function loadTopThemes() {
@@ -1652,49 +1891,439 @@
       }
     }
     
-    function handleDiscussionKeyPress(event) {
-      if (event.key === 'Enter') {
-        sendDiscussionMessage();
+    function highlightRetroActionItemTab(status) {
+      const links = document.querySelectorAll('#discussionActionItemTabs .nav-link');
+      links.forEach(link => {
+        const linkStatus = (link.textContent || '').trim().toLowerCase().replace(/\s+/g, '_');
+        if ((status === 'all' && linkStatus === 'all') || linkStatus === status) {
+          link.classList.add('active');
+        } else {
+          link.classList.remove('active');
+        }
+      });
+    }
+
+    function ensureRetroActionItemModal() {
+      if (document.getElementById('retroActionItemModal')) {
+        return;
+      }
+      const modalHtml = `
+        <div class="modal fade" id="retroActionItemModal" tabindex="-1">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title" id="retroActionItemModalTitle">Create Action Item</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body">
+                <form id="retroActionItemForm">
+                  <input type="hidden" id="retroActionItemId">
+                  <div class="mb-3">
+                    <label class="form-label">Title *</label>
+                    <input type="text" class="form-control" id="retroActionItemTitle" required>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Description</label>
+                    <textarea class="form-control" id="retroActionItemDescription" rows="3" placeholder="Add context or acceptance criteria"></textarea>
+                  </div>
+                  <div class="row g-3">
+                    <div class="col-md-6">
+                      <label class="form-label">Priority</label>
+                      <select class="form-select" id="retroActionItemPriority">
+                        <option value="low">Low</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="high">High</option>
+                        <option value="critical">Critical</option>
+                      </select>
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label">Status</label>
+                      <select class="form-select" id="retroActionItemStatus">
+                        <option value="pending" selected>Pending</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="completed">Completed</option>
+                        <option value="blocked">Blocked</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="row g-3 mt-1">
+                    <div class="col-md-6">
+                      <label class="form-label">Due Date</label>
+                      <input type="date" class="form-control" id="retroActionItemDueDate">
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label">Assigned To</label>
+                      <select class="form-select" id="retroActionItemAssignedTo">
+                        <option value="">Unassigned</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="mt-3">
+                    <label class="form-label">
+                      Progress
+                      <span class="badge bg-danger" id="retroProgressDisplay">0%</span>
+                    </label>
+                    <input type="range" class="form-range" id="retroActionItemProgress" min="0" max="100" step="5" value="0" oninput="updateRetroProgressDisplay(this.value)">
+                  </div>
+                </form>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveRetroActionItem()">Save Action Item</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.insertAdjacentHTML('beforeend', modalHtml);
+      const modalEl = document.getElementById('retroActionItemModal');
+      if (modalEl && typeof bootstrap !== 'undefined') {
+        retroActionItemModalInstance = new bootstrap.Modal(modalEl);
       }
     }
-    
-    async function sendDiscussionMessage() {
-      const input = document.getElementById('discussionInput');
-      const message = input.value.trim();
-      
-      if (!message) return;
-      
-      // Add user message to chat
-      const chatContainer = document.getElementById('discussionChat');
-      const userDiv = document.createElement('div');
-      userDiv.className = 'message user';
-      userDiv.innerHTML = `<strong>You:</strong><br>${escapeHtml(message)}`;
-      chatContainer.appendChild(userDiv);
-      
-      input.value = '';
-      chatContainer.scrollTop = chatContainer.scrollHeight;
-      
-      // Get AI response using general discussion chat
+
+    async function populateRetroActionItemAssignees(selectedValue = '') {
+      const select = document.getElementById('retroActionItemAssignedTo');
+      if (!select) return;
+      select.innerHTML = '<option value="">Unassigned</option>';
+      if (!retroParticipants || retroParticipants.length === 0) {
+        return;
+      }
+      const seen = new Set();
+      retroParticipants.forEach(participant => {
+        const userId = participant.user_id || participant.id;
+        if (!userId || seen.has(userId)) {
+          return;
+        }
+        seen.add(userId);
+        const option = document.createElement('option');
+        option.value = userId;
+        const name = participant.user_name || participant.full_name || participant.email || `User ${userId}`;
+        option.textContent = name;
+        select.appendChild(option);
+      });
+      if (selectedValue) {
+        select.value = String(selectedValue);
+      }
+    }
+
+    async function openRetroActionItemModal(actionItemId = null) {
+      ensureRetroActionItemModal();
+      const titleEl = document.getElementById('retroActionItemModalTitle');
+      const idInput = document.getElementById('retroActionItemId');
+      const titleInput = document.getElementById('retroActionItemTitle');
+      const descInput = document.getElementById('retroActionItemDescription');
+      const prioritySelect = document.getElementById('retroActionItemPriority');
+      const statusSelect = document.getElementById('retroActionItemStatus');
+      const dueDateInput = document.getElementById('retroActionItemDueDate');
+      const progressInput = document.getElementById('retroActionItemProgress');
+
+      if (idInput) idInput.value = actionItemId ? String(actionItemId) : '';
+      if (titleInput) titleInput.value = '';
+      if (descInput) descInput.value = '';
+      if (prioritySelect) prioritySelect.value = 'medium';
+      if (statusSelect) statusSelect.value = 'pending';
+      if (dueDateInput) dueDateInput.value = '';
+      if (progressInput) progressInput.value = 0;
+      updateRetroProgressDisplay(0);
+
+      let selectedAssignee = '';
+
+      if (actionItemId) {
+        const item = retroActionItems.find(i => i.id === actionItemId);
+        if (!item) return;
+        if (titleEl) titleEl.textContent = 'Edit Action Item';
+        if (titleInput) titleInput.value = item.title || '';
+        if (descInput) descInput.value = item.description || '';
+        if (prioritySelect) prioritySelect.value = item.priority || 'medium';
+        if (statusSelect) statusSelect.value = item.status || 'pending';
+        if (dueDateInput && item.due_date) {
+          const due = new Date(item.due_date);
+          dueDateInput.value = due.toISOString().split('T')[0];
+        }
+        if (progressInput) {
+          progressInput.value = item.progress_percentage || 0;
+          updateRetroProgressDisplay(item.progress_percentage || 0);
+        }
+        if (item.assigned_to) {
+          selectedAssignee = String(item.assigned_to);
+        }
+      } else {
+        if (titleEl) titleEl.textContent = 'Create Action Item';
+      }
+
+      await populateRetroActionItemAssignees(selectedAssignee);
+
+      const modalEl = document.getElementById('retroActionItemModal');
+      if (modalEl && typeof bootstrap !== 'undefined') {
+        if (!retroActionItemModalInstance) {
+          retroActionItemModalInstance = new bootstrap.Modal(modalEl);
+        }
+        retroActionItemModalInstance.show();
+      }
+    }
+
+    function updateRetroProgressDisplay(value) {
+      const display = document.getElementById('retroProgressDisplay');
+      const numeric = parseInt(value, 10) || 0;
+      if (display) {
+        display.textContent = `${numeric}%`;
+        if (numeric < 25) {
+          display.className = 'badge bg-danger';
+        } else if (numeric < 50) {
+          display.className = 'badge bg-warning';
+        } else if (numeric < 75) {
+          display.className = 'badge bg-info';
+        } else {
+          display.className = 'badge bg-success';
+        }
+      }
+    }
+
+    async function saveRetroActionItem() {
+      if (!retroData) return;
+      const titleInput = document.getElementById('retroActionItemTitle');
+      const title = titleInput ? titleInput.value.trim() : '';
+      if (!title) {
+        showToast('Please enter a title for the action item', 'danger');
+        return;
+      }
+
+      const idInput = document.getElementById('retroActionItemId');
+      const descInput = document.getElementById('retroActionItemDescription');
+      const prioritySelect = document.getElementById('retroActionItemPriority');
+      const statusSelect = document.getElementById('retroActionItemStatus');
+      const dueDateInput = document.getElementById('retroActionItemDueDate');
+      const assignedSelect = document.getElementById('retroActionItemAssignedTo');
+      const progressInput = document.getElementById('retroActionItemProgress');
+
+      const id = idInput ? idInput.value : '';
+      const payload = {
+        title: title,
+        description: descInput ? descInput.value.trim() || null : null,
+        priority: prioritySelect ? prioritySelect.value : 'medium',
+        status: statusSelect ? statusSelect.value : 'pending',
+        due_date: dueDateInput && dueDateInput.value ? dueDateInput.value : null,
+        assigned_to: assignedSelect && assignedSelect.value ? parseInt(assignedSelect.value, 10) : null,
+        progress_percentage: progressInput ? parseInt(progressInput.value, 10) || 0 : 0,
+        retrospective_id: retroData.id,
+        workspace_id: retroData.workspace_id || null
+      };
+
+      const url = id ? `/api/v1/action-items/${id}` : '/api/v1/action-items/';
+      const method = id ? 'PUT' : 'POST';
+
       try {
-        const response = await fetch(`/api/v1/discussion/${retroData.id}/chat`, {
+        const response = await fetch(url, {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({}));
+          throw new Error(error.detail || 'Failed to save action item');
+        }
+
+        showToast(id ? 'Action item updated!' : 'Action item created!', 'success');
+        if (retroActionItemModalInstance) {
+          retroActionItemModalInstance.hide();
+        }
+        await loadRetroActionItems();
+      } catch (error) {
+        console.error('Save action item error:', error);
+        showToast(error.message || 'Failed to save action item', 'danger');
+      }
+    }
+
+    async function loadRetroActionItems() {
+      if (!retroData) return;
+      const listContainer = document.getElementById('discussionActionItemsList');
+      if (!authToken) {
+        if (listContainer) {
+          listContainer.innerHTML = `
+            <div class="alert alert-warning">
+              <i class="bi bi-exclamation-circle me-2"></i>Please sign in to manage action items.
+            </div>
+          `;
+        }
+        return;
+      }
+      try {
+        const response = await fetch(`/api/v1/action-items/?retrospective_id=${retroData.id}`, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
+        if (!response.ok) {
+          throw new Error('Failed to load action items');
+        }
+        retroActionItems = await response.json();
+        highlightRetroActionItemTab(retroActionFilter);
+        const filtered = retroActionFilter === 'all'
+          ? retroActionItems
+          : retroActionItems.filter(item => item.status === retroActionFilter);
+        displayRetroActionItems(filtered);
+      } catch (error) {
+        console.error('Load retro action items error:', error);
+        retroActionItems = [];
+        if (listContainer) {
+          listContainer.innerHTML = `
+            <div class="alert alert-warning">
+              <i class="bi bi-exclamation-triangle me-2"></i>${error.message}
+            </div>
+          `;
+        }
+      }
+    }
+
+    function filterRetroActionItems(status) {
+      retroActionFilter = status;
+      highlightRetroActionItemTab(status);
+      const filtered = status === 'all'
+        ? retroActionItems
+        : retroActionItems.filter(item => item.status === status);
+      displayRetroActionItems(filtered);
+    }
+
+    function displayRetroActionItems(items) {
+      const container = document.getElementById('discussionActionItemsList');
+      if (!container) return;
+
+      if (!items || items.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-5">
+            <i class="bi bi-check2-square text-muted" style="font-size: 3rem;"></i>
+            <p class="text-muted mt-3 mb-0">No action items yet. Capture your next improvements.</p>
+          </div>
+        `;
+        return;
+      }
+
+      let html = '<div class="list-group">';
+
+      items.forEach(item => {
+        const priorityBadge = {
+          low: 'success',
+          medium: 'warning',
+          high: 'danger',
+          critical: 'dark'
+        }[item.priority] || 'secondary';
+
+        const statusBadge = {
+          pending: 'secondary',
+          in_progress: 'primary',
+          completed: 'success',
+          cancelled: 'warning',
+          blocked: 'danger'
+        }[item.status] || 'secondary';
+
+        const statusText = {
+          pending: 'Pending',
+          in_progress: 'In Progress',
+          completed: 'Completed',
+          cancelled: 'Cancelled',
+          blocked: 'Blocked'
+        }[item.status] || item.status;
+
+        const dueDate = item.due_date ? new Date(item.due_date).toLocaleDateString() : 'No due date';
+        const isOverdue = item.due_date && new Date(item.due_date) < new Date() && item.status !== 'completed';
+        const progress = item.progress_percentage || 0;
+        let progressColor = 'danger';
+        if (progress >= 75) progressColor = 'success';
+        else if (progress >= 50) progressColor = 'info';
+        else if (progress >= 25) progressColor = 'warning';
+
+        html += `
+          <div class="list-group-item ${item.status === 'completed' ? 'bg-light' : ''}">
+            <div class="d-flex justify-content-between align-items-start">
+              <div class="flex-grow-1">
+                <h6 class="mb-1 ${item.status === 'completed' ? 'text-decoration-line-through text-muted' : ''}">
+                  ${escapeHtml(item.title)}
+                </h6>
+                ${item.description ? `<p class="mb-2 text-muted small">${escapeHtml(item.description)}</p>` : ''}
+                <div class="d-flex gap-2 flex-wrap mb-2">
+                  <span class="badge bg-${priorityBadge}">${(item.priority || '').toUpperCase()}</span>
+                  <span class="badge bg-${statusBadge}">${statusText}</span>
+                  <span class="badge ${isOverdue ? 'bg-danger' : 'bg-info'}">
+                    <i class="bi bi-calendar me-1"></i>${dueDate}
+                  </span>
+                </div>
+                ${progress > 0 ? `
+                  <div class="mt-2">
+                    <small class="text-muted">Progress:</small>
+                    <div class="progress" style="height: 8px; margin-top: 4px;">
+                      <div class="progress-bar bg-${progressColor}" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                    <small class="text-muted">${progress}% complete</small>
+                  </div>
+                ` : ''}
+              </div>
+              <div class="btn-group ms-3">
+                ${item.status !== 'completed' ? `
+                  <button class="btn btn-sm btn-success" onclick="markRetroActionItemComplete(${item.id})" title="Mark as complete">
+                    <i class="bi bi-check-lg"></i>
+                  </button>
+                ` : ''}
+                <button class="btn btn-sm btn-primary" onclick="openRetroActionItemModal(${item.id})" title="Edit">
+                  <i class="bi bi-pencil"></i>
+                </button>
+                <button class="btn btn-sm btn-danger" onclick="deleteRetroActionItem(${item.id})" title="Delete">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+
+      html += '</div>';
+      container.innerHTML = html;
+    }
+
+    async function markRetroActionItemComplete(actionItemId) {
+      if (!confirm('Mark this action item as complete?')) return;
+      try {
+        const response = await fetch(`/api/v1/action-items/${actionItemId}/complete`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${authToken}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ message: message })
+            'Authorization': `Bearer ${authToken}`
+          }
         });
-        
-        if (response.ok) {
-          const data = await response.json();
-          const aiDiv = document.createElement('div');
-          aiDiv.className = 'message ai';
-          aiDiv.innerHTML = `<strong>🤖 YodaAI:</strong><br>${escapeHtml(data.message)}`;
-          chatContainer.appendChild(aiDiv);
-          chatContainer.scrollTop = chatContainer.scrollHeight;
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({}));
+          throw new Error(error.detail || 'Failed to complete action item');
         }
+        showToast('Action item completed!', 'success');
+        await loadRetroActionItems();
       } catch (error) {
-        console.error('Discussion chat error:', error);
+        console.error('Complete action item error:', error);
+        showToast(error.message || 'Failed to complete action item', 'danger');
+      }
+    }
+
+    async function deleteRetroActionItem(actionItemId) {
+      if (!confirm('Are you sure you want to delete this action item?')) return;
+      try {
+        const response = await fetch(`/api/v1/action-items/${actionItemId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({}));
+          throw new Error(error.detail || 'Failed to delete action item');
+        }
+        showToast('Action item deleted!', 'success');
+        await loadRetroActionItems();
+      } catch (error) {
+        console.error('Delete action item error:', error);
+        showToast(error.message || 'Failed to delete action item', 'danger');
       }
     }
     
@@ -1704,7 +2333,10 @@
         <h3 class="mb-4"><i class="bi bi-file-text"></i> Retrospective Summary</h3>
         <p class="text-muted">Review the retrospective outcomes and download the summary.</p>
         
-        <div class="text-center mb-4">
+        <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-4">
+          <button class="btn btn-outline-secondary" onclick="showDiscussionFromSummary()">
+            <i class="bi bi-arrow-left"></i> Back to Discussion
+          </button>
           <button class="btn btn-success btn-lg" onclick="generateSummaryPDF()">
             <i class="bi bi-file-pdf"></i> Download PDF Summary
           </button>
@@ -1719,6 +2351,10 @@
       `;
       
       loadSummary();
+    }
+    
+    function showDiscussionFromSummary() {
+      renderDiscussionPhase(true);
     }
     
     async function loadSummary() {
@@ -2011,8 +2647,38 @@
         
         if (!nextPhase) {
           showToast('No more phases available', 'warning');
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+          }
           return;
         }
+        
+        let stoppedVotingPoll = false;
+        let stoppedMainPoll = false;
+        const stopPolling = () => {
+          if (votingPollInterval) {
+            clearInterval(votingPollInterval);
+            votingPollInterval = null;
+            stoppedVotingPoll = true;
+          }
+          if (mainPollInterval) {
+            clearInterval(mainPollInterval);
+            mainPollInterval = null;
+            stoppedMainPoll = true;
+          }
+        };
+        
+        const restorePolling = () => {
+          if (stoppedMainPoll && !mainPollInterval) {
+            mainPollInterval = setInterval(pollForUpdates, 3000);
+          }
+          if (stoppedVotingPoll && !votingPollInterval && currentPhase === 'voting') {
+            votingPollInterval = setInterval(() => {
+              loadVotingStatus();
+            }, 5000);
+          }
+        };
         
         // If moving to voting, start voting session first
         if (nextPhase === 'voting') {
@@ -2045,26 +2711,34 @@
         // If moving from voting to discussion, finalize voting first to create topics
         if (currentPhase === 'voting' && nextPhase === 'discussion') {
           try {
-            await fetch(`/api/v1/voting/${retroData.id}/finalize`, {
+            const finalizeResponse = await fetch(`/api/v1/voting/${retroData.id}/finalize`, {
               method: 'POST',
               headers: {
                 'Authorization': `Bearer ${authToken}`
               }
             });
+            if (!finalizeResponse.ok) {
+              const error = await finalizeResponse.json().catch(() => ({}));
+              showToast(error.detail || 'Unable to finalize voting. Ensure everyone has submitted votes.', 'danger');
+              if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+              }
+              return;
+            }
           } catch (error) {
             console.error('Finalize voting error:', error);
+            showToast('Failed to finalize voting. Please try again.', 'danger');
+            if (btn) {
+              btn.disabled = false;
+              btn.innerHTML = originalText;
+            }
+            return;
           }
         }
         
         // Stop all polling before advancing phase
-        if (votingPollInterval) {
-          clearInterval(votingPollInterval);
-          votingPollInterval = null;
-        }
-        if (mainPollInterval) {
-          clearInterval(mainPollInterval);
-          mainPollInterval = null;
-        }
+        stopPolling();
         
         // Advance phase
         const response = await fetch(`/api/v1/retrospectives/${retroData.id}/advance-phase`, {
@@ -2101,6 +2775,9 @@
             }
           }
         } else {
+          const error = await response.json().catch(() => ({}));
+          showToast(error.detail || 'Failed to advance phase', 'danger');
+          restorePolling();
           // Re-enable button on error
           if (btn) {
             btn.disabled = false;
@@ -2110,6 +2787,7 @@
       } catch (error) {
         console.error('Next phase error:', error);
         showToast('Failed to advance phase', 'danger');
+        restorePolling();
         // Re-enable button on error
         if (btn) {
           btn.disabled = false;
