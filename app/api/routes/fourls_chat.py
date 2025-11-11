@@ -309,12 +309,18 @@ async def get_chat_session(
             "longed_for": False
         }
         
+        all_completed = all([
+            categories_completed.get('liked', False),
+            categories_completed.get('learned', False),
+            categories_completed.get('lacked', False),
+            categories_completed.get('longed_for', False)
+        ])
         progress = ProgressOverview(
             liked=categories_completed.get('liked', False),
             learned=categories_completed.get('learned', False),
             lacked=categories_completed.get('lacked', False),
             longed_for=categories_completed.get('longed_for', False),
-            all_completed=session.is_completed
+            all_completed=all_completed
         )
         
         message_responses = [
@@ -470,18 +476,15 @@ async def send_message(
         }
         
         if move_to_next:
-            # Mark current category as complete
             categories_completed[session.current_category] = True
             
-            # Move to next category
             category_order = ['liked', 'learned', 'lacked', 'longed_for']
             current_index = category_order.index(session.current_category)
             
             if current_index < len(category_order) - 1:
                 new_category = category_order[current_index + 1]
             else:
-                # All categories done
-                session.is_completed = True
+                # All categories covered; keep session open but mark participant progress
                 participant = db.query(RetrospectiveParticipant).filter(
                     RetrospectiveParticipant.retrospective_id == session.retrospective_id,
                     RetrospectiveParticipant.user_id == current_user.id
@@ -507,19 +510,25 @@ async def send_message(
         db.commit()
         
         # Calculate progress
+        all_completed = all([
+            categories_completed.get('liked', False),
+            categories_completed.get('learned', False),
+            categories_completed.get('lacked', False),
+            categories_completed.get('longed_for', False)
+        ])
         progress = ProgressOverview(
             liked=categories_completed.get('liked', False),
             learned=categories_completed.get('learned', False),
             lacked=categories_completed.get('lacked', False),
             longed_for=categories_completed.get('longed_for', False),
-            all_completed=session.is_completed
+            all_completed=all_completed
         )
         
         return {
             "message": ai_content,
             "current_category": new_category,
             "progress": progress,
-            "is_completed": session.is_completed
+            "is_completed": all_completed
         }
         
     except HTTPException:
