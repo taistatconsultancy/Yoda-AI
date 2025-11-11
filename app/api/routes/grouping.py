@@ -5,6 +5,7 @@ Groups retrospective responses into themes using OpenAI
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from collections import defaultdict
 from pydantic import BaseModel
 from datetime import datetime
 import os
@@ -74,6 +75,7 @@ class ThemeGroupResponse(BaseModel):
     response_count: int
     responses: List[ResponseWithAuthor]
     ai_generated: bool
+    contributors: List[str] = []
     
     class Config:
         from_attributes = True
@@ -109,14 +111,14 @@ def create_fallback_grouping(responses):
     }
     
     themes = []
-    response_groups = {}
+    response_groups = defaultdict(list)
+    contributor_groups = defaultdict(set)
     
     # Group responses by category
     for resp, user in responses:
         cat = resp.category
-        if cat not in response_groups:
-            response_groups[cat] = []
         response_groups[cat].append(resp.id)
+        contributor_groups[cat].add(user.full_name)
     
     # Create theme for each category that has responses
     for category, response_ids in response_groups.items():
@@ -124,7 +126,8 @@ def create_fallback_grouping(responses):
             'title': category_map.get(category, category.title()),
             'description': category_desc.get(category, f'Responses in the {category} category'),
             'primary_category': category,
-            'response_ids': response_ids
+            'response_ids': response_ids,
+            'contributors': sorted(contributor_groups.get(category, set()))
         })
     
     return themes
@@ -171,7 +174,11 @@ async def generate_ai_grouping(
         
         # Prepare data for OpenAI
         responses_text = []
+        author_category_map = defaultdict(list)
+        author_map = defaultdict(list)
         for resp, user in responses:
+            author_category_map[(user.full_name, resp.category)].append(resp.id)
+            author_map[user.full_name].append(resp.id)
             responses_text.append({
                 "id": resp.id,
                 "category": resp.category,
@@ -187,23 +194,24 @@ Input data:
 {json.dumps(responses_text, indent=2)}
 
 Please:
-1. Derive 3–7 high-level themes that reflect the team’s shared insights.
+1. Derive high-level themes that reflect the team’s shared insights.
 2. Cluster related responses into those themes.
 3. Create a clear, meaningful title for each theme (max 6 words).
-4. Write a short, 1–2 sentence reflection capturing the essence of each theme.
+4. Write a 1–2 sentence summary describing the core insight of each theme.
 5. Assign a main category: liked, learned, lacked, or longed_for.
+6. Include the list of user names that contributed to each theme.
 
 Output must be ONLY valid JSON:
 [
-    {{
+{{
         "title": "Theme title",
         "description": "Brief reflection",
         "primary_category": "learned",
-        "response_ids": [1, 6, 8]
+        "contributors": ["Ariadne Chen", "Jordan Blake"]
     }}
 ]
 
-Include only relevant response IDs. Some responses may not fit any theme (leave them ungrouped). No text or explanations outside the JSON array.
+Include only relevant contributor names. Some responses may not fit any theme (leave them ungrouped). No text or explanations outside the JSON array.
 """
 
         
@@ -285,8 +293,34 @@ Include only relevant response IDs. Some responses may not fit any theme (leave 
             db.flush()
             
             # Assign responses to this group
-            response_ids = theme_data.get('response_ids', [])
-            for resp_id in response_ids:
+            response_ids = theme_data.get('response_ids')
+            contributors = theme_data.get('contributors', [])
+            resolved_response_ids = []
+
+            if isinstance(response_ids, list) and response_ids:
+                resolved_response_ids.extend(response_ids)
+            else:
+                for contributor in contributors:
+                    if not contributor:
+                        continue
+                    contributor_name = contributor.strip()
+                    if not contributor_name:
+                        continue
+                    category_key = (contributor_name, new_group.primary_category)
+                    if category_key in author_category_map:
+                        resolved_response_ids.extend(author_category_map[category_key])
+                    elif contributor_name in author_map:
+                        resolved_response_ids.extend(author_map[contributor_name])
+
+            # Deduplicate while preserving order
+            seen = set()
+            unique_response_ids = []
+            for resp_id in resolved_response_ids:
+                if resp_id not in seen:
+                    seen.add(resp_id)
+                    unique_response_ids.append(resp_id)
+
+            for resp_id in unique_response_ids:
                 resp = db.query(RetrospectiveResponse).filter(
                     RetrospectiveResponse.id == resp_id
                 ).first()
@@ -324,6 +358,7 @@ Include only relevant response IDs. Some responses may not fit any theme (leave 
                 )
                 for resp, user in group_responses
             ]
+            contributor_names = sorted({resp.author_name for resp in responses_list})
             
             theme_group_responses.append(ThemeGroupResponse(
                 id=group.id,
@@ -332,7 +367,8 @@ Include only relevant response IDs. Some responses may not fit any theme (leave 
                 primary_category=group.primary_category,
                 response_count=len(responses_list),
                 responses=responses_list,
-                ai_generated=group.ai_generated
+                ai_generated=group.ai_generated,
+                contributors=contributor_names
             ))
         
         # Get ungrouped responses
@@ -432,6 +468,7 @@ async def get_grouping_results(
                 )
                 for resp, user in group_responses
             ]
+            contributor_names = sorted({resp.author_name for resp in responses_list})
             
             theme_group_responses.append(ThemeGroupResponse(
                 id=group.id,
@@ -440,7 +477,8 @@ async def get_grouping_results(
                 primary_category=group.primary_category,
                 response_count=len(responses_list),
                 responses=responses_list,
-                ai_generated=group.ai_generated
+                ai_generated=group.ai_generated,
+                contributors=contributor_names
             ))
         
         # Get ungrouped responses
@@ -614,7 +652,8 @@ async def create_theme(
             primary_category=new_theme.primary_category,
             response_count=0,
             responses=[],
-            ai_generated=new_theme.ai_generated
+            ai_generated=new_theme.ai_generated,
+            contributors=[]
         )
         
     except HTTPException:
@@ -650,6 +689,10 @@ async def update_theme(
             theme.title = theme_data['title']
         if 'description' in theme_data:
             theme.description = theme_data['description']
+        if 'category' in theme_data and theme_data['category']:
+            theme.primary_category = theme_data['category']
+        if 'primary_category' in theme_data and theme_data['primary_category']:
+            theme.primary_category = theme_data['primary_category']
         
         db.commit()
         db.refresh(theme)
