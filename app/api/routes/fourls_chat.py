@@ -421,7 +421,7 @@ async def send_message(
         Current category: {session.current_category.upper()}
 
         Rules:
-        1 a) This chat is meant for IT,Data science/Analytics projects and teams.If the conversation goes off topic, gently guide them back to the 4Ls framework.
+        1 a) This chat is meant for IT,Data science/Analytics projects and teams.If the conversation goes off topic, gently guide them back to the 4Ls framework. ALthough do not use this exact terms(IT,Data science/Analytics).
         1 b) Acknowledge what they shared.
         2) Ask AT MOST ONE brief follow-up question, or none if not needed.
         3) Do NOT combine a follow-up question and a category transition in the same message.
