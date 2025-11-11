@@ -109,15 +109,25 @@ async def start_4ls_chat(
         existing_session = db.query(ChatSession).filter(
             ChatSession.retrospective_id == retrospective_id,
             ChatSession.user_id == current_user.id,
-            ChatSession.is_active == True
+            ChatSession.is_active == True,
+            ChatSession.is_completed == False
         ).first()
         
         if existing_session:
-            # Return existing session
             return {
                 "session_id": existing_session.session_id,
                 "message": "Resuming existing session"
             }
+        
+        # Deactivate any stale completed sessions that might still be marked active
+        stale_sessions = db.query(ChatSession).filter(
+            ChatSession.retrospective_id == retrospective_id,
+            ChatSession.user_id == current_user.id,
+            ChatSession.is_active == True,
+            ChatSession.is_completed == True
+        ).all()
+        for stale in stale_sessions:
+            stale.is_active = False
         
         # Create new session
         import secrets
