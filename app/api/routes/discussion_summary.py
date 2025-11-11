@@ -742,12 +742,10 @@ async def download_summary_pdf(
         
         # Get action items associated with this retrospective
         priority_order = case(
-            [
-                (ActionItem.priority == 'critical', 4),
-                (ActionItem.priority == 'high', 3),
-                (ActionItem.priority == 'medium', 2),
-                (ActionItem.priority == 'low', 1),
-            ],
+            (ActionItem.priority == 'critical', 4),
+            (ActionItem.priority == 'high', 3),
+            (ActionItem.priority == 'medium', 2),
+            (ActionItem.priority == 'low', 1),
             else_=0
         )
         
