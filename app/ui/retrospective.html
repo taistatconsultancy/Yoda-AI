@@ -498,6 +498,7 @@
     let votesSubmitted = false;
     let votingPollInterval = null;
     let mainPollInterval = null;
+    let attemptedAutoStartVoting = false;
     // Dashboard cache for quick card moves
     window._dashRetrosById = Object.create(null);
     
@@ -1420,6 +1421,7 @@
         </div>
       `;
       
+      attemptedAutoStartVoting = false;
       loadVotingStatus();
       
       // Start voting polling if not already started
@@ -1439,12 +1441,32 @@
         });
         
         if (!response.ok) {
-          // No voting session exists yet - show waiting message
+          if (response.status === 404 && isFacilitator && !attemptedAutoStartVoting) {
+            attemptedAutoStartVoting = true;
+            try {
+              const startResponse = await fetch(`/api/v1/voting/${retroData.id}/start`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${authToken}`
+                }
+              });
+              if (startResponse.ok) {
+                await loadVotingStatus();
+                return;
+              }
+            } catch (startError) {
+              console.error('Auto-start voting error:', startError);
+            }
+          }
+          
           const themesDiv = document.getElementById('votingThemes');
           if (themesDiv) {
+            const message = response.status === 404
+              ? '<i class="bi bi-hourglass-split"></i> Waiting for voting session to start...'
+              : '<i class="bi bi-exclamation-circle"></i> Voting session is not available yet.';
             themesDiv.innerHTML = `
               <div class="alert alert-warning text-center">
-                <i class="bi bi-hourglass-split"></i> Waiting for voting session to start...
+                ${message}
               </div>
             `;
           }
@@ -1452,6 +1474,7 @@
         }
         
         const data = await response.json();
+        attemptedAutoStartVoting = false;
         
         // If user already submitted votes, show server data
         if (votesSubmitted) {
