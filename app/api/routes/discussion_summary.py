@@ -934,6 +934,7 @@ async def download_summary_pdf(
             
             # Disciplined Agile Recommendations (format bullets + bold)
             if da_rec and da_rec.content:
+                elements.append(PageBreak())
                 elements.append(Paragraph("Disciplined Agile Recommendations", heading_style))
                 try:
                     import re
@@ -954,8 +955,8 @@ async def download_summary_pdf(
                                 bullet_lines.extend(parts)
                             else:
                                 bullet_lines.append(line)
-                    for blt in bullet_lines:
-                        elements.append(Paragraph(f"• {blt}", normal_style))
+                    for idx, blt in enumerate(bullet_lines, 1):
+                        elements.append(Paragraph(f"{idx}. {blt}", normal_style))
                 except Exception:
                     # Fallback to raw paragraph
                     elements.append(Paragraph(da_rec.content, normal_style))
