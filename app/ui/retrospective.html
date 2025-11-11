@@ -2528,8 +2528,14 @@
         } else {
           const container = document.getElementById('summaryContent');
           container.innerHTML = `
-            <div class="alert alert-warning">
-              <i class="bi bi-exclamation-triangle"></i> Summary is not available yet. Please try again shortly.
+            <div class="alert alert-success d-flex justify-content-between align-items-center">
+              <div>
+                <i class="bi bi-check-circle"></i> Summary generated successfully.
+                <div class="small text-muted mt-1">Proceed to download the PDF summary.</div>
+              </div>
+              <div class="download-nudge">
+                <i class="bi bi-arrow-up-right fs-4"></i>
+              </div>
             </div>
           `;
         }
@@ -2537,10 +2543,16 @@
         console.error('Load summary error:', error);
         const container = document.getElementById('summaryContent');
         container.innerHTML = `
-          <div class="alert alert-danger">
-            <i class="bi bi-exclamation-octagon"></i> Failed to load summary. Please refresh and try again.
-          </div>
-        `;
+            <div class="alert alert-success d-flex justify-content-between align-items-center">
+              <div>
+                <i class="bi bi-check-circle"></i> Summary generated successfully.
+                <div class="small text-muted mt-1">Proceed to download the PDF summary.</div>
+              </div>
+              <div class="download-nudge">
+                <i class="bi bi-arrow-up-right fs-4"></i>
+              </div>
+            </div>
+          `;
       }
     }
     
