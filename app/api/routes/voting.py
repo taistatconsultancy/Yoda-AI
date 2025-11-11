@@ -415,6 +415,25 @@ async def finalize_voting(
         if not session:
             raise HTTPException(status_code=404, detail="No active voting session")
         
+        # Ensure every participant (including facilitator) has submitted votes
+        pending_participants = db.query(RetrospectiveParticipant, User).join(
+            User, RetrospectiveParticipant.user_id == User.id
+        ).filter(
+            RetrospectiveParticipant.retrospective_id == retro_id,
+            RetrospectiveParticipant.completed_voting == False
+        ).all()
+        
+        if pending_participants:
+            pending_names = [
+                (user.full_name or user.email or f"User {user.id}").strip()
+                for _, user in pending_participants
+            ]
+            readable_names = ", ".join(pending_names)
+            raise HTTPException(
+                status_code=400,
+                detail=f"Voting cannot be finalized. Waiting for votes from: {readable_names}"
+            )
+        
         # End voting session
         session.is_active = False
         session.ended_at = datetime.utcnow()
