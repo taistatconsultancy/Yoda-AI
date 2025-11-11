@@ -737,11 +737,6 @@
       // Initialize and load chat session
       await initializeChatSession();
       await loadChatSession();
-
-      if (chatPollInterval) {
-        clearInterval(chatPollInterval);
-      }
-      chatPollInterval = setInterval(loadChatSession, 4000);
     }
     
     
