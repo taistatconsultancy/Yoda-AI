@@ -2,10 +2,10 @@
 Voting System for Theme Groups
 Each member gets 10 votes to allocate
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
 
@@ -50,6 +50,8 @@ class VotingStatus(BaseModel):
     all_participants_voted: bool = False
     participants_who_voted: int = 0
     total_participants: int = 0
+    bypass_allowed: bool = False
+    pending_participants: List[str] = []
 
 
 # ============================================================================
@@ -127,6 +129,10 @@ async def get_voting_status(
         if not participant:
             raise HTTPException(status_code=403, detail="Not a participant")
         
+        retro = db.query(Retrospective).filter(Retrospective.id == retro_id).first()
+        if not retro:
+            raise HTTPException(status_code=404, detail="Retrospective not found")
+        
         # Get voting session
         session = db.query(VotingSession).filter(
             VotingSession.retrospective_id == retro_id,
@@ -185,7 +191,19 @@ async def get_voting_status(
             RetrospectiveParticipant.completed_voting == True
         ).count()
         
-        all_participants_voted = participants_who_voted >= total_participants
+        pending_participants = db.query(RetrospectiveParticipant, User).join(
+            User, RetrospectiveParticipant.user_id == User.id
+        ).filter(
+            RetrospectiveParticipant.retrospective_id == retro_id,
+            RetrospectiveParticipant.completed_voting == False
+        ).all()
+        
+        all_participants_voted = len(pending_participants) == 0
+        pending_names = [
+            (user.full_name or user.email or f"User {user.id}").strip()
+            for _, user in pending_participants
+        ]
+        bypass_allowed = (retro.facilitator_id == current_user.id)
         
         return VotingStatus(
             voting_session_id=session.id,
@@ -196,7 +214,9 @@ async def get_voting_status(
             can_vote=user_votes < session.votes_per_member,
             all_participants_voted=all_participants_voted,
             participants_who_voted=participants_who_voted,
-            total_participants=total_participants
+            total_participants=total_participants,
+            bypass_allowed=bypass_allowed,
+            pending_participants=pending_names
         )
         
     except HTTPException:
@@ -392,6 +412,7 @@ async def submit_votes_batch(
 @router.post("/{retro_id}/finalize")
 async def finalize_voting(
     retro_id: int,
+    payload: Optional[dict] = Body(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -423,7 +444,9 @@ async def finalize_voting(
             RetrospectiveParticipant.completed_voting == False
         ).all()
         
-        if pending_participants:
+        bypass_requested = bool(payload and payload.get("bypass"))
+        
+        if pending_participants and not bypass_requested:
             pending_names = [
                 (user.full_name or user.email or f"User {user.id}").strip()
                 for _, user in pending_participants
@@ -431,7 +454,7 @@ async def finalize_voting(
             readable_names = ", ".join(pending_names)
             raise HTTPException(
                 status_code=400,
-                detail=f"Voting cannot be finalized. Waiting for votes from: {readable_names}"
+                detail=f"Voting cannot be finalized. Waiting for votes from: {readable_names}. To bypass, pass {{\"bypass\": true}} in the request body."
             )
         
         # End voting session
