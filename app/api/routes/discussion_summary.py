@@ -4,7 +4,7 @@ AI-facilitated discussion on top-voted themes + Sprint summaries
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, case
 from typing import List
 from pydantic import BaseModel
 from datetime import datetime
@@ -18,6 +18,7 @@ from app.models.retrospective_new import (
     RetrospectiveParticipant, RetrospectiveResponse, DARecommendation,
     VotingSession, VoteAllocation
 )
+from app.models.action_item import ActionItem
 from app.models.user import User
 from app.api.dependencies.auth import get_current_user
 from app.core.config import settings
@@ -730,6 +731,35 @@ async def download_summary_pdf(
         if not participant:
             raise HTTPException(status_code=403, detail="Not a participant")
         
+        # Get participants for listing
+        participant_rows = db.query(RetrospectiveParticipant, User).join(
+            User, RetrospectiveParticipant.user_id == User.id
+        ).filter(
+            RetrospectiveParticipant.retrospective_id == retro_id
+        ).order_by(
+            func.lower(func.coalesce(User.full_name, User.email, ''))
+        ).all()
+        
+        # Get action items associated with this retrospective
+        priority_order = case(
+            [
+                (ActionItem.priority == 'critical', 4),
+                (ActionItem.priority == 'high', 3),
+                (ActionItem.priority == 'medium', 2),
+                (ActionItem.priority == 'low', 1),
+            ],
+            else_=0
+        )
+        
+        action_items = db.query(ActionItem).filter(
+            ActionItem.retrospective_id == retro_id
+        ).order_by(
+            ActionItem.status,
+            priority_order.desc(),
+            ActionItem.due_date.is_(None),
+            ActionItem.due_date.asc()
+        ).all()
+        
         # Get DA recommendations and top themes
         da_rec = db.query(DARecommendation).filter(
             DARecommendation.retrospective_id == retro_id
@@ -749,10 +779,10 @@ async def download_summary_pdf(
             from reportlab.lib.pagesizes import letter
             from reportlab.lib import colors
             from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle
             from reportlab.lib.units import inch
-            from reportlab.pdfgen import canvas
             import io
+            from xml.sax.saxutils import escape as xml_escape
             
             buffer = io.BytesIO()
             doc = SimpleDocTemplate(buffer, pagesize=letter,
@@ -819,6 +849,73 @@ async def download_summary_pdf(
                     elements.append(Spacer(1, 0.1*inch))
                 elements.append(Spacer(1, 0.2*inch))
             
+            if participant_rows:
+                elements.append(Paragraph("Participants", heading_style))
+                participant_table_data = [["Name", "Email", "Voting Complete"]]
+                for rp, user in participant_rows:
+                    name = xml_escape(user.full_name or user.email or f"User {user.id}")
+                    email = xml_escape(user.email or "—")
+                    voting_complete = "Yes" if rp.completed_voting else "No"
+                    participant_table_data.append([
+                        Paragraph(name, normal_style),
+                        Paragraph(email, normal_style),
+                        Paragraph(voting_complete, normal_style)
+                    ])
+                participant_table = Table(
+                    participant_table_data,
+                    colWidths=[2.8*inch, 2.4*inch, 1.0*inch]
+                )
+                participant_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#667eea')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+                    ('ALIGN', (0, 1), (-1, -1), 'LEFT'),
+                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.whitesmoke, colors.lightgrey]),
+                    ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#cbd5f5')),
+                ]))
+                elements.append(participant_table)
+                elements.append(Spacer(1, 0.3*inch))
+            
+            elements.append(Paragraph("Action Items", heading_style))
+            if action_items:
+                action_table_data = [["Title", "Owner", "Status", "Due Date", "Progress"]]
+                for item in action_items:
+                    title_text = xml_escape(item.title or "Untitled action item")
+                    assignee = "Unassigned"
+                    if item.assignee:
+                        assignee = item.assignee.full_name or item.assignee.email or f"User {item.assignee.id}"
+                    assignee = xml_escape(assignee)
+                    status_text = xml_escape((item.status or "pending").replace('_', ' ').title())
+                    due_text = item.due_date.strftime('%b %d, %Y') if item.due_date else "—"
+                    progress_text = f"{item.progress_percentage or 0}%"
+                    action_table_data.append([
+                        Paragraph(f"<b>{title_text}</b>", normal_style),
+                        Paragraph(assignee, normal_style),
+                        Paragraph(status_text, normal_style),
+                        Paragraph(xml_escape(due_text), normal_style),
+                        Paragraph(progress_text, normal_style)
+                    ])
+                action_table = Table(
+                    action_table_data,
+                    colWidths=[2.8*inch, 1.5*inch, 1.0*inch, 1.0*inch, 0.7*inch]
+                )
+                action_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4c51bf')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+                    ('ALIGN', (0, 1), (-1, -1), 'LEFT'),
+                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.whitesmoke, colors.HexColor('#edf2ff')]),
+                    ('GRID', (0, 0), (-1, -1), 0.25, colors.HexColor('#d0d7f9')),
+                ]))
+                elements.append(action_table)
+            else:
+                elements.append(Paragraph("No action items were captured for this retrospective.", normal_style))
+            elements.append(Spacer(1, 0.3*inch))
+            
             # Overall Assessment
             if retro.ai_summary:
                 elements.append(PageBreak())
@@ -875,7 +972,7 @@ async def download_summary_pdf(
             # Recommendations (if in insights)
             recommendations = insights.get('recommendations', [])
             if recommendations:
-                elements.append(Paragraph("Action Items", heading_style))
+                elements.append(Paragraph("AI Suggested Action Ideas", heading_style))
                 for recommendation in recommendations:
                     elements.append(Paragraph(f"→ {recommendation}", normal_style))
                 elements.append(Spacer(1, 0.3*inch))
