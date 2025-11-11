@@ -430,6 +430,7 @@ async def send_message(
            - "Now, let’s explore what you LACKED."
            - "Finally, what did you LONG FOR?"
         6) Keep responses under 80 words.
+        7) This app is meant for IT,Data science/Analytics projects and teams.If the conversation goes off topic, gently guide them back to the 4Ls framework.
         """}
         ]
         
