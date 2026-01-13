@@ -84,17 +84,11 @@ async def create_workspace_invitation(
             detail=f"An active invitation already exists for {payload.email}. Please wait for it to expire or have the user accept/decline it."
         )
     
-    # Check if the email is a registered user
+    # Check if the email is a registered user (optional - invitations can be sent to unregistered users)
     invited_user = db.query(User).filter(
         User.email == invited_email_lower
     ).first()
-    
-    if not invited_user:
-        raise HTTPException(
-            status_code=400,
-            detail=f"This email ({payload.email}) is not registered. Please ask the user to create an account first."
-        )
-    
+
     # Create invitation with 12-hour expiry
     token = generate_invite_token()
     expires_at = datetime.now(timezone.utc) + timedelta(hours=12)
@@ -353,23 +347,24 @@ async def validate_email_for_invitation(
             "message": "An active invitation already exists for this email"
         }
     
-    # Check if user is registered
+    # Check if user is registered (optional - invitations can be sent to unregistered users)
     user = db.query(User).filter(User.email == email_lower).first()
-    if not user:
-        return {
-            "valid": False,
-            "reason": "not_registered",
-            "message": "This email is not registered. User must create an account first."
-        }
     
-    # All checks passed
-    return {
-        "valid": True,
-        "message": f"Ready to invite {user.full_name or user.email}",
-        "user": {
-            "full_name": user.full_name,
-            "email": user.email
+    # All checks passed - allow invitations to both registered and unregistered users
+    if user:
+        return {
+            "valid": True,
+            "message": f"Ready to invite {user.full_name or user.email}",
+            "user": {
+                "full_name": user.full_name,
+                "email": user.email
+            }
         }
-    }
+    else:
+        return {
+            "valid": True,
+            "message": f"Ready to invite {email_lower}",
+            "user": None
+        }
 
 
