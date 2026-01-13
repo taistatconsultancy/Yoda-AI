@@ -1,0 +1,290 @@
+# Google Sign-In Implementation Guide
+
+## Overview
+This guide explains how to implement Firebase Google Sign-In that creates user accounts in the Neon database.
+
+## Architecture
+
+### How It Works
+1. **Frontend**: User clicks "Sign in with Google"
+2. **Firebase Auth**: User authenticates with Google (handled by Firebase)
+3. **Backend API**: Receives Firebase ID token
+4. **Backend**: Verifies token and creates/updates user in Neon database
+5. **Response**: Returns JWT token for our API
+
+## Implementation Steps
+
+### Phase 1: Frontend Setup (HTML/JavaScript)
+
+You already have a `signInWithGoogle()` function in `app/ui/yodaai-app.html` that currently shows a placeholder message. Here's what needs to be implemented:
+
+```javascript
+async function signInWithGoogle() {
+  showAuthLoading(true);
+  
+  try {
+    // 1. Sign in with Google using Firebase Auth
+    const provider = new firebase.auth.GoogleAuthProvider();
+    const result = await firebase.auth().signInWithPopup(provider);
+    
+    // 2. Get the ID token
+    const idToken = await result.user.getIdToken();
+    
+    // 3. Send token to backend API
+    const response = await fetch('/api/v1/user-auth/google', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({id_token: idToken})
+    });
+    
+    if (!response.ok) {
+      throw new Error('Google sign-in failed');
+    }
+    
+    // 4. Get our app's JWT token
+    const data = await response.json();
+    
+    currentUser = {
+      uid: data.user.id,
+      id: data.user.id,
+      email: data.user.email,
+      displayName: data.user.full_name,
+      username: data.user.username,
+      profilePicture: result.user.photoURL
+    };
+    
+    authToken = data.access_token;
+    
+    // Store in localStorage
+    localStorage.setItem('yodaai_user', JSON.stringify(currentUser));
+    localStorage.setItem('yodaai_token', authToken);
+    
+    closeLoginModal();
+    showApp();
+    showToast('Successfully signed in with Google!', 'success');
+    
+  } catch (error) {
+    console.error('Google sign-in error:', error);
+    showAuthError('Failed to sign in with Google. Please try again.');
+  } finally {
+    showAuthLoading(false);
+  }
+}
+```
+
+### Phase 2: Backend API Route
+
+Create `app/api/routes/google_auth.py`:
+
+```python
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from app.services.firebase_auth import verify_firebase_token
+from app.database.database import SessionLocal
+from app.models.user import User
+from datetime import datetime
+from jose import jwt
+from app.core.config import settings
+
+router = APIRouter()
+
+
+class GoogleTokenRequest(BaseModel):
+    id_token: str
+
+
+def create_jwt_token(user_id: int, email: str):
+    """Create JWT token for our API"""
+    payload = {
+        "sub": str(user_id),
+        "email": email,
+        "exp": datetime.utcnow().timestamp() + settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    }
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+@router.post("/google")
+async def google_signin(request: GoogleTokenRequest):
+    """
+    Sign in with Google Firebase ID token.
+    Creates user in database if doesn't exist.
+    """
+    db = SessionLocal()
+    
+    try:
+        # 1. Verify Firebase ID token
+        decoded_token = verify_firebase_token(request.id_token)
+        
+        # 2. Extract user info
+        firebase_uid = decoded_token['uid']
+        email = decoded_token['email']
+        display_name = decoded_token.get('name', email.split('@')[0])
+        picture_url = decoded_token.get('picture')
+        email_verified = decoded_token.get('email_verified', False)
+        
+        # 3. Check if user exists in database
+        user = db.query(User).filter(User.email == email).first()
+        
+        if not user:
+            # 4. Create new user
+            # Generate username from email
+            username = email.split('@')[0]
+            
+            # Ensure unique username
+            existing_username = db.query(User).filter(User.username == username).first()
+            counter = 1
+            while existing_username:
+                username = f"{email.split('@')[0]}_{counter}"
+                existing_username = db.query(User).filter(User.username == username).first()
+                counter += 1
+            
+            # Create user
+            user = User(
+                email=email,
+                username=username,
+                full_name=display_name,
+                profile_picture_url=picture_url,
+                google_id=firebase_uid,
+                email_verified=email_verified,
+                email_verified_at=datetime.utcnow() if email_verified else None,
+                is_active=True
+            )
+            
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+            
+            print(f"✅ Created new user from Google: {email}")
+        else:
+            # 5. Update existing user
+            user.google_id = firebase_uid
+            user.email_verified = email_verified or user.email_verified
+            if email_verified and not user.email_verified_at:
+                user.email_verified_at = datetime.utcnow()
+            user.profile_picture_url = picture_url or user.profile_picture_url
+            user.last_login_at = datetime.utcnow()
+            
+            db.commit()
+            
+            print(f"✅ Updated existing user from Google: {email}")
+        
+        # 6. Create JWT token for our API
+        access_token = create_jwt_token(user.id, user.email)
+        
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "username": user.username,
+                "full_name": user.full_name,
+                "profile_picture_url": user.profile_picture_url
+            }
+        }
+        
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Google sign-in error: {e}")
+        raise HTTPException(status_code=401, detail="Invalid Google token")
+    finally:
+        db.close()
+```
+
+### Phase 3: Register Route in Main App
+
+Add to `main.py` or your router:
+
+```python
+from app.api.routes import google_auth
+
+app.include_router(google_auth.router, prefix="/api/v1/user-auth", tags=["auth"])
+```
+
+### Phase 4: Frontend Firebase SDK
+
+Add Firebase SDK to your HTML:
+
+```html
+<!-- Add to <head> of app/ui/yodaai-app.html -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js"></script>
+
+<script>
+  // Initialize Firebase
+  const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "ai-assistant-f13ce.firebaseapp.com",
+    projectId: "ai-assistant-f13ce",
+    storageBucket: "ai-assistant-f13ce.appspot.com",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId: "YOUR_APP_ID"
+  };
+  
+  firebase.initializeApp(firebaseConfig);
+</script>
+```
+
+Get these values from: Firebase Console → Project Settings → General → Your apps
+
+## Current Status
+
+### ✅ What's Done
+- Firebase Admin SDK initialized
+- Database schema ready (with `google_id` column)
+- Firebase service configured
+- User sync script created (for existing users)
+
+### 📋 What Needs to Be Done
+
+1. **Enable Google Sign-In in Firebase Console**
+   - Go to Authentication → Sign-in method
+   - Enable Google provider
+   - Add authorized domains
+
+2. **Get Firebase Web Config**
+   - Add Firebase Web App
+   - Copy config values
+   - Add to HTML
+
+3. **Implement Backend Route** (code above)
+4. **Implement Frontend Function** (code above)
+
+## Testing
+
+1. Click "Sign in with Google" button
+2. User authenticates with Google
+3. Backend verifies token and creates/updates user in Neon
+4. User receives JWT token for our API
+5. User is logged into the app
+
+## Data Flow
+
+```
+User → Google OAuth → Firebase Auth (ID Token)
+                          ↓
+Backend API (/google) → Verify Token
+                          ↓
+                     Create/Update User in Neon
+                          ↓
+                     Return JWT Token
+                          ↓
+Frontend → Store Token → Logged In User
+```
+
+## Benefits
+
+1. **Seamless UX**: One-click sign-in
+2. **Secure**: Firebase handles OAuth flow
+3. **Email Verified**: Automatically verified via Google
+4. **Profile Picture**: Automatically populated from Google
+5. **Unique Username**: Auto-generated from email
+6. **Database Sync**: All users stored in Neon
+
+## Next Steps
+
+1. Get Firebase Web Config from Firebase Console
+2. Add Firebase SDK to HTML
+3. Implement backend route
+4. Implement frontend function
+5. Test Google sign-in flow
