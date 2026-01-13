@@ -95,13 +95,6 @@ async def create_workspace_invitation(
             detail=f"This email ({payload.email}) is not registered. Please ask the user to create an account first."
         )
     
-    # Check if the email is verified
-    if not invited_user.email_verified:
-        raise HTTPException(
-            status_code=400,
-            detail=f"This email ({payload.email}) is registered but not verified. The user must verify their email before being invited."
-        )
-
     # Create invitation with 12-hour expiry
     token = generate_invite_token()
     expires_at = datetime.now(timezone.utc) + timedelta(hours=12)
@@ -143,8 +136,11 @@ async def create_workspace_invitation(
             print(f"Workspace: {workspace.name}")
             print(f"Invitee: {invitation.email}")
             print(f"Role: {invitation.role or 'member'}")
-            print(f"User: {invited_user.email} (ID: {invited_user.id})")
-            print(f"Email verified: ✅ Yes")
+            if invited_user:
+                print(f"User: {invited_user.email} (ID: {invited_user.id})")
+                print(f"Email verified: {'✅ Yes' if invited_user.email_verified else '❌ No'}")
+            else:
+                print(f"User: Not yet registered")
             print(f"\nInvitation link: {invite_link}")
             print("="*60)
         
@@ -364,14 +360,6 @@ async def validate_email_for_invitation(
             "valid": False,
             "reason": "not_registered",
             "message": "This email is not registered. User must create an account first."
-        }
-    
-    # Check if email is verified
-    if not user.email_verified:
-        return {
-            "valid": False,
-            "reason": "email_not_verified",
-            "message": "This email is not verified. User must verify their email first."
         }
     
     # All checks passed
