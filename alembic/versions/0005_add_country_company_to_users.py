@@ -1,6 +1,6 @@
 """Add country_name and company_name to users table
 
-Revision ID: 0005_add_country_company_to_users
+Revision ID: 0005_country_company
 Revises: db0a6db0d497
 Create Date: 2025-01-27 12:00:00.000000
 
@@ -10,18 +10,36 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '0005_add_country_company_to_users'
+revision = '0005_country_company'
 down_revision = 'db0a6db0d497'
 branch_labels = None
 depends_on = None
 
 
 def upgrade():
-    # Add country_name and company_name columns to users table
+    # Add country_name and company_name columns to users table (PostgreSQL-safe)
     op.execute("""
-        ALTER TABLE users 
-        ADD COLUMN IF NOT EXISTS country_name VARCHAR(100),
-        ADD COLUMN IF NOT EXISTS company_name VARCHAR(255);
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'country_name'
+            ) THEN
+                ALTER TABLE users ADD COLUMN country_name VARCHAR(100);
+            END IF;
+        END $$;
+    """)
+
+    op.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'company_name'
+            ) THEN
+                ALTER TABLE users ADD COLUMN company_name VARCHAR(255);
+            END IF;
+        END $$;
     """)
     
     # Set default values for existing users
