@@ -1745,9 +1745,22 @@
                     </div>
                   </div>
 
-            <div class="d-flex justify-content-between mt-3">
-              <button class="btn btn-outline-secondary" id="onboardingPrevBtn" onclick="prevWorkspaceWizardStep()">Back</button>
-              <button class="btn btn-primary" id="onboardingNextBtn" onclick="nextWorkspaceWizardStep()">Next</button>
+            <div class="mt-4 p-3 bg-light rounded border-start border-primary border-4">
+              <div class="d-flex align-items-center mb-2">
+                <i class="bi bi-info-circle text-primary me-2" style="font-size: 1.2rem;"></i>
+                <strong class="text-primary">Ready to continue?</strong>
+              </div>
+              <p class="mb-2 text-muted small" id="onboardingHint">Click the <strong>"Next"</strong> button below to proceed to the next step in your setup.</p>
+              <p class="mb-0 text-muted small" id="onboardingStepInfo"><span id="currentStepNum">1</span> of <span id="totalStepsNum">4</span> steps</p>
+            </div>
+
+            <div class="d-flex justify-content-between mt-3 align-items-center">
+              <button class="btn btn-outline-secondary" id="onboardingPrevBtn" onclick="prevWorkspaceWizardStep()">
+                <i class="bi bi-arrow-left"></i> Back
+              </button>
+              <button class="btn btn-primary btn-lg px-4" id="onboardingNextBtn" onclick="nextWorkspaceWizardStep()" style="box-shadow: 0 2px 8px rgba(0,123,255,0.3);">
+                <span id="nextButtonText">Next</span> <i class="bi bi-arrow-right ms-1"></i>
+              </button>
                 </div>
               </div>
             </div>
@@ -1783,15 +1796,24 @@
             <h3 class="mb-4">Team Members</h3>
             <div class="card mb-4">
               <div class="card-body">
-                <h5>Invite Team Members</h5>
+                <div class="d-flex align-items-center mb-3">
+                  <i class="bi bi-person-plus-fill text-primary me-2" style="font-size: 1.5rem;"></i>
+                  <h5 class="mb-0">Invite Team Members</h5>
+                </div>
+                <p class="text-muted small mb-3">Send an invitation to add a new member to your workspace. They'll receive an email with instructions to join.</p>
+                
                 <div class="row g-3 mb-3">
                   <div class="col-md-6">
-                    <label class="form-label">Email Address *</label>
+                    <label class="form-label">
+                      <i class="bi bi-envelope me-1"></i> Email Address <span class="text-danger">*</span>
+                    </label>
                     <input type="email" class="form-control" id="inviteEmail" placeholder="team.member@example.com" oninput="validateInviteEmail(this.value)">
                     <div id="inviteEmailFeedback" class="form-text mt-1" style="min-height: 20px;"></div>
                   </div>
                   <div class="col-md-4">
-                    <label class="form-label">Role *</label>
+                    <label class="form-label">
+                      <i class="bi bi-person-badge me-1"></i> Role <span class="text-danger">*</span>
+                    </label>
                     <select class="form-select" id="inviteRole">
                       <option value="Scrum Master">Scrum Master</option>
                       <option value="Project Manager">Project Manager</option>
@@ -1801,14 +1823,16 @@
                     </select>
                   </div>
                   <div class="col-md-2 d-flex align-items-end">
-                    <button class="btn btn-primary w-100" id="inviteBtn" onclick="inviteTeamMember()" disabled>
-                      <i class="bi bi-send"></i> Invite
+                    <button class="btn btn-primary btn-lg w-100" id="inviteBtn" onclick="inviteTeamMember()" disabled style="box-shadow: 0 2px 8px rgba(0,123,255,0.3);">
+                      <i class="bi bi-send-fill me-1"></i> <span id="inviteBtnText">Send Invite</span>
                     </button>
                   </div>
                 </div>
-                <small class="text-muted">
-                  <i class="bi bi-info-circle"></i> Invitee will receive an email to join the workspace
-                </small>
+                
+                <div class="alert alert-info mb-0 mt-3" style="background-color: #e7f3ff; border-color: #b3d9ff;">
+                  <i class="bi bi-info-circle-fill me-2"></i>
+                  <small>The invitee will receive an email notification with a link to accept the invitation and join your workspace.</small>
+                </div>
               </div>
             </div>
             
@@ -2824,6 +2848,13 @@
         }
 
         hideProfileOverlay();
+        // Show the app container after profile is saved
+        const appContainer = document.getElementById('appContainer');
+        if (appContainer) {
+          appContainer.style.display = 'block';
+        }
+        // Reload dashboard data to ensure everything displays properly
+        loadDashboardData();
         showToast('Profile updated successfully!', 'success');
         
       } catch (error) {
@@ -4162,11 +4193,7 @@
         if (response.ok) {
           userWorkspaces = await response.json();
           
-          if (userWorkspaces.length === 0) {
-            // Force create workspace
-            showToast('Please create a workspace to get started!', 'info');
-            setTimeout(() => showCreateWorkspaceModal(), 1000);
-          } else {
+          if (userWorkspaces.length > 0) {
             // Set first workspace as current
             currentWorkspace = userWorkspaces[0];
             localStorage.setItem('current_workspace', JSON.stringify(currentWorkspace));
@@ -4392,9 +4419,70 @@
 
     // ============== Workspace Onboarding Wizard ==============
     let _workspaceWizardCurrent = 1;
-    function initWorkspaceWizard() {
+    
+    async function initWorkspaceWizard() {
       _workspaceWizardCurrent = 1;
+      // Load actual progress from API
+      await loadWorkspaceOnboardingProgress();
       showWorkspaceWizardStep(_workspaceWizardCurrent);
+    }
+    
+    async function loadWorkspaceOnboardingProgress() {
+      if (!currentWorkspace || !authToken) return;
+      
+      try {
+        const response = await fetch(`/api/v1/workspaces/${currentWorkspace.id}/onboarding`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          const status = data.status || {};
+          
+          // Calculate progress based on completed steps
+          // Steps: 1) Workspace Setup (always true), 2) AI Summary, 3) Team Members, 4) Retrospective
+          const totalSteps = 4;
+          let completedSteps = 1; // Workspace setup is always completed
+          
+          if (status.project_data_imported) completedSteps++;
+          if (status.team_members_added) completedSteps++;
+          if (status.first_retrospective_scheduled) completedSteps++;
+          
+          // If onboarding is completed, set to 100%
+          if (status.onboarding_completed) {
+            completedSteps = totalSteps;
+          }
+          
+          const percent = Math.round((completedSteps / totalSteps) * 100);
+          
+          // Update progress bar
+          const bar = document.getElementById('workspaceProgressBar');
+          const label = document.getElementById('workspaceOnboardingProgress');
+          if (bar) {
+            bar.style.width = percent + '%';
+            bar.setAttribute('aria-valuenow', percent);
+          }
+          if (label) label.textContent = percent + '%';
+          
+          // Determine which step to show based on progress
+          // Find the first incomplete step
+          if (!status.project_data_imported) {
+            _workspaceWizardCurrent = 2; // AI Summary step
+          } else if (!status.team_members_added) {
+            _workspaceWizardCurrent = 3; // Team Members step
+          } else if (!status.first_retrospective_scheduled) {
+            _workspaceWizardCurrent = 4; // Retrospective step
+          } else if (status.onboarding_completed) {
+            _workspaceWizardCurrent = 4; // Show last step if completed
+          } else {
+            _workspaceWizardCurrent = 2; // Default to step 2 if workspace is set up
+          }
+        }
+      } catch (error) {
+        console.error('Error loading onboarding progress:', error);
+        // Default to step 1 if API call fails
+        _workspaceWizardCurrent = 1;
+      }
     }
     function getWorkspaceWizardTotal() {
       const steps = document.querySelectorAll('#workspace-onboarding-tab .onboarding-step');
@@ -4410,14 +4498,108 @@
       });
       const prevBtn = document.getElementById('onboardingPrevBtn');
       const nextBtn = document.getElementById('onboardingNextBtn');
+      const nextButtonText = document.getElementById('nextButtonText');
+      const currentStepNum = document.getElementById('currentStepNum');
+      const totalStepsNum = document.getElementById('totalStepsNum');
+      const onboardingHint = document.getElementById('onboardingHint');
+      
       if (prevBtn) prevBtn.disabled = _workspaceWizardCurrent === 1;
-      if (nextBtn) nextBtn.textContent = _workspaceWizardCurrent === total ? 'Finish' : 'Next';
-      // Update progress bar positionally
-      const percent = Math.round((_workspaceWizardCurrent - 1) / (total - 1 || 1) * 100);
-      const bar = document.getElementById('workspaceProgressBar');
-      const label = document.getElementById('workspaceOnboardingProgress');
-      if (bar) bar.style.width = percent + '%';
-      if (label) label.textContent = percent + '%';
+      
+      const isLastStep = _workspaceWizardCurrent === total;
+      if (nextBtn) {
+        const buttonText = isLastStep ? 'Finish Setup' : 'Next Step';
+        if (nextButtonText) nextButtonText.textContent = buttonText;
+        else nextBtn.innerHTML = buttonText + ' <i class="bi bi-arrow-right ms-1"></i>';
+      }
+      
+      // Update step counter
+      if (currentStepNum) currentStepNum.textContent = _workspaceWizardCurrent;
+      if (totalStepsNum) totalStepsNum.textContent = total;
+      
+      // Update hint text based on step
+      if (onboardingHint) {
+        if (isLastStep) {
+          onboardingHint.innerHTML = 'Click <strong>"Finish Setup"</strong> to complete onboarding and start using YodaAI!';
+        } else {
+          const nextStepName = getNextStepName(_workspaceWizardCurrent, total);
+          onboardingHint.innerHTML = `Click <strong>"Next Step"</strong> to proceed to: <strong>${nextStepName}</strong>`;
+        }
+      }
+      
+      // Update progress bar based on actual completion status
+      updateWorkspaceProgressBar();
+    }
+    
+    async function updateWorkspaceProgressBar() {
+      if (!currentWorkspace || !authToken) {
+        // Fallback to positional calculation if no workspace
+        const total = getWorkspaceWizardTotal();
+        const percent = Math.round((_workspaceWizardCurrent - 1) / (total - 1 || 1) * 100);
+        const bar = document.getElementById('workspaceProgressBar');
+        const label = document.getElementById('workspaceOnboardingProgress');
+        if (bar) {
+          bar.style.width = percent + '%';
+          bar.setAttribute('aria-valuenow', percent);
+        }
+        if (label) label.textContent = percent + '%';
+        return;
+      }
+      
+      try {
+        const response = await fetch(`/api/v1/workspaces/${currentWorkspace.id}/onboarding`, {
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          const status = data.status || {};
+          
+          // Calculate progress based on completed steps
+          const totalSteps = 4;
+          let completedSteps = 1; // Workspace setup is always completed
+          
+          if (status.project_data_imported) completedSteps++;
+          if (status.team_members_added) completedSteps++;
+          if (status.first_retrospective_scheduled) completedSteps++;
+          
+          // If onboarding is completed, set to 100%
+          if (status.onboarding_completed) {
+            completedSteps = totalSteps;
+          }
+          
+          const percent = Math.round((completedSteps / totalSteps) * 100);
+          
+          // Update progress bar
+          const bar = document.getElementById('workspaceProgressBar');
+          const label = document.getElementById('workspaceOnboardingProgress');
+          if (bar) {
+            bar.style.width = percent + '%';
+            bar.setAttribute('aria-valuenow', percent);
+          }
+          if (label) label.textContent = percent + '%';
+        }
+      } catch (error) {
+        console.error('Error updating progress bar:', error);
+        // Fallback to positional calculation
+        const total = getWorkspaceWizardTotal();
+        const percent = Math.round((_workspaceWizardCurrent - 1) / (total - 1 || 1) * 100);
+        const bar = document.getElementById('workspaceProgressBar');
+        const label = document.getElementById('workspaceOnboardingProgress');
+        if (bar) {
+          bar.style.width = percent + '%';
+          bar.setAttribute('aria-valuenow', percent);
+        }
+        if (label) label.textContent = percent + '%';
+      }
+    }
+    
+    function getNextStepName(currentStep, total) {
+      const stepNames = {
+        1: 'Generate AI Summary',
+        2: 'Add Team Members',
+        3: 'Create First Retrospective'
+      };
+      return stepNames[currentStep] || 'the next step';
     }
     let isFinishingOnboarding = false;
 
@@ -4430,7 +4612,7 @@
         
         const nextBtn = document.getElementById('onboardingNextBtn');
         const prevBtn = document.getElementById('onboardingPrevBtn');
-        const originalText = nextBtn ? nextBtn.textContent : 'Finish';
+        const nextButtonText = document.getElementById('nextButtonText');
         
         if (nextBtn) {
           nextBtn.disabled = true;
@@ -4454,7 +4636,12 @@
           isFinishingOnboarding = false;
           if (nextBtn) {
             nextBtn.disabled = false;
-            nextBtn.textContent = originalText;
+            // Restore button with icon
+            if (nextButtonText) {
+              nextBtn.innerHTML = '<span id="nextButtonText">Finish Setup</span> <i class="bi bi-arrow-right ms-1"></i>';
+            } else {
+              nextBtn.innerHTML = 'Finish Setup <i class="bi bi-arrow-right ms-1"></i>';
+            }
           }
           if (prevBtn) prevBtn.disabled = false;
         }
@@ -4733,8 +4920,25 @@
             body: form
           });
           if (!up.ok) {
-            const msg = await up.text();
-            showToast(msg || 'Failed to upload file', 'danger');
+            let errorMsg = 'Failed to upload file';
+            try {
+              const errorData = await up.json();
+              const detail = errorData.detail || '';
+              if (detail.includes('Unable to parse PDF') || detail.includes('scanned') || detail.includes('image-only')) {
+                errorMsg = 'PDF file cannot be read. Please ensure the PDF contains selectable text (not a scanned image). Try converting the PDF to a text-based format or use a different file (.txt or .md).';
+              } else {
+                errorMsg = detail || errorMsg;
+              }
+            } catch (e) {
+              // If JSON parsing fails, try text
+              const text = await up.text().catch(() => '');
+              if (text.includes('Unable to parse PDF') || text.includes('scanned') || text.includes('image-only')) {
+                errorMsg = 'PDF file cannot be read. Please ensure the PDF contains selectable text (not a scanned image). Try converting the PDF to a text-based format or use a different file (.txt or .md).';
+              } else if (text) {
+                errorMsg = text;
+              }
+            }
+            showToast(errorMsg, 'danger');
             return; // exit early on upload failure
           }
         }
@@ -4754,6 +4958,8 @@
             btn2.onclick = () => showWorkspaceTab('summary');
             statusDiv.appendChild(btn2);
           }
+          // Update progress bar after summary generation
+          updateWorkspaceProgressBar();
         } else {
           if (gen.status === 403) {
             showToast('You do not have permission (Scrum Master or Project Manager required)', 'danger');
@@ -5023,6 +5229,20 @@
         return;
       }
       
+      const inviteBtn = document.getElementById('inviteBtn');
+      const inviteBtnText = document.getElementById('inviteBtnText');
+      const originalBtnText = inviteBtnText ? inviteBtnText.textContent : 'Send Invite';
+      
+      // Show loading state
+      if (inviteBtn) {
+        inviteBtn.disabled = true;
+        if (inviteBtnText) {
+          inviteBtnText.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sending...';
+        } else {
+          inviteBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sending...';
+        }
+      }
+      
       try {
         const response = await fetch(`/api/v1/workspaces/${currentWorkspace.id}/invitations`, {
           method: 'POST',
@@ -5038,17 +5258,31 @@
           throw new Error(error.detail || 'Failed to invite member');
         }
         
-        showToast('Invitation sent successfully!', 'success');
+        showToast(`Invitation sent successfully to ${email}!`, 'success');
         document.getElementById('inviteEmail').value = '';
         document.getElementById('inviteEmailFeedback').innerHTML = '';
         document.getElementById('inviteEmailFeedback').className = 'form-text mt-1';
         emailInput.classList.remove('is-invalid', 'is-valid');
-        document.getElementById('inviteBtn').disabled = true;
         lastValidatedEmail = '';
+        
+        // Reload team members list
+        loadWorkspaceTeamMembers();
+        // Update progress bar after adding team member
+        updateWorkspaceProgressBar();
       } catch (error) {
         showToast(error.message || 'Failed to send invitation', 'danger');
         // Re-validate to show error state
         validateInviteEmail(email);
+      } finally {
+        // Restore button state
+        if (inviteBtn) {
+          inviteBtn.disabled = !emailInput.classList.contains('is-valid');
+          if (inviteBtnText) {
+            inviteBtnText.textContent = originalBtnText;
+          } else {
+            inviteBtn.innerHTML = `<i class="bi bi-send-fill me-1"></i> ${originalBtnText}`;
+          }
+        }
       }
     }
     
