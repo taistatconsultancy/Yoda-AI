@@ -1325,7 +1325,7 @@
           <div class="text-center my-2">
             <small class="text-muted">or continue with</small>
           </div>
-          <button type="button" class="btn btn-outline-primary" onclick="signInWithGoogle()">
+          <button type="button" class="btn btn-outline-primary" id="googleSignInBtn" onclick="signInWithGoogle(event)">
             <i class="bi bi-google"></i> Sign in with Google
           </button>
           <button type="button" class="btn btn-link text-muted" onclick="demoLogin()">
@@ -2196,6 +2196,8 @@
 
     // ==================== CHECK LOGIN ON LOAD ====================
     document.addEventListener('DOMContentLoaded', function() {
+      // Handle Google sign-in redirect result if user was redirected
+      handleGoogleSignInRedirect();
       const savedUser = localStorage.getItem('yodaai_user');
       const savedToken = localStorage.getItem('yodaai_token');
       
@@ -2547,13 +2549,63 @@
       }
     }
 
-    async function signInWithGoogle() {
+    let isGoogleSignInInProgress = false;
+    
+    async function signInWithGoogle(event) {
+      // Prevent multiple simultaneous sign-in attempts
+      if (isGoogleSignInInProgress) {
+        console.log('Google sign-in already in progress...');
+        return;
+      }
+      
+      // Prevent default and stop propagation to ensure clean event handling
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      
+      isGoogleSignInInProgress = true;
       showAuthLoading(true);
       
       try {
+        // Ensure Firebase is initialized
+        if (!firebase.apps.length) {
+          throw new Error('Firebase not initialized');
+        }
+        
         // 1. Sign in with Google using Firebase Auth
+        // Create provider immediately (synchronously) within click handler
         const provider = new firebase.auth.GoogleAuthProvider();
-        const result = await firebase.auth().signInWithPopup(provider);
+        provider.addScope('email');
+        provider.addScope('profile');
+        provider.setCustomParameters({
+          prompt: 'select_account'
+        });
+        
+        let result;
+        try {
+          // Try popup first - MUST be called synchronously within click handler
+          // This is critical to avoid popup blockers - no async operations before this!
+          result = await firebase.auth().signInWithPopup(provider);
+        } catch (popupError) {
+          // Handle popup-blocked error specifically
+          if (popupError.code === 'auth/popup-blocked') {
+            console.log('Popup blocked by browser');
+            // Reset the flag so user can try again
+            isGoogleSignInInProgress = false;
+            showAuthLoading(false);
+            showAuthError('Popup was blocked by your browser. Please allow popups for this site and click "Sign in with Google" again.', 'warning');
+            return; // Exit early, let user try again
+          } else if (popupError.code === 'auth/popup-closed-by-user') {
+            console.log('User closed popup');
+            // User closed the popup - just reset and let them try again
+            isGoogleSignInInProgress = false;
+            showAuthLoading(false);
+            return; // Exit early, no error message needed
+          } else {
+            throw popupError;
+          }
+        }
         
         // 2. Get the ID token
         const idToken = await result.user.getIdToken();
@@ -2595,9 +2647,60 @@
         
       } catch (error) {
         console.error('Google sign-in error:', error);
-        showAuthError(error.message || 'Failed to sign in with Google. Please try again.');
+        
+        // Provide user-friendly error messages
+        let errorMessage = 'Failed to sign in with Google. Please try again.';
+        if (error.code === 'auth/popup-blocked') {
+          errorMessage = 'Popup was blocked by your browser. Please allow popups for this site and try again.';
+        } else if (error.code === 'auth/popup-closed-by-user') {
+          errorMessage = 'Sign-in was cancelled. Please try again.';
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        
+        showAuthError(errorMessage);
       } finally {
+        isGoogleSignInInProgress = false;
         showAuthLoading(false);
+      }
+    }
+    
+    // Handle redirect result when user returns from Google sign-in
+    async function handleGoogleSignInRedirect() {
+      try {
+        const result = await firebase.auth().getRedirectResult();
+        if (result.user) {
+          // User signed in via redirect
+          const idToken = await result.user.getIdToken();
+          
+          const response = await fetch('/api/v1/user-auth/google', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({id_token: idToken})
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            currentUser = {
+              uid: data.user.id,
+              id: data.user.id,
+              email: data.user.email,
+              displayName: data.user.full_name,
+              username: data.user.username,
+              profilePicture: result.user.photoURL
+            };
+            
+            authToken = data.access_token;
+            localStorage.setItem('yodaai_user', JSON.stringify(currentUser));
+            localStorage.setItem('yodaai_token', authToken);
+            
+            showApp();
+            checkPendingSession();
+            showToast('Successfully signed in with Google!', 'success');
+          }
+        }
+      } catch (error) {
+        console.error('Error handling redirect result:', error);
       }
     }
 

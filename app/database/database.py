@@ -7,7 +7,6 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool
-from fastapi import HTTPException
 from app.core.config import settings
 import logging
 import os
@@ -21,28 +20,24 @@ if IS_SERVERLESS:
 
 # Determine which database URL to use
 # In serverless, REQUIRE Neon PostgreSQL - SQLite doesn't work in read-only file systems
-database_url = None
-try:
-    if IS_SERVERLESS:
-        # In serverless, check for NEON_DATABASE_URL in both settings and environment
-        neon_url = settings.NEON_DATABASE_URL or os.environ.get("NEON_DATABASE_URL")
-        if not neon_url:
-            logger.warning("⚠️ NEON_DATABASE_URL not found in serverless environment!")
-            logger.warning("⚠️ Database operations will fail until NEON_DATABASE_URL is set in Vercel Dashboard → Settings → Environment Variables.")
-            # Don't raise error here - let it fail gracefully at runtime
-            database_url = None
-        else:
-            database_url = neon_url
-            logger.info("✅ Using NEON Cloud PostgreSQL database (serverless)")
-    elif settings.NEON_DATABASE_URL and not getattr(settings, 'USE_LOCAL_DB', False):
-        database_url = settings.NEON_DATABASE_URL
-        logger.info("✅ Using NEON Cloud PostgreSQL database")
-    else:
-        database_url = settings.DATABASE_URL
-        logger.info("⚠️ Using LOCAL SQLite database")
-except Exception as e:
-    logger.error(f"Error determining database URL: {e}")
-    database_url = None
+if IS_SERVERLESS:
+    # In serverless, check for NEON_DATABASE_URL in both settings and environment
+    neon_url = settings.NEON_DATABASE_URL or os.environ.get("NEON_DATABASE_URL")
+    if not neon_url:
+        logger.error("❌ NEON_DATABASE_URL not found in serverless environment!")
+        raise ValueError(
+            "ERROR: NEON_DATABASE_URL environment variable must be set for serverless deployment. "
+            "SQLite is not supported in serverless environments like Vercel. "
+            "Please set NEON_DATABASE_URL in Vercel Dashboard → Settings → Environment Variables."
+        )
+    database_url = neon_url
+    logger.info("✅ Using NEON Cloud PostgreSQL database (serverless)")
+elif settings.NEON_DATABASE_URL and not getattr(settings, 'USE_LOCAL_DB', False):
+    database_url = settings.NEON_DATABASE_URL
+    logger.info("✅ Using NEON Cloud PostgreSQL database")
+else:
+    database_url = settings.DATABASE_URL
+    logger.info("⚠️ Using LOCAL SQLite database")
 
 # Configure connection arguments based on database type
 connect_args = {}
@@ -51,7 +46,7 @@ engine_kwargs = {
 }
 
 # Check if using Neon/PostgreSQL
-is_postgres = database_url and database_url.startswith("postgresql") if database_url else False
+is_postgres = database_url.startswith("postgresql")
 
 if is_postgres:
     # PostgreSQL/Neon specific configuration
@@ -80,17 +75,12 @@ else:
     # SQLite doesn't support connection pooling well
     engine_kwargs["poolclass"] = NullPool
 
-# Create database engine (only if database_url is set)
-if database_url:
-    engine = create_engine(
-        database_url,
-        connect_args=connect_args,
-        **engine_kwargs
-    )
-else:
-    # Create a dummy engine that will fail gracefully
-    logger.warning("⚠️ No database URL configured - database operations will fail")
-    engine = None
+# Create database engine
+engine = create_engine(
+    database_url,
+    connect_args=connect_args,
+    **engine_kwargs
+)
 
 # Enable foreign key constraints for SQLite
 if not is_postgres:
@@ -100,11 +90,8 @@ if not is_postgres:
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
 
-# Create session factory (only if engine exists)
-if engine:
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-else:
-    SessionLocal = None
+# Create session factory
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Create base class for models
 Base = declarative_base()
@@ -112,15 +99,6 @@ Base = declarative_base()
 
 async def init_db():
     """Initialize database tables"""
-    if not database_url:
-        logger.warning("⚠️ Database URL not configured - skipping database initialization")
-        logger.warning("⚠️ Please set NEON_DATABASE_URL in Vercel Dashboard → Settings → Environment Variables")
-        return
-    
-    if not engine:
-        logger.warning("⚠️ Database engine not available - skipping database initialization")
-        return
-        
     try:
         logger.info("Checking database connection...")
         
@@ -165,11 +143,6 @@ async def init_db():
 
 def get_db():
     """Dependency to get database session"""
-    if not SessionLocal:
-        raise HTTPException(
-            status_code=503,
-            detail="Database not configured. Please set NEON_DATABASE_URL environment variable."
-        )
     db = SessionLocal()
     try:
         yield db
