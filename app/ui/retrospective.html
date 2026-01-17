@@ -557,7 +557,7 @@
       await loadUpcomingRetros();
       
       // Load retrospective data if we have a code
-      if (retroCode && retroCode !== 'retrospective.html') {
+      if (retroCode && retroCode !== 'retrospective' && retroCode !== 'retrospective.html') {
         await loadRetrospective();
       // Start polling for updates (every 3 seconds)
       mainPollInterval = setInterval(pollForUpdates, 3000);
@@ -2699,7 +2699,7 @@
       const div = document.createElement('div');
       div.className = 'mb-2';
       div.innerHTML = `
-        <a href="/ui/retrospective.html/${last.code}" target="_blank">
+        <a href="/retrospective/${last.code}" target="_blank">
           ${escapeHtml(last.title)} - ${when.toLocaleDateString()} ${when.toLocaleTimeString()}
         </a>
       `;
@@ -3221,7 +3221,7 @@
     
     async function joinRetrospective(code) {
       // Simply navigate to the retrospective page with the code
-      window.location.href = `/ui/retrospective.html/${code}`;
+      window.location.href = `/retrospective/${code}`;
     }
   </script>
 </body>

@@ -20,6 +20,14 @@
       "dest": "/main.py"
     },
     {
+      "src": "/retrospective",
+      "dest": "/main.py"
+    },
+    {
+      "src": "/retrospective/(.*)",
+      "dest": "/main.py"
+    },
+    {
       "src": "/ui/(.*)",
       "dest": "/app/ui/$1"
     },

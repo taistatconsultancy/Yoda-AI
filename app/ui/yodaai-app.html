@@ -1419,7 +1419,7 @@
         </li>
         <!-- Onboarding and Workspace nav removed; onboarding will live inside a workspace -->
         <li class="nav-item">
-          <a class="nav-link" href="/ui/retrospective.html">
+          <a class="nav-link" href="/retrospective">
             <i class="bi bi-chat-dots"></i><span>Retrospectives</span>
           </a>
         </li>
@@ -4076,8 +4076,8 @@
         if (response.ok) {
           const retroData = await response.json();
           
-          // Navigate to retrospective.html with code
-          window.location.href = `/ui/retrospective.html/${retroData.code}`;
+          // Navigate to retrospective with code
+          window.location.href = `/retrospective/${retroData.code}`;
         } else {
           const errorData = await response.json().catch(() => ({}));
           // Handle scheduled gate
@@ -4114,7 +4114,7 @@
             </small>
           `;
           actionEl.innerHTML = `
-            <button class="btn btn-sm btn-primary" onclick="window.location.href='/ui/retrospective.html/${retroCode}'">
+            <button class="btn btn-sm btn-primary" onclick="window.location.href='/retrospective/${retroCode}'">
               <i class="bi bi-play-circle"></i> Join Now
             </button>
           `;
@@ -5738,8 +5738,8 @@
           
           if (retroResponse.ok) {
             const retroData = await retroResponse.json();
-            // Navigate to retrospective.html with code
-            window.location.href = `/ui/retrospective.html/${retroData.code}`;
+            // Navigate to retrospective with code
+            window.location.href = `/retrospective/${retroData.code}`;
           } else {
             // Fallback: try to open retrospective
             openRetrospective(retroId);

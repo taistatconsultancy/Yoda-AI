@@ -82,15 +82,12 @@ async def redirect_retrospective(retro_id: int):
     from fastapi.responses import RedirectResponse
     return RedirectResponse(url=f"/yodaai-app?retro_id={retro_id}", status_code=301)
 
-# Handle retrospective.html with code path
+# Handle old retrospective.html with code path (for backward compatibility)
 @app.get("/ui/retrospective.html/{code}")
 async def redirect_retrospective_by_code(code: str):
-    """Handle retrospective.html/{code} URLs"""
-    # Serve the retrospective.html file and let JavaScript handle the code
-    file_path = os.path.join("app/ui", "retrospective.html")
-    if os.path.exists(file_path):
-        return FileResponse(file_path)
-    raise HTTPException(status_code=404, detail="File not found")
+    """Handle old retrospective.html/{code} URLs - redirect to clean URL"""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url=f"/retrospective/{code}", status_code=301)
 
 app.include_router(fourls_chat.router)  # Has its own prefix
 app.include_router(grouping.router)  # Has its own prefix
@@ -107,6 +104,24 @@ async def serve_yodaai_app():
     if os.path.exists(file_path):
         return FileResponse(file_path, media_type="text/html")
     raise HTTPException(status_code=404, detail="Application file not found")
+
+# Serve retrospective.html at /retrospective (clean URL without /ui and .html)
+@app.get("/retrospective")
+async def serve_retrospective():
+    """Serve the retrospective application"""
+    file_path = os.path.join("app/ui", "retrospective.html")
+    if os.path.exists(file_path):
+        return FileResponse(file_path, media_type="text/html")
+    raise HTTPException(status_code=404, detail="Retrospective file not found")
+
+# Handle retrospective with code path (e.g., /retrospective/{code})
+@app.get("/retrospective/{code}")
+async def serve_retrospective_with_code(code: str):
+    """Serve the retrospective application with a specific code"""
+    file_path = os.path.join("app/ui", "retrospective.html")
+    if os.path.exists(file_path):
+        return FileResponse(file_path, media_type="text/html")
+    raise HTTPException(status_code=404, detail="Retrospective file not found")
 
 # Mount static UI under /ui (for backward compatibility and static assets)
 app.mount("/ui", StaticFiles(directory="app/ui", html=True), name="ui")

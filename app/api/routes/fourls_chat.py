@@ -221,8 +221,8 @@ async def get_or_create_session_link(
         db.add(welcome_msg)
         db.commit()
 
-    # Return URL to retrospective.html with code instead of yodaai-app.html
-    url = f"{settings.APP_URL}/ui/retrospective.html/{retro.code}"
+    # Return URL to retrospective with code instead of yodaai-app
+    url = f"{settings.APP_URL}/retrospective/{retro.code}"
     return {"session_id": session.session_id, "url": url, "code": retro.code}
 
 
@@ -282,8 +282,8 @@ async def get_email_session_link(
         db.add(welcome_msg)
         db.commit()
 
-    # Return direct URL to retrospective.html with code instead of yodaai-app.html
-    chat_url = f"{settings.APP_URL}/ui/retrospective.html/{retro.code}"
+    # Return direct URL to retrospective with code instead of yodaai-app
+    chat_url = f"{settings.APP_URL}/retrospective/{retro.code}"
     return {"redirect_url": chat_url}
 
 
