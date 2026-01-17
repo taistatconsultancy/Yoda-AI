@@ -110,7 +110,7 @@ async def create_workspace_invitation(
 
     # Send email invitation (if enabled)
     try:
-        invite_link = f"{settings.APP_URL}/ui/yodaai-app.html?invite={token}"
+        invite_link = f"{settings.APP_URL}/yodaai-app?invite={token}"
         subject = f"You're invited to join {workspace.name} on YodaAI"
         html = f"""
           <p>Hello,</p>

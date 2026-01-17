@@ -80,7 +80,7 @@ app.include_router(onboarding.router)  # /api/v1/workspaces/{id}/onboarding
 async def redirect_retrospective(retro_id: int):
     """Redirect old retrospective paths to new API format"""
     from fastapi.responses import RedirectResponse
-    return RedirectResponse(url=f"/ui/yodaai-app.html?retro_id={retro_id}", status_code=301)
+    return RedirectResponse(url=f"/yodaai-app?retro_id={retro_id}", status_code=301)
 
 # Handle retrospective.html with code path
 @app.get("/ui/retrospective.html/{code}")
@@ -99,7 +99,16 @@ app.include_router(discussion_summary.router)  # Has its own prefix
 app.include_router(action_items.router, prefix="/api/v1/action-items", tags=["action-items"])
 app.include_router(scheduling.router, prefix="/api/v1/scheduling", tags=["scheduling"])
 
-# Mount static UI under /ui
+# Serve yodaai-app.html at /yodaai-app (clean URL without /ui and .html)
+@app.get("/yodaai-app")
+async def serve_yodaai_app():
+    """Serve the main YodaAI application"""
+    file_path = os.path.join("app/ui", "yodaai-app.html")
+    if os.path.exists(file_path):
+        return FileResponse(file_path, media_type="text/html")
+    raise HTTPException(status_code=404, detail="Application file not found")
+
+# Mount static UI under /ui (for backward compatibility and static assets)
 app.mount("/ui", StaticFiles(directory="app/ui", html=True), name="ui")
 
 
@@ -107,7 +116,7 @@ app.mount("/ui", StaticFiles(directory="app/ui", html=True), name="ui")
 async def root():
     """Root endpoint - redirects to main app"""
     from fastapi.responses import RedirectResponse
-    return RedirectResponse(url="/ui/yodaai-app.html")
+    return RedirectResponse(url="/yodaai-app")
 
 
 @app.get("/health")
