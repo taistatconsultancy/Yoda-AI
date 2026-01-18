@@ -129,9 +129,11 @@ app.mount("/ui", StaticFiles(directory="app/ui", html=True), name="ui")
 
 @app.get("/")
 async def root():
-    """Root endpoint - redirects to main app"""
-    from fastapi.responses import RedirectResponse
-    return RedirectResponse(url="/yodaai-app")
+    """Root endpoint - serves the main YodaAI application"""
+    file_path = os.path.join("app/ui", "yodaai-app.html")
+    if os.path.exists(file_path):
+        return FileResponse(file_path, media_type="text/html")
+    raise HTTPException(status_code=404, detail="Application file not found")
 
 
 @app.get("/health")
