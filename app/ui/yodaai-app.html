@@ -1749,7 +1749,7 @@
               <div class="d-flex align-items-center mb-2">
                 <i class="bi bi-info-circle text-primary me-2" style="font-size: 1.2rem;"></i>
                 <strong class="text-primary">Ready to continue?</strong>
-              </div>
+                </div>
               <p class="mb-2 text-muted small" id="onboardingHint">Click the <strong>"Next"</strong> button below to proceed to the next step in your setup.</p>
               <p class="mb-0 text-muted small" id="onboardingStepInfo"><span id="currentStepNum">1</span> of <span id="totalStepsNum">4</span> steps</p>
             </div>
@@ -4637,14 +4637,14 @@
       if (!currentWorkspace || !authToken) {
         // Fallback to positional calculation if no workspace
         const total = getWorkspaceWizardTotal();
-        const percent = Math.round((_workspaceWizardCurrent - 1) / (total - 1 || 1) * 100);
-        const bar = document.getElementById('workspaceProgressBar');
-        const label = document.getElementById('workspaceOnboardingProgress');
+      const percent = Math.round((_workspaceWizardCurrent - 1) / (total - 1 || 1) * 100);
+      const bar = document.getElementById('workspaceProgressBar');
+      const label = document.getElementById('workspaceOnboardingProgress');
         if (bar) {
           bar.style.width = percent + '%';
           bar.setAttribute('aria-valuenow', percent);
         }
-        if (label) label.textContent = percent + '%';
+      if (label) label.textContent = percent + '%';
         return;
       }
       
@@ -5408,51 +5408,399 @@
       try {
         const headers = { 'Authorization': `Bearer ${authToken}` };
         
-        // Fetch retrospectives for ALL workspaces the user is in
-        const retrosResponse = await fetch('/api/v1/retrospectives/', { headers }).catch(() => null);
-        if (retrosResponse && retrosResponse.ok) {
-          const retros = await retrosResponse.json();
-          const total = retros.length;
-          const active = retros.filter(r => r.status === 'in_progress').length;
-          document.getElementById('totalRetros').textContent = total;
-          document.getElementById('activeRetros').textContent = active;
+        // STEP 1: Immediately show skeleton cards based on workspaces
+        const workspacesResponse = await fetch('/api/v1/workspaces/', { headers }).catch(() => null);
+        if (workspacesResponse && workspacesResponse.ok) {
+          const workspaces = await workspacesResponse.json();
+          showInsightsSkeleton(workspaces, insightsEl);
+        } else {
+          if (insightsEl) {
+            insightsEl.innerHTML = '<div class="mb-3"><h6 class="mb-2"><i class="bi bi-lightbulb-fill text-warning"></i> AI Highlights</h6></div>';
+          }
         }
 
-        // Fetch action items for ALL workspaces
-        const actionsResponse = await fetch('/api/v1/action-items/', { headers }).catch(() => null);
-        if (actionsResponse && actionsResponse.ok) {
-          const actions = await actionsResponse.json();
-          const completed = actions.filter(a => a.status === 'completed').length;
+        // STEP 2: Load statistics quickly (don't await engagement yet)
+        const retrosResponse = await fetch('/api/v1/retrospectives/', { headers }).catch(() => null);
+        let retros = [];
+        if (retrosResponse && retrosResponse.ok) {
+          retros = await retrosResponse.json();
+          const total = retros.length;
+          
+          // Calculate Active: retrospectives that are in progress, scheduled, or not completed
+          const active = retros.filter(r => {
+            const status = r.status || '';
+            const phase = r.current_phase || '';
+            // Active if: in_progress, scheduled, or phase is not completed/summary
+            return status === 'in_progress' || 
+                   status === 'scheduled' ||
+                   (status !== 'completed' && phase !== 'completed' && phase !== 'summary' && phase !== '');
+          }).length;
+          
+          // Calculate Completed: retrospectives that are fully completed
+          const completed = retros.filter(r => {
+            const status = (r.status || '').toLowerCase();
+            const phase = (r.current_phase || '').toLowerCase();
+            // Completed if status or phase indicates completion
+            return status === 'completed' || phase === 'completed' || phase === 'summary';
+          }).length;
+          
+          document.getElementById('totalRetros').textContent = total;
+          document.getElementById('activeRetros').textContent = active;
           document.getElementById('completedActions').textContent = completed;
+        }
+
+        // STEP 3: Load action items (non-blocking)
+        const actionsResponse = await fetch('/api/v1/action-items/', { headers }).catch(() => null);
+        let actions = [];
+        if (actionsResponse && actionsResponse.ok) {
+          actions = await actionsResponse.json();
+        }
+
+        // STEP 4: Calculate engagement in background
+        calculateEngagement(retros, actions, headers).catch(e => console.error('Engagement calc error:', e));
+
+        // STEP 5: Generate AI Insights progressively
+        generateAIInsights(retros, actions, headers, insightsEl).catch(e => console.error('Insights error:', e));
+      } catch (error) {
+        console.log('Analytics load:', error);
+        if (insightsEl) {
+          insightsEl.innerHTML = '<p class="text-muted">Complete retrospectives to see AI-powered insights and patterns.</p>';
+        }
+      }
+    }
+
+    async function typewriterEffect(elementId, text, speed = 20) {
+      const element = document.getElementById(elementId);
+      if (!element) return;
+      
+      const textSpan = element.querySelector('.typewriter-text');
+      if (textSpan) {
+        textSpan.textContent = '';
+        for (let i = 0; i < text.length; i++) {
+          textSpan.textContent += text.charAt(i);
+          await new Promise(r => setTimeout(r, speed));
+        }
+      }
+    }
+
+    function showInsightsSkeleton(workspaces, insightsEl) {
+      if (!insightsEl || !workspaces || workspaces.length === 0) {
+      if (insightsEl) {
+          insightsEl.innerHTML = '<div class="mb-3"><h6 class="mb-2"><i class="bi bi-lightbulb-fill text-warning"></i> AI Highlights</h6></div>';
+        }
+        return;
+      }
+
+      // Show skeleton cards immediately
+      let html = '<div class="mb-3">';
+      html += '<h6 class="mb-3"><i class="bi bi-lightbulb-fill text-warning"></i> AI Highlights</h6>';
+      
+      workspaces.forEach((workspace, index) => {
+        html += `<div class="card mb-3 ${index > 0 ? 'mt-3' : ''}" style="border-left: 4px solid #667eea;">`;
+        html += '<div class="card-body">';
+        html += `<h6 class="mb-2"><i class="bi bi-folder-fill text-primary"></i> ${escapeHtml(workspace.name)}</h6>`;
+        html += '<p class="mb-2 text-muted"><span class="placeholder col-3"></span></p>';
+        html += '<p class="mb-2 text-muted"><span class="placeholder col-7"></span></p>';
+        html += '<div class="mb-2"><span class="placeholder col-9"></span></div>';
+        html += '<div class="mt-2 p-2 bg-light rounded"><span class="placeholder col-8"></span></div>';
+        html += '</div>';
+        html += '</div>';
+      });
+      
+      html += '</div>';
+      insightsEl.innerHTML = html;
+    }
+
+    async function calculateEngagement(retros, actions, headers) {
+      try {
+        const engagementEl = document.getElementById('engagement');
+        if (!engagementEl) return;
+
+        // Ensure arrays are defined
+        retros = retros || [];
+        actions = actions || [];
+
+        let engagementScore = 0;
+        let factors = 0;
+        let totalWeight = 0;
+
+        // Factor 1: Action Item Completion Rate (weight: 40%)
+        if (actions && actions.length > 0) {
+          const completedActions = actions.filter(a => a.status === 'completed').length;
+          const actionCompletionRate = (completedActions / actions.length) * 100;
+          engagementScore += actionCompletionRate * 0.4;
+          totalWeight += 0.4;
+          factors++;
+        }
+
+        // Factor 2: Retrospective Completion Rate (weight: 35%)
+        if (retros && retros.length > 0) {
+          const completedRetros = retros.filter(r => {
+            const status = r.status || '';
+            const phase = r.current_phase || '';
+            return status === 'completed' || phase === 'completed' || phase === 'summary';
+          }).length;
+          const retroCompletionRate = (completedRetros / retros.length) * 100;
+          engagementScore += retroCompletionRate * 0.35;
+          totalWeight += 0.35;
+          factors++;
+        }
+
+        // Factor 3: Participation Rate (weight: 25%) - Calculate from participant data
+        if (retros && retros.length > 0) {
+          let totalParticipants = 0;
+          let engagedParticipants = 0;
+
+          // Sample up to 5 most recent retrospectives to calculate participation
+          const recentRetros = retros.slice(0, 5);
+          
+          for (const retro of recentRetros) {
+            try {
+              const participantsResponse = await fetch(`/api/v1/retrospectives/${retro.id}/participants`, { headers }).catch(() => null);
+              if (participantsResponse && participantsResponse.ok) {
+                const participants = await participantsResponse.json();
+                totalParticipants += participants.length;
+                // Count participants who completed input or voting
+                engagedParticipants += participants.filter(p => 
+                  p.completed_input === true || p.completed_voting === true
+                ).length;
+              }
+            } catch (e) {
+              // Skip if participant data not available
+            }
+          }
+
+          if (totalParticipants > 0) {
+            const participationRate = (engagedParticipants / totalParticipants) * 100;
+            engagementScore += participationRate * 0.25;
+            totalWeight += 0.25;
+            factors++;
+          }
+        }
+
+        // Calculate final engagement score
+        let finalEngagement = 0;
+        if (totalWeight > 0) {
+          // Normalize by total weight used
+          finalEngagement = engagementScore / totalWeight;
+        } else if (factors === 0) {
+          // No data available
+          finalEngagement = 0;
+        } else {
+          // Fallback: simple average if weights don't add up
+          finalEngagement = engagementScore / factors;
+        }
+
+        // Round to nearest integer
+        finalEngagement = Math.round(finalEngagement);
+        
+        // Ensure it's between 0 and 100
+        finalEngagement = Math.max(0, Math.min(100, finalEngagement));
+        
+        engagementEl.textContent = finalEngagement + '%';
+      } catch (error) {
+        console.error('Error calculating engagement:', error);
+        // Fallback to simple calculation
+        const engagementEl = document.getElementById('engagement');
+        if (engagementEl) {
+          retros = retros || [];
+          actions = actions || [];
           
           if (actions.length > 0) {
-            const engagement = Math.round((completed / actions.length) * 100);
-            document.getElementById('engagement').textContent = engagement + '%';
+            const completedActions = actions.filter(a => a.status === 'completed').length;
+            const engagement = Math.round((completedActions / actions.length) * 100);
+            engagementEl.textContent = engagement + '%';
+          } else if (retros.length > 0) {
+            const completedRetros = retros.filter(r => {
+              const status = r.status || '';
+              const phase = r.current_phase || '';
+              return status === 'completed' || phase === 'completed' || phase === 'summary';
+            }).length;
+            const engagement = Math.round((completedRetros / retros.length) * 100);
+            engagementEl.textContent = engagement + '%';
+          } else {
+            engagementEl.textContent = '0%';
+          }
+        }
+      }
+    }
+
+    async function generateAIInsights(retros, actions, headers, insightsEl) {
+      if (!insightsEl) return;
+
+      try {
+        // Fetch all workspaces
+        const workspacesResponse = await fetch('/api/v1/workspaces/', { headers }).catch(() => null);
+        if (!workspacesResponse || !workspacesResponse.ok) {
+          insightsEl.innerHTML = '<p class="text-muted mb-0">Complete retrospectives to see AI-powered insights and patterns.</p>';
+          return;
+        }
+
+        const workspaces = await workspacesResponse.json();
+        if (workspaces.length === 0) {
+          insightsEl.innerHTML = '<p class="text-muted mb-0">Create a workspace to start tracking insights.</p>';
+          return;
+        }
+
+        // Process each workspace
+        const workspaceInsights = [];
+        
+        for (const workspace of workspaces) {
+          // Fetch retrospectives for this workspace
+          const workspaceRetrosResponse = await fetch(`/api/v1/retrospectives/?workspace_id=${workspace.id}`, { headers }).catch(() => null);
+          const workspaceRetros = workspaceRetrosResponse && workspaceRetrosResponse.ok ? await workspaceRetrosResponse.json() : [];
+          
+          // Fetch action items for this workspace
+          const workspaceActionsResponse = await fetch(`/api/v1/action-items/?workspace_id=${workspace.id}`, { headers }).catch(() => null);
+          const workspaceActions = workspaceActionsResponse && workspaceActionsResponse.ok ? await workspaceActionsResponse.json() : [];
+
+          // Count completed retrospectives
+          const completedRetros = workspaceRetros.filter(r => 
+            r.status === 'completed' || r.current_phase === 'completed' || r.current_phase === 'summary'
+          );
+          const completedCount = completedRetros.length;
+          const totalRetros = workspaceRetros.length;
+
+          // Get summary from latest completed retro
+          let summary = '';
+          if (completedRetros.length > 0) {
+            const latestRetro = completedRetros[0];
+            summary = `Latest: ${latestRetro.title || latestRetro.sprint_name || 'Completed retrospective'}`;
+            
+            // Try to get themes from latest retro
+            try {
+              const groupingResponse = await fetch(`/api/v1/grouping/${latestRetro.id}`, { headers }).catch(() => null);
+              if (groupingResponse && groupingResponse.ok) {
+                const groupingData = await groupingResponse.json();
+                const themes = groupingData.themes || [];
+                if (themes.length > 0) {
+                  const topThemes = themes.slice(0, 3).map(t => t.theme_title || t.title || '').filter(Boolean);
+                  if (topThemes.length > 0) {
+                    summary += `. Key themes: ${topThemes.join(', ')}`;
+                  }
+                }
+              }
+            } catch (e) {
+              // Continue without themes
+            }
+          } else if (workspaceRetros.length > 0) {
+            const inProgressRetros = workspaceRetros.filter(r => r.status === 'in_progress');
+            if (inProgressRetros.length > 0) {
+              summary = `${inProgressRetros.length} retrospective${inProgressRetros.length > 1 ? 's' : ''} in progress`;
+            } else {
+              summary = 'No completed retrospectives yet';
+            }
+          } else {
+            summary = 'No retrospectives created yet';
+          }
+
+          // Get pending action items
+          const pendingActions = workspaceActions.filter(a => 
+            a.status === 'pending' || a.status === 'in_progress'
+          );
+          const overdueActions = pendingActions.filter(a => {
+            if (!a.due_date) return false;
+            return new Date(a.due_date) < new Date();
+          });
+
+          // Generate recommendation
+          let recommendation = '';
+          if (completedCount === 0 && totalRetros === 0) {
+            recommendation = 'Create your first retrospective to start tracking team insights and improvements.';
+          } else if (completedCount === 0 && totalRetros > 0) {
+            recommendation = 'Complete your in-progress retrospectives to unlock insights and action items.';
+          } else if (overdueActions.length > 0) {
+            recommendation = `Address ${overdueActions.length} overdue action item${overdueActions.length > 1 ? 's' : ''} to maintain momentum.`;
+          } else if (pendingActions.length > 0) {
+            const completionRate = workspaceActions.length > 0 
+              ? Math.round((workspaceActions.filter(a => a.status === 'completed').length / workspaceActions.length) * 100)
+              : 0;
+            if (completionRate < 60) {
+              recommendation = `Focus on completing ${pendingActions.length} pending action item${pendingActions.length > 1 ? 's' : ''} to improve team velocity.`;
+            } else {
+              recommendation = `Continue the momentum - ${pendingActions.length} action item${pendingActions.length > 1 ? 's are' : ' is'} in progress.`;
+            }
+          } else if (completedCount > 0) {
+            recommendation = 'Great progress! Consider scheduling your next retrospective to maintain continuous improvement.';
+          } else {
+            recommendation = 'Start tracking improvements by completing retrospectives and action items.';
+          }
+
+          workspaceInsights.push({
+            workspace: workspace,
+            completedCount: completedCount,
+            totalRetros: totalRetros,
+            summary: summary,
+            pendingActions: pendingActions,
+            overdueActions: overdueActions,
+            recommendation: recommendation
+          });
+        }
+
+        // Build HTML organized by workspace with typewriter effect
+        let html = '<div class="mb-3">';
+        html += '<h6 class="mb-3"><i class="bi bi-lightbulb-fill text-warning"></i> AI Highlights</h6>';
+        
+        if (workspaceInsights.length === 0) {
+          html += '<p class="text-muted mb-0">Complete retrospectives to see AI-powered insights and patterns.</p>';
+          insightsEl.innerHTML = html + '</div>';
+        } else {
+          // Create card structure immediately
+          workspaceInsights.forEach((insight, index) => {
+            html += `<div class="card mb-3 ${index > 0 ? 'mt-3' : ''}" style="border-left: 4px solid #667eea;" data-workspace-index="${index}">`;
+            html += '<div class="card-body">';
+            html += `<h6 class="mb-2"><i class="bi bi-folder-fill text-primary"></i> ${escapeHtml(insight.workspace.name)}</h6>`;
+            html += `<p class="mb-2" id="retros-count-${index}"><strong>Retros Completed:</strong> <span class="typewriter-text"></span></p>`;
+            html += `<p class="mb-2 text-muted" id="summary-${index}"><strong>Summary:</strong> <span class="typewriter-text"></span></p>`;
+            html += `<div class="mb-2" id="actions-${index}"></div>`;
+            html += `<div class="mt-2 p-2 bg-light rounded" id="recommendation-${index}"></div>`;
+            html += '</div></div>';
+          });
+          html += '</div>';
+          insightsEl.innerHTML = html;
+          
+          // Now populate each card with typewriter effect
+          for (let i = 0; i < workspaceInsights.length; i++) {
+            const insight = workspaceInsights[i];
+            
+            // Type Retros Completed
+            await typewriterEffect(`retros-count-${i}`, `${insight.completedCount} of ${insight.totalRetros}`, 20);
+            await new Promise(r => setTimeout(r, 100));
+            
+            // Type Summary
+            await typewriterEffect(`summary-${i}`, insight.summary, 15);
+            await new Promise(r => setTimeout(r, 200));
+            
+            // Show Action Items
+            const actionsEl = document.getElementById(`actions-${i}`);
+            if (insight.pendingActions.length > 0) {
+              let actionsHtml = `<strong>Action Items to Complete:</strong><ul class="mb-0 mt-1">`;
+              for (const action of insight.pendingActions.slice(0, 5)) {
+                const isOverdue = insight.overdueActions.some(a => a.id === action.id);
+                const dueDateText = action.due_date ? ` (Due: ${new Date(action.due_date).toLocaleDateString()})` : '';
+                const overdueBadge = isOverdue ? ' <span class="badge bg-danger">Overdue</span>' : '';
+                actionsHtml += `<li>${escapeHtml(action.title || action.description || 'Untitled')}${dueDateText}${overdueBadge}</li>`;
+              }
+              if (insight.pendingActions.length > 5) {
+                actionsHtml += `<li class="text-muted"><em>...and ${insight.pendingActions.length - 5} more</em></li>`;
+              }
+              actionsHtml += '</ul>';
+              actionsEl.innerHTML = actionsHtml;
+            } else {
+              actionsEl.innerHTML = '<p class="mb-2 text-success"><strong>Action Items:</strong> All completed! 🎉</p>';
+            }
+            await new Promise(r => setTimeout(r, 150));
+            
+            // Type Recommendation
+            const recHtml = `<strong><i class="bi bi-activity text-primary"></i> Recommendation:</strong> <span class="typewriter-text"></span>`;
+            document.getElementById(`recommendation-${i}`).innerHTML = recHtml;
+            await typewriterEffect(`recommendation-${i}`, insight.recommendation, 15);
+            await new Promise(r => setTimeout(r, 150));
           }
         }
       } catch (error) {
-        console.log('Analytics load:', error);
-      }
-      
-      if (insightsEl) {
-        insightsEl.innerHTML = `
-          <div class="mb-3">
-            <h6 class="mb-1"><i class="bi bi-lightbulb"></i> AI Highlights</h6>
-            <ul class="mb-0">
-              <li>Top themes across recent retrospectives</li>
-              <li>Action item completion trend and blockers</li>
-              <li>Participation and engagement signals</li>
-            </ul>
-          </div>
-          <div>
-            <h6 class="mb-1"><i class="bi bi-activity"></i> Recommendations</h6>
-            <ul class="mb-0">
-              <li>Focus area for next sprint</li>
-              <li>Suggested experiments to try</li>
-              <li>Follow-ups from last retro</li>
-            </ul>
-          </div>
-        `;
+        console.error('Error generating insights:', error);
+        insightsEl.innerHTML = '<p class="text-muted">Complete retrospectives to see AI-powered insights and patterns.</p>';
       }
     }
     
