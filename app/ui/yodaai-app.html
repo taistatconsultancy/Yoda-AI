@@ -5642,6 +5642,35 @@
           return;
         }
 
+        // Generate data hash to check if insights need to be regenerated
+        // Include workspace IDs, all retro IDs, and completed retro IDs to detect completion changes
+        const workspaceIds = workspaces.map(w => w.id).sort().join(',');
+        const retroIds = retros.map(r => r.id).sort().join(',');
+        const completedRetroIds = retros
+          .filter(r => {
+            const status = (r.status || '').toLowerCase();
+            const phase = (r.current_phase || '').toLowerCase();
+            return status === 'completed' || phase === 'completed' || phase === 'summary';
+          })
+          .map(r => r.id)
+          .sort()
+          .join(',');
+        const dataHash = `${workspaceIds}|${retroIds}|${completedRetroIds}`;
+        const cacheKey = `yodaai_insights_${currentUser?.id || 'anonymous'}`;
+        const hashKey = `yodaai_insights_hash_${currentUser?.id || 'anonymous'}`;
+
+        // Check if we have cached insights with matching hash
+        const cachedHash = localStorage.getItem(hashKey);
+        const cachedInsights = localStorage.getItem(cacheKey);
+
+        if (cachedHash === dataHash && cachedInsights) {
+          // Data hasn't changed, use cached insights
+          insightsEl.innerHTML = cachedInsights;
+          return;
+        }
+
+        // Data has changed or no cache exists, generate new insights
+
         // Process each workspace
         const workspaceInsights = [];
         
@@ -5743,7 +5772,17 @@
         
         if (workspaceInsights.length === 0) {
           html += '<p class="text-muted mb-0">Complete retrospectives to see AI-powered insights and patterns.</p>';
-          insightsEl.innerHTML = html + '</div>';
+          html += '</div>';
+          insightsEl.innerHTML = html;
+          
+          // Cache empty insights too
+          try {
+            localStorage.setItem(cacheKey, html);
+            localStorage.setItem(hashKey, dataHash);
+          } catch (e) {
+            console.warn('Failed to cache insights:', e);
+          }
+          return;
         } else {
           // Create card structure immediately
           workspaceInsights.forEach((insight, index) => {
@@ -5797,6 +5836,14 @@
             await typewriterEffect(`recommendation-${i}`, insight.recommendation, 15);
             await new Promise(r => setTimeout(r, 150));
           }
+        }
+
+        // Cache the generated insights HTML and hash
+        try {
+          localStorage.setItem(cacheKey, insightsEl.innerHTML);
+          localStorage.setItem(hashKey, dataHash);
+        } catch (e) {
+          console.warn('Failed to cache insights:', e);
         }
       } catch (error) {
         console.error('Error generating insights:', error);
