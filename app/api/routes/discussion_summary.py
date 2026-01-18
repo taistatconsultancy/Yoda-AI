@@ -932,7 +932,7 @@ async def download_summary_pdf(
                     elements.append(Paragraph(f"⚠ {challenge}", normal_style))
                 elements.append(Spacer(1, 0.3*inch))
             
-            # Disciplined Agile Recommendations (format bullets + bold)
+            # Disciplined Agile Recommendations (format: number titles only, bullets for recommendations)
             if da_rec and da_rec.content:
                 elements.append(PageBreak())
                 elements.append(Paragraph("Disciplined Agile Recommendations", heading_style))
@@ -941,28 +941,63 @@ async def download_summary_pdf(
                     raw = da_rec.content or ""
                     # Convert **bold** to <b> for reportlab Paragraph
                     raw = re.sub(r"\*\*(.*?)\*\*", r"<b>\1</b>", raw)
-                    # Split into lines and bullets
+                    # Split into lines
                     lines = [l.strip() for l in raw.splitlines() if l.strip()]
-                    bullet_lines = []
-                    for line in lines:
-                        m = re.match(r"^[-•]\s*(.*)$", line)
-                        if m:
-                            bullet_lines.append(m.group(1))
-                        else:
-                            # Further split on ' - ' to extract sub-bullets
-                            parts = [p.strip() for p in re.split(r"\s-\s", line) if p.strip()]
-                            if len(parts) > 1:
-                                bullet_lines.extend(parts)
-                            else:
-                                bullet_lines.append(line)
+                    
                     number_idx = 1
-                    for blt in bullet_lines:
-                        if '<b>' in blt and '</b>' in blt:
-                            elements.append(Paragraph(f"{number_idx}. {blt}", normal_style))
+                    i = 0
+                    while i < len(lines):
+                        line = lines[i]
+                        
+                        # Remove leading bullets/dashes/numbers if present
+                        clean_line = re.sub(r"^[-•]\s*", "", line)
+                        clean_line = re.sub(r"^\d+\.\s*", "", clean_line)
+                        
+                        # Check if this line is a title (contains bold tags or is short)
+                        is_title = '<b>' in clean_line and '</b>' in clean_line
+                        
+                        # Also check if it's a standalone title (next line is a recommendation)
+                        if not is_title and i + 1 < len(lines):
+                            next_line = lines[i + 1].strip()
+                            # If next line starts with action verb or "Use/Apply/Implement", current is title
+                            if re.match(r"^(Use|Apply|Implement|Practice|Leverage|Optimize)", next_line, re.IGNORECASE):
+                                is_title = True
+                        
+                        if is_title:
+                            # Extract title text (remove bold tags for numbering, but keep content)
+                            title_text = re.sub(r"</?b>", "", clean_line)
+                            elements.append(Paragraph(f"{number_idx}. <b>{title_text}</b>", normal_style))
                             number_idx += 1
+                            i += 1
+                            
+                            # Add following recommendations as bullets until next title
+                            while i < len(lines):
+                                next_line = lines[i].strip()
+                                next_clean = re.sub(r"^[-•]\s*", "", next_line)
+                                next_clean = re.sub(r"^\d+\.\s*", "", next_clean)
+                                
+                                # Check if next line is a title
+                                is_next_title = '<b>' in next_clean and '</b>' in next_clean
+                                if not is_next_title and i + 1 < len(lines):
+                                    check_line = lines[i + 1].strip()
+                                    if re.match(r"^(Use|Apply|Implement|Practice|Leverage|Optimize)", check_line, re.IGNORECASE):
+                                        is_next_title = True
+                                
+                                if is_next_title:
+                                    break
+                                
+                                # This is a recommendation - use bullet
+                                rec_text = re.sub(r"</?b>", "", next_clean)
+                                elements.append(Paragraph(f"• {rec_text}", normal_style))
+                                i += 1
                         else:
-                            elements.append(Paragraph(f"• {blt}", normal_style))
-                except Exception:
+                            # Regular line - treat as recommendation
+                            rec_text = re.sub(r"</?b>", "", clean_line)
+                            elements.append(Paragraph(f"• {rec_text}", normal_style))
+                            i += 1
+                            
+                except Exception as e:
+                    print(f"DA recommendations formatting error: {e}")
                     # Fallback to raw paragraph
                     elements.append(Paragraph(da_rec.content, normal_style))
                 elements.append(Spacer(1, 0.3*inch))

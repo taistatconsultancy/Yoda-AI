@@ -2194,6 +2194,102 @@
     // Initialize Firebase
     firebase.initializeApp(firebaseConfig);
 
+    // ==================== INACTIVITY TRACKING ====================
+    let inactivityTimer = null;
+    let inactivityCheckInterval = null;
+    const INACTIVITY_TIMEOUT = 60 * 60 * 1000; // 1 hour in milliseconds
+    
+    function resetInactivityTimer() {
+      // Update last activity timestamp
+      localStorage.setItem('yodaai_last_activity', Date.now().toString());
+    }
+    
+    function checkInactivity() {
+      const lastActivity = localStorage.getItem('yodaai_last_activity');
+      if (!lastActivity) {
+        resetInactivityTimer();
+        return;
+      }
+      
+      const timeSinceActivity = Date.now() - parseInt(lastActivity);
+      
+      if (timeSinceActivity >= INACTIVITY_TIMEOUT) {
+        // User has been inactive for 1 hour, log them out (logout will clear cache)
+        console.log('User inactive for 1 hour, logging out and clearing cache...');
+        logout();
+      }
+    }
+    
+    function startInactivityTracking() {
+      // Reset timer on any user activity
+      const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+      
+      activityEvents.forEach(event => {
+        document.addEventListener(event, resetInactivityTimer, true);
+      });
+      
+      // Set initial activity timestamp
+      resetInactivityTimer();
+      
+      // Check inactivity every minute
+      if (inactivityCheckInterval) {
+        clearInterval(inactivityCheckInterval);
+      }
+      inactivityCheckInterval = setInterval(checkInactivity, 60 * 1000); // Check every minute
+    }
+    
+    function stopInactivityTracking() {
+      if (inactivityCheckInterval) {
+        clearInterval(inactivityCheckInterval);
+        inactivityCheckInterval = null;
+      }
+      
+      // Remove event listeners
+      const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+      activityEvents.forEach(event => {
+        document.removeEventListener(event, resetInactivityTimer, true);
+      });
+    }
+
+    // ==================== CACHE CLEARING ====================
+    function clearAllCache() {
+      // Clear all YodaAI-related localStorage items
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('yodaai_')) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => localStorage.removeItem(key));
+      
+      // Also clear any pending session/retro IDs
+      localStorage.removeItem('pending_session_id');
+      localStorage.removeItem('pending_retro_id');
+      
+      // Clear user data in memory
+      currentUser = null;
+      authToken = null;
+      teamMembers = [];
+      chatHistory = [];
+      onboardingProgress = 0;
+    }
+
+    // ==================== TAB CLOSE HANDLER ====================
+    // Clear cache when tab is closed
+    window.addEventListener('beforeunload', function() {
+      // Clear all cache when tab closes
+      clearAllCache();
+    });
+
+    // Also handle page visibility change (when tab becomes hidden)
+    document.addEventListener('visibilitychange', function() {
+      if (document.hidden) {
+        // Tab is now hidden - could be closing or switching tabs
+        // We'll clear cache on beforeunload, but this is a backup
+      }
+    });
+
     // ==================== CHECK LOGIN ON LOAD ====================
     document.addEventListener('DOMContentLoaded', function() {
       // Handle Google sign-in redirect result if user was redirected
@@ -2208,6 +2304,9 @@
         
         // Check for session_id in URL parameters
         handleUrlSessionId();
+        
+        // Start inactivity tracking for logged-in users
+        startInactivityTracking();
       }
     });
 
@@ -2398,6 +2497,7 @@
         
         console.log('Sign in successful:', currentUser.email);
         showApp();
+        startInactivityTracking(); // Start tracking inactivity
         checkPendingSession();
       } catch (error) {
         console.error('Sign in error:', error);
@@ -2516,6 +2616,7 @@
           
           console.log('Sign up successful:', currentUser.email);
           showApp();
+          startInactivityTracking(); // Start tracking inactivity
           checkPendingSession();
           
           // Show onboarding for new users
@@ -2642,6 +2743,7 @@
         
         closeLoginModal();
         showApp();
+        startInactivityTracking(); // Start tracking inactivity
         checkPendingSession();
         showToast('Successfully signed in with Google!', 'success');
         
@@ -3025,13 +3127,13 @@
     }
 
     async function logout() {
-      localStorage.removeItem('yodaai_user');
-      localStorage.removeItem('yodaai_token');
-      currentUser = null;
-      authToken = null;
-      teamMembers = [];
-      chatHistory = [];
-      onboardingProgress = 0;
+      // Stop inactivity tracking
+      stopInactivityTracking();
+      
+      // Clear all cache
+      clearAllCache();
+      
+      // Reload page
       window.location.reload();
     }
 
