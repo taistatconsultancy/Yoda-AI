@@ -847,6 +847,32 @@ async def download_summary_pdf(
                     elements.append(Spacer(1, 0.1*inch))
                 elements.append(Spacer(1, 0.2*inch))
             
+            # Overall Assessment
+            if retro.ai_summary:
+                elements.append(Paragraph("Overall Assessment", heading_style))
+                elements.append(Paragraph(retro.ai_summary, normal_style))
+                elements.append(Spacer(1, 0.3*inch))
+            
+            # Achievements
+            achievements = insights.get('achievements', [])
+            if achievements:
+                elements.append(Paragraph("Key Achievements", heading_style))
+                for achievement in achievements:
+                    elements.append(Paragraph(f"✓ {achievement}", normal_style))
+                elements.append(Spacer(1, 0.3*inch))
+            
+            # Challenges
+            challenges = insights.get('challenges', [])
+            if challenges:
+                elements.append(Paragraph("Main Challenges", heading_style))
+                for challenge in challenges:
+                    elements.append(Paragraph(f"⚠ {challenge}", normal_style))
+                elements.append(Spacer(1, 0.3*inch))
+            
+            # Page break before Participants and Action Items (Page 2)
+            elements.append(PageBreak())
+            
+            # Participants and Action Items on their own page
             if participant_rows:
                 elements.append(Paragraph("Participants", heading_style))
                 participant_table_data = [["Name", "Email", "Voting Complete"]]
@@ -909,28 +935,6 @@ async def download_summary_pdf(
             else:
                 elements.append(Paragraph("No action items were captured for this retrospective.", normal_style))
             elements.append(Spacer(1, 0.3*inch))
-            
-            # Overall Assessment
-            if retro.ai_summary:
-                elements.append(Paragraph("Overall Assessment", heading_style))
-                elements.append(Paragraph(retro.ai_summary, normal_style))
-                elements.append(Spacer(1, 0.3*inch))
-            
-            # Achievements
-            achievements = insights.get('achievements', [])
-            if achievements:
-                elements.append(Paragraph("Key Achievements", heading_style))
-                for achievement in achievements:
-                    elements.append(Paragraph(f"✓ {achievement}", normal_style))
-                elements.append(Spacer(1, 0.3*inch))
-            
-            # Challenges
-            challenges = insights.get('challenges', [])
-            if challenges:
-                elements.append(Paragraph("Main Challenges", heading_style))
-                for challenge in challenges:
-                    elements.append(Paragraph(f"⚠ {challenge}", normal_style))
-                elements.append(Spacer(1, 0.3*inch))
             
             # Disciplined Agile Recommendations (format: number titles only, bullets for recommendations)
             if da_rec and da_rec.content:

@@ -696,15 +696,33 @@
     
     // Initialize on page load
     document.addEventListener('DOMContentLoaded', async function() {
-      // Extract retro code from URL
+      // Extract retro code from URL or localStorage (for refresh persistence)
       const pathParts = window.location.pathname.split('/');
       retroCode = pathParts[pathParts.length - 1] || pathParts[pathParts.length - 2];
+      
+      // If no code in URL but we have one stored, restore it
+      if ((!retroCode || retroCode === 'retrospective' || retroCode === 'retrospective.html') && localStorage.getItem('yodaai_current_retro_code')) {
+        retroCode = localStorage.getItem('yodaai_current_retro_code');
+        // Update URL without reload
+        if (retroCode) {
+          window.history.replaceState({}, '', `/retrospective/${retroCode}`);
+        }
+      }
+      
+      // Store retro code for refresh persistence
+      if (retroCode && retroCode !== 'retrospective' && retroCode !== 'retrospective.html') {
+        localStorage.setItem('yodaai_current_retro_code', retroCode);
+      }
       
       // Get auth token from localStorage or URL params
       authToken = localStorage.getItem('yodaai_token') || new URLSearchParams(window.location.search).get('token');
       const userStr = localStorage.getItem('yodaai_user');
       if (userStr) {
-        currentUser = JSON.parse(userStr);
+        try {
+          currentUser = JSON.parse(userStr);
+        } catch (e) {
+          console.error('Error parsing user data:', e);
+        }
       }
       
       if (!authToken) {
@@ -724,8 +742,8 @@
       // Load retrospective data if we have a code
       if (retroCode && retroCode !== 'retrospective' && retroCode !== 'retrospective.html') {
         await loadRetrospective();
-      // Start polling for updates (every 3 seconds)
-      mainPollInterval = setInterval(pollForUpdates, 3000);
+        // Start polling for updates (every 3 seconds)
+        mainPollInterval = setInterval(pollForUpdates, 3000);
       } else {
         // No specific retrospective - show upcoming list
         document.querySelector('.retro-header:not(#upcomingRetrosSection)').style.display = 'none';
@@ -744,6 +762,14 @@
         });
         
         if (!response.ok) {
+          // Handle 401/403 errors gracefully - don't redirect immediately
+          if (response.status === 401 || response.status === 403) {
+            // Token might be expired, but don't redirect - let user stay on page
+            // They can manually log in if needed
+            console.warn('Authentication issue, but staying on page');
+            showError('Authentication issue. Please refresh or log in again.', true);
+            return;
+          }
           throw new Error('Retrospective not found');
         }
         
@@ -2542,7 +2568,15 @@
         if (retroActionItemModalInstance) {
           retroActionItemModalInstance.hide();
         }
+        
+        // Reload action items immediately
         await loadRetroActionItems();
+        
+        // Reset hash to force update on next poll for other users
+        lastActionItemsHash = null;
+        
+        // Trigger immediate poll for other users to see the update
+        setTimeout(() => pollActionItems(), 500);
       } catch (error) {
         console.error('Save action item error:', error);
         showToast(error.message || 'Failed to save action item', 'danger');
@@ -2576,6 +2610,14 @@
           throw new Error('Failed to load action items');
         }
         retroActionItems = await response.json();
+        
+        // Update hash for change detection
+        lastActionItemsHash = JSON.stringify(retroActionItems.map(item => ({
+          id: item.id,
+          status: item.status,
+          updated_at: item.updated_at
+        })));
+        
         highlightRetroActionItemTab(retroActionFilter);
         const filtered = retroActionFilter === 'all'
           ? retroActionItems
@@ -2713,6 +2755,10 @@
         }
         showToast('Action item completed!', 'success');
         await loadRetroActionItems();
+        
+        // Reset hash and trigger poll for other users
+        lastActionItemsHash = null;
+        setTimeout(() => pollActionItems(), 500);
       } catch (error) {
         console.error('Complete action item error:', error);
         showToast(error.message || 'Failed to complete action item', 'danger');
@@ -2734,6 +2780,10 @@
         }
         showToast('Action item deleted!', 'success');
         await loadRetroActionItems();
+        
+        // Reset hash and trigger poll for other users
+        lastActionItemsHash = null;
+        setTimeout(() => pollActionItems(), 500);
       } catch (error) {
         console.error('Delete action item error:', error);
         showToast(error.message || 'Failed to delete action item', 'danger');
@@ -3304,9 +3354,65 @@
           if (status.participants) {
             displayParticipants(status.participants);
           }
+        } else if (response.status === 401 || response.status === 403) {
+          // Auth error - stop polling but don't redirect
+          if (mainPollInterval) {
+            clearInterval(mainPollInterval);
+            mainPollInterval = null;
+          }
+          console.warn('Authentication error during polling - stopping updates');
         }
       } catch (error) {
-        // Silently fail polling errors
+        // Silently fail polling errors (network issues, etc.)
+      }
+      
+      // Poll for action items if in discussion phase or summary phase
+      if (retroData && (currentPhase === 'discussion' || currentPhase === 'summary')) {
+        await pollActionItems();
+      }
+    }
+    
+    let lastActionItemsHash = null;
+    async function pollActionItems() {
+      if (!retroData || !authToken) return;
+      
+      try {
+        const response = await fetch(`/api/v1/action-items/?retrospective_id=${retroData.id}`, {
+          headers: {
+            'Authorization': `Bearer ${authToken}`
+          }
+        });
+        
+        if (response.ok) {
+          const newActionItems = await response.json();
+          
+          // Create a simple hash to detect changes
+          const itemsHash = JSON.stringify(newActionItems.map(item => ({
+            id: item.id,
+            status: item.status,
+            updated_at: item.updated_at
+          })));
+          
+          // Only update if action items have changed
+          if (itemsHash !== lastActionItemsHash) {
+            lastActionItemsHash = itemsHash;
+            retroActionItems = newActionItems;
+            
+            // Only update display if we're currently viewing action items
+            const currentFilter = retroActionFilter || 'all';
+            const filtered = currentFilter === 'all'
+              ? retroActionItems
+              : retroActionItems.filter(item => item.status === currentFilter);
+            
+            // Check if we're in discussion phase and action items section is visible
+            if (currentPhase === 'discussion' && document.getElementById('discussionActionItemsList')) {
+              displayRetroActionItems(filtered);
+              highlightRetroActionItemTab(currentFilter);
+            }
+          }
+        }
+      } catch (error) {
+        // Silently fail - don't spam console
       }
     }
     
