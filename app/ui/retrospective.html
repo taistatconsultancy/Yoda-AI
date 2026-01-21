@@ -708,6 +708,12 @@
       }
       
       if (!authToken) {
+        // Redirect to login with return URL if we have a retrospective code
+        if (retroCode && retroCode !== 'retrospective' && retroCode !== 'retrospective.html') {
+          const returnUrl = encodeURIComponent(window.location.href);
+          window.location.href = `/yodaai-app?redirect=${returnUrl}`;
+          return;
+        }
         showError('Please log in to join this retrospective.');
         return;
       }
@@ -3304,12 +3310,16 @@
       }
     }
     
-    function showError(message) {
+    function showError(message, showLoginButton = false) {
+      const loginButton = showLoginButton 
+        ? `<a href="/yodaai-app?redirect=${encodeURIComponent(window.location.href)}" class="btn btn-primary mt-3 me-2">Log In</a>`
+        : '';
       document.getElementById('mainContent').innerHTML = `
         <div class="alert alert-danger text-center">
           <i class="bi bi-exclamation-triangle display-1"></i>
           <h4 class="mt-3">${message}</h4>
-          <a href="/" class="btn btn-primary mt-3">Return to Home</a>
+          ${loginButton}
+          <a href="/" class="btn btn-outline-secondary mt-3">Return to Home</a>
         </div>
       `;
     }

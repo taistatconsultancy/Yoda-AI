@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     # Application
     DEBUG: bool = True
     ENVIRONMENT: str = "development"
-    APP_URL: str = "https://yoda-ai-theta.vercel.app/"
+    APP_URL: str = "https://yoda-ai.vercel.app/"
     
     # Feature Flags
     ENABLE_EMAIL_NOTIFICATIONS: bool = True

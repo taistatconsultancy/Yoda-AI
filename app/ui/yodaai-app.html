@@ -2315,6 +2315,23 @@
       const urlParams = new URLSearchParams(window.location.search);
       const sessionId = urlParams.get('session_id');
       const retroId = urlParams.get('retro_id');
+      const redirectUrl = urlParams.get('redirect');
+      
+      // Handle redirect URL (for retrospective access)
+      if (redirectUrl) {
+        console.log('Redirect URL found:', redirectUrl);
+        localStorage.setItem('pending_redirect_url', redirectUrl);
+        
+        if (currentUser && authToken) {
+          // User is already logged in, redirect immediately
+          window.location.href = decodeURIComponent(redirectUrl);
+          return;
+        } else {
+          // User not logged in, show login prompt
+          showNotification('Please log in to access the retrospective.', 'info');
+          showLoginModal();
+        }
+      }
       
       if (sessionId) {
         console.log('Session ID found in URL:', sessionId);
@@ -2351,6 +2368,14 @@
     function checkPendingSession() {
       const pendingSessionId = localStorage.getItem('pending_session_id');
       const pendingRetroId = localStorage.getItem('pending_retro_id');
+      const pendingRedirectUrl = localStorage.getItem('pending_redirect_url');
+      
+      // Handle redirect URL first (highest priority)
+      if (pendingRedirectUrl && currentUser && authToken) {
+        localStorage.removeItem('pending_redirect_url');
+        window.location.href = decodeURIComponent(pendingRedirectUrl);
+        return;
+      }
       
       if (pendingSessionId && currentUser && authToken) {
         localStorage.removeItem('pending_session_id');
