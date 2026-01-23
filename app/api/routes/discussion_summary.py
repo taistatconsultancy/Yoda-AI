@@ -10,7 +10,6 @@ from pydantic import BaseModel
 from datetime import datetime
 import os
 import json
-from openai import OpenAI
 
 from app.database.database import get_db
 from app.models.retrospective_new import (
@@ -22,19 +21,15 @@ from app.models.action_item import ActionItem
 from app.models.user import User
 from app.api.dependencies.auth import get_current_user
 from app.core.config import settings
+from app.ai.openai_client import AIClient
+from app.ai.features.discussion import facilitate_discussion_message, answer_general_discussion_question
+from app.ai.features.sprint_summary import generate_sprint_summary
+from app.ai.features.da_recommendations import generate_da_recommendations
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/discussion", tags=["discussion-summary"])
-
-
-def get_openai_client():
-    """Get OpenAI client with API key from settings"""
-    api_key = settings.OPENAI_API_KEY
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY is not set")
-    return OpenAI(api_key=api_key)
 
 
 # Pydantic Models
@@ -174,44 +169,30 @@ async def send_discussion_message(
             DiscussionMessage.discussion_topic_id == topic_id
         ).order_by(DiscussionMessage.created_at).all()
         
-        # Build AI messages
-        messages_for_ai = [
-            {"role": "system", "content": f"""You are YodaAI, facilitating a team discussion on the theme: "{theme.title}". 
-            
-Description: {theme.description}
-Votes received: {topic.total_votes}
-
-Your role:
-1. Keep discussion focused and productive
-2. Ask thought-provoking questions
-3. Encourage participation from everyone
-4. Help identify concrete action items
-5. Summarize key points periodically
-
-Be conversational, supportive, and concise (max 2-3 sentences)."""}
-        ]
-        
+        # Build AI history messages (system prompt is owned by app/ai/)
+        history_messages = []
         for msg, user in history:
             if msg.message_type == 'user' and user:
-                messages_for_ai.append({"role": "user", "content": f"{user.full_name}: {msg.content}"})
+                history_messages.append({"role": "user", "content": f"{user.full_name}: {msg.content}"})
             elif msg.message_type == 'ai_facilitator':
-                messages_for_ai.append({"role": "assistant", "content": msg.content})
-        
-        # Get AI response
+                history_messages.append({"role": "assistant", "content": msg.content})
+
+        # Get AI response (centralized AI layer)
+        ai_model_used = getattr(settings, "AI_MODEL", "gpt-4") or "gpt-4"
         try:
-            openai_client = get_openai_client()
-            response = openai_client.chat.completions.create(
-                model="gpt-4",
-                messages=messages_for_ai,
-                temperature=0.7,
-                max_tokens=200
+            ai = AIClient()
+            ai_content, _usage = facilitate_discussion_message(
+                ai=ai,
+                theme_title=theme.title or "",
+                theme_description=theme.description or "",
+                total_votes=topic.total_votes or 0,
+                history_messages=history_messages,
+                endpoint_name="discussion.topic_message",
             )
-            
-            ai_content = response.choices[0].message.content
-            
         except Exception as ai_error:
-            print(f"OpenAI discussion error: {ai_error}")
+            print(f"AI discussion error: {ai_error}")
             ai_content = "Thank you for sharing. What do others think about this?"
+            ai_model_used = "fallback"
         
         # Save AI response
         ai_msg = DiscussionMessage(
@@ -219,7 +200,7 @@ Be conversational, supportive, and concise (max 2-3 sentences)."""}
             user_id=None,
             content=ai_content,
             message_type='ai_facilitator',
-            ai_model='gpt-4'
+            ai_model=ai_model_used
         )
         db.add(ai_msg)
         db.commit()
@@ -326,40 +307,17 @@ async def general_discussion_chat(
         
         da_context = da_rec.content if da_rec else "No DA recommendations generated yet."
         
-        # Build AI prompt with context
-        system_prompt = f"""You are YodaAI, helping teams understand their retrospective themes and Disciplined Agile recommendations.
-
-Top Discussion Themes:
-{themes_context}
-
-Disciplined Agile Recommendations:
-{da_context}
-
-Your role:
-1. Help clarify themes and their implications
-2. Explain how DA recommendations apply to their situation
-3. Suggest concrete implementation steps
-4. Answer questions about agile practices
-
-Be conversational, practical, and focused on action. Keep responses concise (2-3 sentences max)."""
-        
-        # Get AI response
         try:
-            openai_client = get_openai_client()
-            response = openai_client.chat.completions.create(
-                model="gpt-4",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": message_req.message}
-                ],
-                temperature=0.7,
-                max_tokens=300
+            ai = AIClient()
+            ai_content, _usage = answer_general_discussion_question(
+                ai=ai,
+                themes_context=themes_context,
+                da_context=da_context,
+                user_message=message_req.message,
+                endpoint_name="discussion.general_chat",
             )
-            
-            ai_content = response.choices[0].message.content
-            
         except Exception as ai_error:
-            print(f"OpenAI general chat error: {ai_error}")
+            print(f"AI general chat error: {ai_error}")
             ai_content = "Thank you for your question. Could you please rephrase it or ask about specific themes?"
         
         return {
@@ -420,67 +378,20 @@ async def generate_summary(
             "themes": [{"title": t.title, "description": t.description} for t in themes]
         }
         
-        # Generate summary with OpenAI
-        prompt = f"""Analyze this sprint retrospective and create a comprehensive summary.
-
-Sprint: {retro.sprint_name or 'Unnamed Sprint'}
-Participants: {data_summary['participants']}
-
-LIKED (What went well):
-{json.dumps(data_summary['liked'], indent=2)}
-
-LEARNED (What we learned):
-{json.dumps(data_summary['learned'], indent=2)}
-
-LACKED (What was missing):
-{json.dumps(data_summary['lacked'], indent=2)}
-
-LONGED FOR (What we want):
-{json.dumps(data_summary['longed_for'], indent=2)}
-
-KEY THEMES:
-{json.dumps(data_summary['themes'], indent=2)}
-
-Create a summary with:
-1. Overall sprint assessment (2-3 sentences)
-2. Top 3 achievements
-3. Top 3 challenges
-4. Key recommendations
-
-Return JSON:
-{{
-    "summary": "Overall assessment...",
-    "achievements": ["Achievement 1", "Achievement 2", "Achievement 3"],
-    "challenges": ["Challenge 1", "Challenge 2", "Challenge 3"],
-    "recommendations": ["Recommendation 1", "Recommendation 2", "Recommendation 3"]
-}}
-"""
-        
+        # Generate summary using centralized AI layer (with caching)
         try:
-            print(f"Generating summary for retrospective {retro_id}")
-            print(f"Data summary: {json.dumps(data_summary, indent=2)}")
-            
-            openai_client = get_openai_client()
-            response = openai_client.chat.completions.create(
-                model="gpt-4",
-                messages=[
-                    {"role": "system", "content": "You are an expert agile coach analyzing retrospectives."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.5,
-                max_tokens=1000,
-                response_format={"type": "json_object"}
+            ai = AIClient()
+            result = generate_sprint_summary(
+                ai=ai,
+                data_summary=data_summary,
+                endpoint_name="discussion.generate_summary",
+                cache=True,
             )
-            
-            print(f"OpenAI response received")
-            content = response.choices[0].message.content
-            print(f"Response content: {content[:200]}...")
-            
-            summary_data = json.loads(content)
+            summary_data = result["summary_data"]
             
         except Exception as ai_error:
             import traceback
-            print(f"OpenAI summary error: {ai_error}")
+            print(f"AI summary error: {ai_error}")
             print(f"Traceback: {traceback.format_exc()}")
             summary_data = {
                 "summary": "Summary generation failed. Please review the retrospective data manually.",
@@ -618,40 +529,11 @@ async def get_da_recommendations(
             DiscussionTopic.retrospective_id == retro_id
         ).order_by(DiscussionTopic.total_votes.desc()).limit(5).all()
         
-        # Read disciplined_agile_scrape.md
-        da_guide = ""
-        try:
-            da_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "disciplined_agile_scrape.md")
-            with open(da_path, 'r', encoding='utf-8') as f:
-                da_guide = f.read()[:5000]  # Limit to first 5000 chars
-        except Exception as e:
-            print(f"Could not read DA guide: {e}")
-        
-        # Build prompt for AI
+        # Build themes text for AI (RAG will retrieve DA context via embeddings)
         themes_text = "\n".join([
             f"- {theme.title}: {theme.description} (Votes: {topic.total_votes})"
             for topic, theme in topics
         ])
-        
-        prompt = f"""Based on the following themes from a team retrospective, provide specific Disciplined Agile recommendations.
-
-Key Themes Discussed:
-{themes_text}
-
-Disciplined Agile Framework Overview:
-{da_guide[:2000]}
-
-Generate a concise 1-page summary with:
-1. Specific DA practices that address these themes
-2. Recommended workflow improvements
-3. Tools and techniques to implement
-
-IMPORTANT: Format your response using clear bullet points (- or •) for each recommendation. Use markdown-style formatting:
-- **Category Name**: Description or header
-  - Sub-point 1
-  - Sub-point 2
-
-Keep each bullet point concise and actionable. Structure the output in an organized, easy-to-read format."""
         
         # Check if DA recommendations already exist in database
         existing_da_rec = db.query(DARecommendation).filter(
@@ -664,30 +546,27 @@ Keep each bullet point concise and actionable. Structure the output in an organi
             }
         
         try:
-            openai_client = get_openai_client()
-            response = openai_client.chat.completions.create(
-                model="gpt-4",
-                messages=[
-                    {"role": "system", "content": "You are a Disciplined Agile expert providing actionable recommendations."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.6,
-                max_tokens=1500
+            ai = AIClient()
+            result = generate_da_recommendations(
+                ai=ai,
+                themes_text=themes_text,
+                endpoint_name="discussion.da_recommendations",
+                cache=True,
             )
-            
-            recommendations = response.choices[0].message.content
-            
+            recommendations = result["content"]
+            ai_model_used = result.get("model") or getattr(settings, "AI_MODEL", "gpt-4") or "gpt-4"
+
             # Store DA recommendations in database
             da_rec = DARecommendation(
                 retrospective_id=retro_id,
                 content=recommendations,
-                ai_model="gpt-4"
+                ai_model=ai_model_used
             )
             db.add(da_rec)
             db.commit()
-            
+
         except Exception as ai_error:
-            print(f"OpenAI DA recommendations error: {ai_error}")
+            print(f"AI DA recommendations error: {ai_error}")
             recommendations = "No specific recommendations available at this time. Please review the Disciplined Agile framework for guidance."
         
         return {

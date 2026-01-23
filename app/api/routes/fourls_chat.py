@@ -9,7 +9,6 @@ from pydantic import BaseModel
 from datetime import datetime, timezone
 import os
 import json
-from openai import OpenAI
 
 from app.database.database import get_db
 from app.models.retrospective_new import (
@@ -19,16 +18,10 @@ from app.models.retrospective_new import (
 from app.models.user import User
 from app.api.dependencies.auth import get_current_user
 from app.core.config import settings
+from app.ai.openai_client import AIClient
+from app.ai.features.fourls_chat import generate_fourls_reply
 
 router = APIRouter(prefix="/api/v1/fourls-chat", tags=["4ls-chat"])
-
-
-def get_openai_client():
-    """Get OpenAI client with API key from settings"""
-    api_key = settings.OPENAI_API_KEY
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY is not set")
-    return OpenAI(api_key=api_key)
 
 
 # Pydantic Models
@@ -414,47 +407,23 @@ async def send_message(
             ChatMessage.session_id == session.id
         ).order_by(ChatMessage.created_at).all()
         
-        messages_for_ai = [
-            {"role": "system", "content": f"""
-        You are an expert, plain-English facilitator for a 4Ls retrospective (Liked, Learned, Lacked, Longed For). Use clear, professional grammar (no stylistic inversions). Be concise and friendly.
-
-        Current category: {session.current_category.upper()}
-
-        Rules:
-        1 a) This chat is meant for IT,Data science/Analytics projects and teams.If the conversation goes off topic, gently guide them back to the 4Ls framework. ALthough do not use this exact terms(IT,Data science/Analytics).
-        1 b) Acknowledge what they shared.
-        2) Ask AT MOST ONE brief follow-up question, or none if not needed.
-        3) Do NOT combine a follow-up question and a category transition in the same message.
-        4) Only suggest transitioning AFTER the user has given AT LEAST TWO responses in the current category.
-        5) When transitioning, be explicit with phrases like:
-           - "Let’s shift to what you LEARNED."
-           - "Now, let’s explore what you LACKED."
-           - "Finally, what did you LONG FOR?"
-        6) Keep responses under 80 words.
-        
-        """}
-        ]
-        
+        conversation_messages = []
         for msg in conversation_history:
             role = "assistant" if msg.message_type == "assistant" else "user"
-            messages_for_ai.append({"role": role, "content": msg.content})
+            conversation_messages.append({"role": role, "content": msg.content})
         
-        # Call OpenAI
+        # Call AI layer (OpenAI wrapped + token logging)
         try:
-            openai_client = get_openai_client()
-            response = openai_client.chat.completions.create(
-                model="gpt-4",
-                messages=messages_for_ai,
-                temperature=0.3,
-                max_tokens=220
+            ai = AIClient()
+            ai_content, usage = generate_fourls_reply(
+                ai=ai,
+                current_category=session.current_category,
+                conversation_messages=conversation_messages,
+                endpoint_name="fourls_chat.message",
             )
-            
-            ai_content = response.choices[0].message.content
-            tokens_used = response.usage.total_tokens
-            
+            tokens_used = usage.get("total_tokens") or 0
         except Exception as ai_error:
-            print(f"OpenAI API error: {ai_error}")
-            # Fallback response
+            print(f"AI API error: {ai_error}")
             ai_content = "Thank you for sharing! Tell me more about that."
             tokens_used = 0
         

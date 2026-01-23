@@ -14,7 +14,8 @@ from . import (
     scheduling,
     google_auth,
     workspace_invitations,
-    onboarding
+    onboarding,
+    workspace_documents
 )
 
 __all__ = [
@@ -30,6 +31,7 @@ __all__ = [
     "scheduling",
     "google_auth",
     "workspace_invitations",
-    "onboarding"
+    "onboarding",
+    "workspace_documents"
 ]
 

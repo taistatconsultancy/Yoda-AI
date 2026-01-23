@@ -60,11 +60,28 @@ class Settings(BaseSettings):
     AI_TEMPERATURE: float = 0.7
     AI_MAX_TOKENS: int = 500
     AI_MODEL: str = "gpt-4"
+    AI_EMBEDDING_MODEL: str = "text-embedding-3-small"
+    AI_RAG_TOP_K: int = 8
+
+    # AI Monitoring / Guardrails
+    AI_TOKEN_SPIKE_THRESHOLD: int = 8000
+    AI_MAX_OUTPUT_TOKENS: int = 2000
 
     # Chroma (optional retrieval settings)
+    # If true, require Chroma Cloud credentials and do not fall back to local persistence.
+    CHROMA_FORCE_CLOUD: bool = True
     CHROMA_API_KEY: Optional[str] = None
     CHROMA_TENANT: Optional[str] = None
-    CHROMA_COLLECTION: Optional[str] = "thematic_embeddings"
+    CHROMA_DATABASE: Optional[str] = "Novel"
+    CHROMA_COLLECTION: Optional[str] = "summary_embeddings"
+    # Dedicated collection for DA recommendations knowledge base (Disciplined Agile reference embeddings)
+    CHROMA_DA_COLLECTION: Optional[str] = "da_recommendations"
+    CHROMA_HOST: Optional[str] = None
+    CHROMA_PORT: Optional[int] = None
+    CHROMA_SSL: bool = True
+    # Optional JSON string of extra headers for Chroma HttpClient, e.g. {"X-Chroma-Token":"..."}.
+    CHROMA_HEADERS_JSON: Optional[str] = None
+    CHROMA_PERSIST_DIR: str = "./.chroma"
 
     # Hugging Face Inference
     HUGGINGFACE_API_KEY: Optional[str] = None

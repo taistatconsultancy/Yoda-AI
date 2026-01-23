@@ -61,7 +61,7 @@ orjson==3.11.3
 firebase-admin==7.1.0
 
 # Chroma (OPTIONAL - uncomment if using vector database)
-# chromadb==1.1.1
+chromadb==1.1.1
 
 # Langchain (OPTIONAL - uncomment if using advanced AI features)
 # langchain==0.3.27

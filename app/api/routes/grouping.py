@@ -11,7 +11,6 @@ from datetime import datetime
 import os
 import json
 import logging
-from openai import OpenAI
 
 from app.database.database import get_db
 from app.models.retrospective_new import (
@@ -21,18 +20,12 @@ from app.models.user import User
 from app.models.workspace import WorkspaceMember
 from app.api.dependencies.auth import get_current_user
 from app.core.config import settings
+from app.ai.openai_client import AIClient
+from app.ai.features.grouping import generate_theme_grouping
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/grouping", tags=["grouping"])
-
-
-def get_openai_client():
-    """Get OpenAI client with API key from settings"""
-    api_key = settings.OPENAI_API_KEY
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY is not set")
-    return OpenAI(api_key=api_key)
 
 
 def can_edit_grouping(db: Session, current_user: User, retro: Retrospective) -> bool:
@@ -186,67 +179,18 @@ async def generate_ai_grouping(
                 "author": user.full_name
             })
         
-        # Create prompt for OpenAI
-        prompt = f"""
-You are YodaAI, a reflective facilitator synthesizing insights from a team’s retrospective using the 4Ls approach: Liked, Learned, Lacked, Longed For.
 
-Input data:
-{json.dumps(responses_text, indent=2)}
-
-Please:
-1. Derive high-level themes that reflect the team’s shared insights.
-2. In each category: Have atleast 2-3 themes  
-3. Cluster related responses into those themes.
-4. Create a clear, meaningful title for each theme (max 6 words).
-5. Write a 1–2 sentence summary describing the core insight of each theme.
-6. Assign a main category: liked, learned, lacked, or longed_for.
-7. Include the list of user names that contributed to each theme.
-
-Output must be ONLY valid JSON:
-[
-{{
-        "title": "Theme title",
-        "description": "Brief reflection",
-        "primary_category": "learned",
-        "contributors": ["Ariadne Chen", "Jordan Blake"]
-    }}
-]
-
-Include only relevant contributor names. Some responses may not fit any theme (leave them ungrouped). No text or explanations outside the JSON array.
-"""
-
-        
         try:
-            # Call OpenAI (using gpt-4 without json_object mode since it's not supported)
-            openai_client = get_openai_client()
-            response = openai_client.chat.completions.create(
-                model="gpt-4",
-                messages=[
-                    {"role": "system", "content": "You are an expert at analyzing team retrospectives and identifying patterns and themes. Always respond with valid JSON only."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3,
-                max_tokens=2000
+            ai = AIClient()
+            themes, _usage, _cached = generate_theme_grouping(
+                ai=ai,
+                responses_text=responses_text,
+                endpoint_name="grouping.generate",
+                cache=True,
             )
-            
-            ai_response = response.choices[0].message.content
-            
-            # Clean the response - remove markdown code blocks if present
-            ai_response = ai_response.strip()
-            if ai_response.startswith('```'):
-                # Remove markdown code blocks
-                lines = ai_response.split('\n')
-                ai_response = '\n'.join(lines[1:-1] if lines[-1].strip() == '```' else lines[1:])
-                ai_response = ai_response.replace('```json', '').replace('```', '').strip()
-            
-            grouping_data = json.loads(ai_response)
-            
-            # Handle both direct array and object with 'themes' key
-            themes = grouping_data if isinstance(grouping_data, list) else grouping_data.get('themes', [])
             
         except json.JSONDecodeError as json_error:
             print(f"JSON parsing error: {json_error}")
-            print(f"AI Response was: {ai_response}")
             # Create a simple fallback grouping by category
             print("Using fallback: grouping by category")
             themes = create_fallback_grouping(responses)

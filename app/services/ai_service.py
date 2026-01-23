@@ -2,18 +2,18 @@
 AI service for handling chat interactions and retrospective assistance
 """
 
-import openai
 from typing import Dict, List, Optional, Any
 from app.core.config import settings
 import json
 import uuid
+from app.ai.openai_client import AIClient
 
 
 class AIService:
     """AI service for retrospective assistance"""
     
     def __init__(self):
-        self.client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
+        self.ai = AIClient()
         self.system_prompt = self._get_system_prompt()
     
     def _get_system_prompt(self) -> str:
@@ -101,16 +101,14 @@ class AIService:
         })
         
         try:
-            response = self.client.chat.completions.create(
-                model="gpt-4",
+            ai_response, usage, _cached = self.ai.chat_complete(
+                endpoint_name="ai_service.generate_response",
+                model=getattr(settings, "AI_MODEL", "gpt-4") or "gpt-4",
                 messages=messages,
                 max_tokens=200,
                 temperature=0.7,
-                presence_penalty=0.1,
-                frequency_penalty=0.1
+                cache_key=None,
             )
-            
-            ai_response = response.choices[0].message.content.strip()
             
             # Generate follow-up questions
             follow_up_questions = await self._generate_follow_up_questions(
@@ -122,9 +120,9 @@ class AIService:
                 "follow_up_questions": follow_up_questions,
                 "confidence": 0.9,  # High confidence for GPT-4
                 "metadata": {
-                    "model": "gpt-4",
+                    "model": getattr(settings, "AI_MODEL", "gpt-4") or "gpt-4",
                     "step": current_step,
-                    "tokens_used": response.usage.total_tokens if response.usage else 0
+                    "tokens_used": usage.get("total_tokens") or 0
                 }
             }
             
@@ -275,17 +273,17 @@ class AIService:
         """
         
         try:
-            response = self.client.chat.completions.create(
-                model="gpt-4",
+            analysis, _usage, _cached = self.ai.chat_complete(
+                endpoint_name="ai_service.analyze_patterns",
+                model=getattr(settings, "AI_MODEL", "gpt-4") or "gpt-4",
                 messages=[
                     {"role": "system", "content": "You are an expert agile coach analyzing retrospective data."},
-                    {"role": "user", "content": analysis_prompt}
+                    {"role": "user", "content": analysis_prompt},
                 ],
                 max_tokens=300,
-                temperature=0.5
+                temperature=0.5,
+                cache_key=None,
             )
-            
-            analysis = response.choices[0].message.content.strip()
             
             return {
                 "analysis": analysis,
@@ -366,18 +364,19 @@ class AIService:
         """
         
         try:
-            response = self.client.chat.completions.create(
-                model="gpt-4",
+            content, _usage, _cached = self.ai.chat_complete(
+                endpoint_name="ai_service.generate_action_items",
+                model=getattr(settings, "AI_MODEL", "gpt-4") or "gpt-4",
                 messages=[
                     {"role": "system", "content": "You are an expert agile coach creating actionable items from retrospectives."},
-                    {"role": "user", "content": prompt}
+                    {"role": "user", "content": prompt},
                 ],
                 max_tokens=400,
-                temperature=0.3
+                temperature=0.3,
+                cache_key=None,
             )
-            
-            # Parse JSON response
-            content = response.choices[0].message.content.strip()
+
+            content = (content or "").strip()
             # Extract JSON from response (handle cases where AI adds extra text)
             start_idx = content.find('[')
             end_idx = content.rfind(']') + 1

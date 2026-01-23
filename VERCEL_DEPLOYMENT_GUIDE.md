@@ -325,7 +325,7 @@ FIREBASE_CLIENT_EMAIL=firebase-adminsdk@project.iam.gserviceaccount.com
 
 ### **Required Files for Vercel**
 
-Create these files in your project root:(testing)
+Create these files in your project root:
 
 ```
 V3_Assistant/

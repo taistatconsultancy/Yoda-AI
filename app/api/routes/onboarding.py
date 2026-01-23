@@ -2,9 +2,9 @@
 Onboarding Routes - expose onboarding data/summary for workspaces
 """
 
-from typing import Any, Optional, Dict
+from typing import Any, Optional, Dict, List
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, BackgroundTasks
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone
@@ -19,12 +19,10 @@ from app.models.retrospective_new import Retrospective
 from app.models.onboarding import UserOnboarding
 from app.models.user import User
 from app.core.config import settings
-
-try:
-    # Optional OpenAI client for summary generation
-    from openai import OpenAI  # type: ignore
-except Exception:  # pragma: no cover
-    OpenAI = None  # type: ignore
+from app.ai.openai_client import AIClient
+from app.ai.features.onboarding_summary import generate_onboarding_summary
+from app.ai.rag.chroma_store import ChromaStore
+from app.ai.utils import hash_text
 
 # Optional PDF parsing
 try:
@@ -321,6 +319,7 @@ def upsert_my_onboarding(
 @router.post("/workspaces/{workspace_id}/onboarding/upload")
 async def upload_onboarding_source(
     workspace_id: int,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     membership = Depends(get_workspace_membership),
     db: Session = Depends(get_db)
@@ -404,11 +403,27 @@ async def upload_onboarding_source(
     if owner_onboarding and isinstance(owner_onboarding.onboarding_data, dict):
         data.update(owner_onboarding.onboarding_data)
     
-    # Store the uploaded text - this is what will be summarized
+    uploaded_at = datetime.now(timezone.utc).isoformat()
+    doc_hash = hash_text(text)
+    doc_id = f"{workspace_id}:{(file.filename or 'document')}:{doc_hash}"
+
+    # Keep legacy fields for backward compatibility (last upload only)
     data["source_text"] = text
-    # Store upload metadata for verification
-    data["uploaded_at"] = datetime.now(timezone.utc).isoformat()
+    data["uploaded_at"] = uploaded_at
     data["uploaded_filename"] = file.filename
+
+    # New: track all documents for this workspace (so summary can use ALL docs via workspace-scoped RAG)
+    docs = data.get("documents")
+    if not isinstance(docs, list):
+        docs = []
+    docs.append({
+        "doc_id": doc_id,
+        "doc_hash": doc_hash,
+        "filename": file.filename,
+        "uploaded_at": uploaded_at,
+        "bytes": len(content_bytes),
+    })
+    data["documents"] = docs
     # Do not overwrite ai_summary here; generation endpoint will set it
     data["updated_at"] = datetime.now(timezone.utc).isoformat()
 
@@ -425,28 +440,46 @@ async def upload_onboarding_source(
     db.commit()
     db.refresh(owner_onboarding)
 
+    # RAG: chunk + embed + store in Chroma in the background (so upload is fast).
+    def _index_onboarding_text(wid: int, did: str, dhash: str, fname: str, uploaded_at_iso: str, txt: str) -> None:
+        try:
+            ai = AIClient()
+            store = ChromaStore()
+            store.upsert_text_document(
+                ai=ai,
+                source="onboarding",
+                doc_id=did,
+                text=txt,
+                embedding_model=getattr(settings, "AI_EMBEDDING_MODEL", "text-embedding-3-small"),
+                extra_metadata={
+                    "workspace_id": wid,
+                    "filename": fname,
+                    "uploaded_at": uploaded_at_iso,
+                    "doc_hash": dhash,
+                },
+            )
+        except Exception:
+            # Never fail the upload due to RAG indexing.
+            return
+
+    if background_tasks is not None:
+        background_tasks.add_task(_index_onboarding_text, workspace_id, doc_id, doc_hash, (file.filename or ""), uploaded_at, text)
+
     return {
         "workspace_id": workspace_id,
         "uploaded_filename": file.filename,
+        "doc_id": doc_id,
+        "doc_hash": doc_hash,
         "bytes": len(content_bytes),
         "onboarding_data_preview": (text[:200] + "...") if len(text) > 200 else text,
         "saved": True,
     }
 
 
-def _get_openai_client():
-    api_key = getattr(settings, "OPENAI_API_KEY", None)
-    if not api_key or OpenAI is None:
-        return None
-    try:
-        return OpenAI(api_key=api_key)
-    except Exception:
-        return None
-
-
 @router.post("/workspaces/{workspace_id}/onboarding/generate")
 def generate_workspace_summary(
     workspace_id: int,
+    force: bool = False,
     membership = Depends(get_workspace_membership),
     db: Session = Depends(get_db)
 ):
@@ -455,14 +488,13 @@ def generate_workspace_summary(
     if role not in ('scrum master', 'project manager'):
         raise HTTPException(status_code=403, detail="Requires Scrum Master or Project Manager privileges")
     """
-    Generate an AI summary from the owner's onboarding_data and save it back.
-    If OpenAI isn't configured, returns the first 800 chars as a fallback.
-    
-    DATA FLOW VERIFICATION:
-    - This endpoint reads source_text from the onboarding_data stored by the upload endpoint
-    - Both endpoints use the same workspace_id filter to ensure data isolation per workspace
-    - The source_text extracted here is the exact text that was uploaded for this workspace
-    - Metadata (uploaded_at, summary_source_length) is stored to verify data integrity
+    Generate an AI summary for a workspace and save it into the owner's onboarding_data.ai_summary.
+
+    New workflow (Project Documents + RAG):
+    - Documents are uploaded via /api/v1/workspaces/{workspace_id}/documents/upload
+    - Chunks are indexed to Chroma Cloud with metadata workspace_id + source="onboarding"
+    - This endpoint can summarize even if onboarding_data.source_text is missing, as long as
+      workspace documents exist (either recorded in onboarding_data.documents or present in Chroma).
     """
     workspace: Optional[Workspace] = db.query(Workspace).filter(Workspace.id == workspace_id).first()
     if not workspace:
@@ -478,14 +510,45 @@ def generate_workspace_summary(
     
     raw_data = owner_onboarding.onboarding_data
     source_text = ""
+    docs: List[Dict[str, Any]] = []
     if isinstance(raw_data, dict):
         source_text = raw_data.get("source_text", "") or ""
+        if isinstance(raw_data.get("documents"), list):
+            docs = raw_data.get("documents") or []
     elif isinstance(raw_data, str):
         # Backward compatibility
         source_text = raw_data
 
-    if not isinstance(source_text, str) or source_text.strip() == "":
-        raise HTTPException(status_code=400, detail="No source text available to summarize. Please upload a file first.")
+    has_source_text = isinstance(source_text, str) and bool(source_text.strip())
+    has_docs = bool(docs)
+
+    # If there is no stored source_text, we can still summarize from RAG (workspace docs).
+    # However, if there are no docs recorded, double-check Chroma quickly.
+    if not has_source_text and not has_docs:
+        try:
+            store = ChromaStore()
+            chroma_stats = store.count_chunks(where_filter={"source": "onboarding", "workspace_id": workspace_id}, limit=300)
+            if int(chroma_stats.get("count") or 0) <= 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail="No workspace documents found to summarize. Upload documents in the Project Documents tab first.",
+                )
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(
+                status_code=400,
+                detail="No workspace documents found to summarize. Upload documents in the Project Documents tab first.",
+            )
+
+    # Build a stable string to drive hashing/caching even when we don't have raw source_text anymore.
+    # This changes when docs change (doc_hash/doc_id list changes), so cached summaries invalidate naturally.
+    if not has_source_text:
+        parts: List[str] = ["WORKSPACE_DOCUMENTS_FOR_SUMMARY"]
+        for d in docs:
+            if isinstance(d, dict):
+                parts.append(f"{d.get('doc_id','')}>{d.get('doc_hash','')}>{d.get('filename','')}")
+        source_text = "\n".join(parts)
     
     # Verify we're using the correct workspace's data
     # This ensures data integrity - the source_text should belong to this workspace
@@ -493,54 +556,32 @@ def generate_workspace_summary(
         # Optional: Could add additional validation here if needed
         pass
 
-    client = _get_openai_client()
-    summary_text: str
-    if client is None:
-        # Fallback summary: truncate and label
-        summary_text = (source_text[:800] + ("..." if len(source_text) > 800 else ""))
-    else:
-        try:
-            prompt = (
-                """
-                You are an expert project analyst and proposal reviewer.
-                Read the following project proposal carefully and generate a concise summary that captures the main objectives, methods, expected outcomes, and key insights.\n\n
-                """
-                 + source_text
-            )
-            resp = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {"role": "system", "content": """
-                            You are an expert project analyst and proposal reviewer. 
-                            Your task is to read and summarize project proposal documents into clear, structured summaries that capture the main points accurately.
-
-                            Given the full text of a project proposal, produce a concise summary that includes:
-
-                            1. **Project Title & Objective** – Briefly describe the main goal or purpose.
-                            2. **Problem Statement** – Outline the key issue or challenge being addressed.
-                            3. **Proposed Solution / Methodology** – Summarize how the project plans to achieve its goals.
-                            4. **Expected Outcomes / Impact** – Explain what results or benefits are anticipated.
-                            5. **Key Stakeholders / Partners (if mentioned)** – Identify relevant participants or organizations.
-
-                            Guidelines:
-                            - Keep the summary between **150–250 words**.
-                            - Maintain a **professional, neutral, and analytical tone**.
-                            - Use **clear and concise language** suitable for project documentation.
-                            - If any section is missing from the proposal, **omit it** rather than fabricating information.
-
-                            User input will contain the full project proposal text.
-
-
-                            
-                    """},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3,
-                max_tokens=400,
-            )
-            summary_text = resp.choices[0].message.content.strip()
-        except Exception:
-            summary_text = (source_text[:800] + ("..." if len(source_text) > 800 else ""))
+    # Summarize using the centralized AI layer + (RAG if available) + caching.
+    # IMPORTANT: Do not save raw document text as "ai_summary" on failure.
+    try:
+        ai = AIClient()
+        result = generate_onboarding_summary(
+            ai=ai,
+            workspace_id=workspace_id,
+            source_text=source_text,
+            endpoint_name="onboarding.generate_summary",
+            cache=(not force),
+        )
+        summary_text = result["summary"]
+        ai_meta = {
+            "model": result.get("model"),
+            "cached": result.get("cached"),
+            "rag_used": result.get("rag_used"),
+            "doc_hash": result.get("doc_hash"),
+        }
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Onboarding summary generation failed: {e}")
+        # Return a proper error so the UI doesn't show raw file text as a "summary".
+        msg = "Onboarding summary generation failed. Check OPENAI_API_KEY and Chroma configuration."
+        if getattr(settings, "DEBUG", False):
+            msg = f"{msg} Error: {e}"
+        raise HTTPException(status_code=503, detail=msg)
 
     # Save the summary into onboarding_data JSON under ai_summary
     # IMPORTANT: Preserve the source_text that was used for generation
@@ -562,6 +603,7 @@ def generate_workspace_summary(
     data_out["ai_summary"] = summary_text
     data_out["summary_generated_at"] = datetime.now(timezone.utc).isoformat()
     data_out["summary_source_length"] = len(source_text)  # Store length for verification
+    data_out["summary_source_kind"] = "source_text" if has_source_text else "workspace_documents_rag"
     data_out["updated_at"] = datetime.now(timezone.utc).isoformat()
 
     # owner_onboarding should always exist at this point (we checked earlier)
@@ -577,10 +619,80 @@ def generate_workspace_summary(
     db.commit()
     db.refresh(owner_onboarding)
 
-    return {
+    out = {
         "workspace_id": workspace_id,
         "onboarding_data": owner_onboarding.onboarding_data,
         "generated": True,
+    }
+    # Helpful debug info (safe; does not include document content)
+    if "ai_meta" in locals():
+        out["ai_meta"] = ai_meta
+    return out
+
+
+@router.get("/workspaces/{workspace_id}/onboarding/rag-status")
+def get_onboarding_rag_status(
+    workspace_id: int,
+    membership = Depends(get_workspace_membership),
+    db: Session = Depends(get_db),
+):
+    """
+    Debug/status endpoint to verify Chroma indexing for onboarding documents.
+    Requires Scrum Master or Project Manager privileges.
+    """
+    role = (membership.role or '').strip().lower()
+    if role not in ('scrum master', 'project manager'):
+        raise HTTPException(status_code=403, detail="Requires Scrum Master or Project Manager privileges")
+
+    workspace: Optional[Workspace] = db.query(Workspace).filter(Workspace.id == workspace_id).first()
+    if not workspace:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found")
+
+    owner_onboarding: Optional[UserOnboarding] = db.query(UserOnboarding).filter(
+        UserOnboarding.user_id == workspace.created_by,
+        UserOnboarding.workspace_id == workspace_id
+    ).first()
+
+    raw_data = owner_onboarding.onboarding_data if owner_onboarding else None
+    docs = []
+    if isinstance(raw_data, dict) and isinstance(raw_data.get("documents"), list):
+        docs = raw_data.get("documents") or []
+
+    # Workspace-scoped stats (ALL docs indexed for this workspace). Do not hard-fail if no docs yet.
+    store = ChromaStore()
+    # Chroma Cloud typically caps get(limit=...) to <=300; use a safe value so status works in production.
+    stats = store.count_chunks(where_filter={"source": "onboarding", "workspace_id": workspace_id}, limit=300)
+
+    # Also verify retrieval returns something (optional).
+    retrieved_count = 0
+    retrieval_error = None
+    try:
+        ai = AIClient()
+        retrieved = store.query(
+            ai=ai,
+            source="onboarding",
+            query_text="Summarize this project proposal: objective, problem, methodology, outcomes/impact, stakeholders/partners.",
+            embedding_model=getattr(settings, "AI_EMBEDDING_MODEL", "text-embedding-3-small"),
+            top_k=getattr(settings, "AI_RAG_TOP_K", 10),
+            where_filter={"workspace_id": workspace_id},
+        )
+        retrieved_count = len(retrieved)
+    except Exception as e:
+        retrieval_error = str(e)
+
+    return {
+        "workspace_id": workspace_id,
+        "chroma": stats,
+        "documents": {
+            "count": len(docs),
+            "documents": docs,
+            "note": "Upload documents via /api/v1/workspaces/{workspace_id}/documents/upload. Indexing runs in the background.",
+        },
+        "retrieval": {
+            "top_k": getattr(settings, "AI_RAG_TOP_K", 10),
+            "retrieved_count": retrieved_count,
+            "error": retrieval_error,
+        },
     }
 
 

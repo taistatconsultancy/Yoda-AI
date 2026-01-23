@@ -691,6 +691,49 @@
     let mainPollInterval = null;
     let attemptedAutoStartVoting = false;
     let bypassVotingRequirement = false;
+
+    // ==================== INACTIVITY TRACKING (30 MIN) ====================
+    const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutes in milliseconds
+    let inactivityCheckInterval = null;
+
+    function markActivity() {
+      localStorage.setItem('yodaai_last_activity', Date.now().toString());
+    }
+
+    function isSessionExpired() {
+      const lastActivity = localStorage.getItem('yodaai_last_activity');
+      if (!lastActivity) return false;
+      const timeSinceActivity = Date.now() - parseInt(lastActivity);
+      return timeSinceActivity >= INACTIVITY_TIMEOUT;
+    }
+
+    function forceLogoutAndRedirectToLogin() {
+      try {
+        localStorage.removeItem('yodaai_token');
+        localStorage.removeItem('yodaai_user');
+        localStorage.removeItem('yodaai_last_activity');
+      } catch (e) {
+        // ignore
+      }
+      authToken = null;
+      currentUser = null;
+      const returnUrl = encodeURIComponent(window.location.href);
+      window.location.href = `/yodaai-app?redirect=${returnUrl}`;
+    }
+
+    function startInactivityTracking() {
+      const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+      activityEvents.forEach(event => {
+        document.addEventListener(event, markActivity, true);
+      });
+      markActivity();
+      if (inactivityCheckInterval) clearInterval(inactivityCheckInterval);
+      inactivityCheckInterval = setInterval(() => {
+        if (isSessionExpired()) {
+          forceLogoutAndRedirectToLogin();
+        }
+      }, 60 * 1000);
+    }
     // Dashboard cache for quick card moves
     window._dashRetrosById = Object.create(null);
     
@@ -724,6 +767,12 @@
           console.error('Error parsing user data:', e);
         }
       }
+
+      // If user comes back after 30 minutes, force re-login before making API calls
+      if (authToken && isSessionExpired()) {
+        forceLogoutAndRedirectToLogin();
+        return;
+      }
       
       if (!authToken) {
         // Redirect to login with return URL if we have a retrospective code
@@ -735,6 +784,9 @@
         showError('Please log in to join this retrospective.');
         return;
       }
+
+      // Start inactivity tracking for active retrospective sessions
+      startInactivityTracking();
       
       // Load upcoming retrospectives (always)
       await loadUpcomingRetros();
